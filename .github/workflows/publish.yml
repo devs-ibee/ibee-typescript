@@ -1,0 +1,42 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# npm trusted publishing (OIDC) — no NPM_TOKEN secret required.
+# Requires npm CLI >= 11.5.1 on the runner, and a trusted publisher configured
+# on npmjs.com for @ibee/sdk (owner devs-ibee, repo ibee-typescript,
+# workflow publish.yml).
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Update npm to a version that supports trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Publish (public scoped package)
+        run: npm publish --access public

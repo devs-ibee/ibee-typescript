@@ -1,0 +1,47 @@
+{
+  "name": "@ibee/sdk",
+  "version": "0.1.0",
+  "description": "Official TypeScript/JavaScript SDK for the IBEE Solutions cloud API",
+  "license": "MIT",
+  "author": "IBEE Solutions <support@ibee.ai>",
+  "homepage": "https://ibee.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/devs-ibee/ibee-typescript.git"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node scripts/rename-cjs.mjs",
+    "test": "node --test",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "ibee",
+    "cloud",
+    "sdk",
+    "api",
+    "vm",
+    "object-storage"
+  ],
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
