@@ -33,7 +33,7 @@ export interface SecretList {
 
 export interface SecretValue {
   version?: number;
-  data?: Record<string, string>;
+  value?: Record<string, string>;
 }
 
 export interface BucketSummary {
@@ -72,7 +72,17 @@ export interface CloudVm {
   updated_at?: string;
 }
 
-export type GpuVm = CloudVm;
+export type GpuVm = CloudVm & {
+  gpu_count?: number;
+  gpu_model?: string;
+};
+
+export interface NetworkInterface {
+  id?: string;
+  network_id?: string;
+  ip_address?: string;
+  status?: string;
+}
 
 export interface OperationAccepted {
   operation_id?: string;
@@ -91,6 +101,7 @@ export interface DeleteResponse {
   id?: string;
 }
 
+/** Body of POST /compute/cloud-vms. */
 export interface CreateVmRequest {
   name: string;
   os_distro: string;
@@ -102,4 +113,10 @@ export interface CreateVmRequest {
   plan_id?: string;
   ssh_key_ids?: string[];
   tags?: string[];
+}
+
+/** Body of POST /compute/gpu-vms — adds the required GPU fields. */
+export interface CreateGpuVmRequest extends CreateVmRequest {
+  gpu_count: number;
+  gpu_model: string;
 }

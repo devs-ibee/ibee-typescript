@@ -1,6 +1,5 @@
 import type { HttpClient } from "../core.js";
 import type {
-  DeleteResponse,
   Secret,
   SecretList,
   SecretStore,
@@ -11,11 +10,21 @@ import type {
 export class SecretStoreResource {
   constructor(private readonly http: HttpClient) {}
 
-  listSecretStores(args: { workspaceId: string }): Promise<SecretStoreList> {
+  listSecretStores(args: {
+    workspaceId: string;
+    page?: number;
+    limit?: number;
+    includeArchived?: boolean;
+  }): Promise<SecretStoreList> {
     return this.http.request({
       method: "GET",
       path: "/secret-store/stores",
       workspaceId: args.workspaceId,
+      query: {
+        page: args.page,
+        limit: args.limit,
+        include_archived: args.includeArchived,
+      },
     });
   }
 
@@ -71,32 +80,37 @@ export class SecretStoreResource {
   listSecrets(args: {
     workspaceId: string;
     storeId: string;
+    q?: string;
+    page?: number;
+    limit?: number;
   }): Promise<SecretList> {
     return this.http.request({
       method: "GET",
       path: `/secret-store/stores/${encodeURIComponent(args.storeId)}/secrets`,
       workspaceId: args.workspaceId,
+      query: { q: args.q, page: args.page, limit: args.limit },
     });
   }
 
+  /**
+   * Create a secret. `value` is a map of key/value entries.
+   * Wire body: `{ secret_name, value }`.
+   */
   createSecret(args: {
     workspaceId: string;
     storeId: string;
     name: string;
-    data: Record<string, string>;
+    value: Record<string, string>;
   }): Promise<Secret> {
     return this.http.request({
       method: "POST",
       path: `/secret-store/stores/${encodeURIComponent(args.storeId)}/secrets`,
       workspaceId: args.workspaceId,
-      body: { name: args.name, data: args.data },
+      body: { secret_name: args.name, value: args.value },
     });
   }
 
-  getSecret(args: {
-    workspaceId: string;
-    secretId: string;
-  }): Promise<Secret> {
+  getSecret(args: { workspaceId: string; secretId: string }): Promise<Secret> {
     return this.http.request({
       method: "GET",
       path: `/secret-store/secrets/${encodeURIComponent(args.secretId)}`,
@@ -104,10 +118,11 @@ export class SecretStoreResource {
     });
   }
 
+  /** Soft-delete a secret. The API returns the soft-deleted Secret. */
   deleteSecret(args: {
     workspaceId: string;
     secretId: string;
-  }): Promise<DeleteResponse> {
+  }): Promise<Secret> {
     return this.http.request({
       method: "DELETE",
       path: `/secret-store/secrets/${encodeURIComponent(args.secretId)}`,
@@ -126,16 +141,21 @@ export class SecretStoreResource {
     });
   }
 
+  /**
+   * Set a new secret value (creates a new version).
+   * `cas` is an optional check-and-set version for optimistic concurrency.
+   */
   updateSecretValue(args: {
     workspaceId: string;
     secretId: string;
-    data: Record<string, string>;
+    value: Record<string, string>;
+    cas?: number;
   }): Promise<SecretValue> {
     return this.http.request({
       method: "PUT",
       path: `/secret-store/secrets/${encodeURIComponent(args.secretId)}/value`,
       workspaceId: args.workspaceId,
-      body: { data: args.data },
+      body: { value: args.value, cas: args.cas },
     });
   }
 }

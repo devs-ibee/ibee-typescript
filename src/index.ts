@@ -3,6 +3,7 @@ import { IbeeEnvironment } from "./environments.js";
 import { ObjectStorageResource } from "./resources/objectStorage.js";
 import { SecretStoreResource } from "./resources/secretStore.js";
 import { OperationsResource, VmResource } from "./resources/vms.js";
+import type { CreateGpuVmRequest } from "./types.js";
 
 export { IbeeEnvironment } from "./environments.js";
 export { ApiError } from "./errors.js";
@@ -37,7 +38,7 @@ export class Ibee {
   readonly secretStore: SecretStoreResource;
   readonly objectStorage: ObjectStorageResource;
   readonly cloudVms: VmResource;
-  readonly gpuVms: VmResource;
+  readonly gpuVms: VmResource<CreateGpuVmRequest>;
   readonly operations: OperationsResource;
 
   constructor(options: IbeeOptions) {
@@ -48,9 +49,7 @@ export class Ibee {
     this.secretStore = new SecretStoreResource(http);
     this.objectStorage = new ObjectStorageResource(http);
     this.cloudVms = new VmResource(http, "cloud-vms");
-    this.gpuVms = new VmResource(http, "gpu-vms");
+    this.gpuVms = new VmResource<CreateGpuVmRequest>(http, "gpu-vms");
     this.operations = new OperationsResource(http);
   }
 }
-
-export default Ibee;

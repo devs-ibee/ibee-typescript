@@ -26,14 +26,20 @@ export interface ClientOptions {
 }
 
 export class HttpClient {
-  private readonly token: string;
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
+  /** Pre-built auth header. Non-enumerable so the token never leaks into
+   *  JSON.stringify / console.log / structured-logger output of the client. */
+  private readonly authHeader!: string;
 
   constructor(opts: ClientOptions) {
     if (!opts.token) throw new Error("An API token is required.");
-    this.token = opts.token;
+    Object.defineProperty(this, "authHeader", {
+      value: `Bearer ${opts.token}`,
+      enumerable: false,
+      writable: false,
+    });
     this.baseUrl = (opts.baseUrl ?? "https://api.ibee.ai/v1").replace(/\/$/, "");
     this.timeoutMs = opts.timeoutMs ?? 30_000;
     this.fetchImpl = opts.fetch ?? globalThis.fetch;
@@ -54,7 +60,7 @@ export class HttpClient {
     }
 
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${this.token}`,
+      Authorization: this.authHeader,
       Accept: "application/json",
     };
     if (args.body !== undefined) headers["Content-Type"] = "application/json";
@@ -63,31 +69,30 @@ export class HttpClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
-    let res: Response;
+    // The abort signal (and timer) stay active through the body read, so a
+    // stalled response body can't hang the request past the timeout.
     try {
-      res = await this.fetchImpl(url.toString(), {
+      const res = await this.fetchImpl(url.toString(), {
         method: args.method,
         headers,
         body: args.body !== undefined ? JSON.stringify(args.body) : undefined,
         signal: controller.signal,
       });
+
+      const text = await res.text();
+      let parsed: unknown = undefined;
+      if (text) {
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          parsed = text;
+        }
+      }
+
+      if (!res.ok) throw new ApiError(res.status, parsed);
+      return parsed as T;
     } finally {
       clearTimeout(timer);
     }
-
-    const text = await res.text();
-    let parsed: unknown = undefined;
-    if (text) {
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        parsed = text;
-      }
-    }
-
-    if (!res.ok) {
-      throw new ApiError(res.status, parsed);
-    }
-    return parsed as T;
   }
 }
