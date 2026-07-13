@@ -7,12 +7,12 @@ on:
 
 # npm trusted publishing (OIDC) — no NPM_TOKEN secret required.
 # Requires npm CLI >= 11.5.1 on the runner, and a trusted publisher configured
-# on npmjs.com for @ibee/sdk (owner devs-ibee, repo ibee-typescript,
+# on npmjs.com for ibee-sdk (owner devs-ibee, repo ibee-typescript,
 # workflow publish.yml).
 #
 # FIRST PUBLISH: OIDC cannot create a brand-new package name. Do the very first
-# publish once, manually, to establish @ibee/sdk on npm:
-#   npm login && npm run build && npm publish --access public
+# publish once, manually, to establish ibee-sdk on npm:
+#   npm login && npm run build && npm publish
 # After the package exists and the trusted publisher is configured, every
 # subsequent GitHub Release publishes automatically via this workflow.
 jobs:
@@ -44,5 +44,5 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Publish (public scoped package)
-        run: npm publish --access public
+      - name: Publish to npm
+        run: npm publish

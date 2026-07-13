@@ -25,7 +25,7 @@ export interface IbeeOptions extends Omit<ClientOptions, "baseUrl"> {
  *
  * @example
  * ```ts
- * import { Ibee, IbeeEnvironment } from "@ibee/sdk";
+ * import { Ibee, IbeeEnvironment } from "ibee-sdk";
  *
  * const client = new Ibee({ token: "ibee_live_xxx" });
  * const buckets = await client.objectStorage.listBuckets({ workspaceId: "710995" });

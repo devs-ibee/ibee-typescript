@@ -5,13 +5,13 @@ Official TypeScript / JavaScript SDK for the IBEE Solutions cloud API. Works in 
 ## Installation
 
 ```bash
-npm install @ibee/sdk
+npm install ibee-sdk
 ```
 
 ## Usage
 
 ```ts
-import { Ibee } from "@ibee/sdk";
+import { Ibee } from "ibee-sdk";
 
 const client = new Ibee({ token: "ibee_live_xxxxxxxxxxxx" });
 
@@ -47,7 +47,7 @@ The client targets **production** (`https://api.ibee.ai/v1`) by default. Use the
 development gateway for testing:
 
 ```ts
-import { Ibee, IbeeEnvironment } from "@ibee/sdk";
+import { Ibee, IbeeEnvironment } from "ibee-sdk";
 
 const dev = new Ibee({
   token: "ibee_dev_key_xxx",
@@ -62,7 +62,7 @@ Or override the base URL entirely with `baseUrl`.
 Non-2xx responses throw an `ApiError` with the HTTP status and parsed body:
 
 ```ts
-import { ApiError } from "@ibee/sdk";
+import { ApiError } from "ibee-sdk";
 
 try {
   await client.secretStore.listSecretStores({ workspaceId: "710995" });
