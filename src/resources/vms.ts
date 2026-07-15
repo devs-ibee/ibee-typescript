@@ -31,9 +31,12 @@ export class VmResource<TCreate extends CreateVmRequest = CreateVmRequest> {
   ) {}
 
   private base(id?: string): string {
+    // Collection paths (list/create) keep a trailing slash so the gateway's
+    // prefix rewrite lands on the backend's slash-terminated route
+    // (/v2/virtual-machines/). Item paths append the id, no trailing slash.
     return id
       ? `/compute/${this.segment}/${encodeURIComponent(id)}`
-      : `/compute/${this.segment}`;
+      : `/compute/${this.segment}/`;
   }
 
   /** The API returns a bare array of VMs. */
