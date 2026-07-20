@@ -1,5 +1,6 @@
 import { HttpClient, type ClientOptions } from "./core.js";
 import { IbeeEnvironment } from "./environments.js";
+import { ComputeCatalogResource } from "./resources/compute.js";
 import { ObjectStorageResource } from "./resources/objectStorage.js";
 import { SecretStoreResource } from "./resources/secretStore.js";
 import { OperationsResource, VmResource } from "./resources/vms.js";
@@ -40,6 +41,7 @@ export class Ibee {
   readonly cloudVms: VmResource;
   readonly gpuVms: VmResource<CreateGpuVmRequest>;
   readonly operations: OperationsResource;
+  readonly computeCatalog: ComputeCatalogResource;
 
   constructor(options: IbeeOptions) {
     const baseUrl =
@@ -51,5 +53,6 @@ export class Ibee {
     this.cloudVms = new VmResource(http, "cloud-vms");
     this.gpuVms = new VmResource<CreateGpuVmRequest>(http, "gpu-vms");
     this.operations = new OperationsResource(http);
+    this.computeCatalog = new ComputeCatalogResource(http);
   }
 }
