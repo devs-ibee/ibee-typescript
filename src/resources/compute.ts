@@ -1,4 +1,11 @@
 import type { HttpClient } from "../core.js";
+import type {
+  BillingInterval,
+  ComputeImageList,
+  ComputePlanList,
+  ComputeSiteList,
+  VmType,
+} from "../types.js";
 
 /**
  * Compute catalog — read-only discovery of where VMs can run, which plans are
@@ -9,27 +16,22 @@ export class ComputeCatalogResource {
   constructor(private readonly http: HttpClient) {}
 
   /** Sites where cloud and GPU VMs can be placed. */
-  listSites(args: {
-    workspaceId: string;
-    regionId?: string;
-    countryId?: string;
-  }): Promise<unknown> {
+  listSites(args: { workspaceId: string }): Promise<ComputeSiteList> {
     return this.http.request({
       method: "GET",
       path: "/compute/sites",
       workspaceId: args.workspaceId,
-      query: { region_id: args.regionId, country_id: args.countryId },
     });
   }
 
   /** Billable plans for cloud or GPU VMs. */
   listPlans(args: {
     workspaceId: string;
-    vmType?: string;
+    vmType: VmType;
     siteId?: string;
     currency?: string;
-    billingInterval?: string;
-  }): Promise<unknown> {
+    billingInterval?: BillingInterval;
+  }): Promise<ComputePlanList> {
     return this.http.request({
       method: "GET",
       path: "/compute/plans",
@@ -46,14 +48,14 @@ export class ComputeCatalogResource {
   /** OS templates/images compatible with cloud or GPU VMs. */
   listImages(args: {
     workspaceId: string;
-    vmType?: string;
-    currency?: string;
-  }): Promise<unknown> {
+    vmType: VmType;
+    siteId?: string;
+  }): Promise<ComputeImageList> {
     return this.http.request({
       method: "GET",
       path: "/compute/images",
       workspaceId: args.workspaceId,
-      query: { vm_type: args.vmType, currency: args.currency },
+      query: { vm_type: args.vmType, site_id: args.siteId },
     });
   }
 }

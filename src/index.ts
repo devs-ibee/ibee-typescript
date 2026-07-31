@@ -1,6 +1,12 @@
 import { HttpClient, type ClientOptions } from "./core.js";
 import { IbeeEnvironment } from "./environments.js";
 import { ComputeCatalogResource } from "./resources/compute.js";
+import {
+  FirewallsResource,
+  LoadBalancersResource,
+  ReservedIpsResource,
+  VpcsResource,
+} from "./resources/networking.js";
 import { ObjectStorageResource } from "./resources/objectStorage.js";
 import { SecretStoreResource } from "./resources/secretStore.js";
 import { OperationsResource, VmResource } from "./resources/vms.js";
@@ -42,6 +48,10 @@ export class Ibee {
   readonly gpuVms: VmResource<CreateGpuVmRequest>;
   readonly operations: OperationsResource;
   readonly computeCatalog: ComputeCatalogResource;
+  readonly vpcs: VpcsResource;
+  readonly reservedIps: ReservedIpsResource;
+  readonly firewalls: FirewallsResource;
+  readonly loadBalancers: LoadBalancersResource;
 
   constructor(options: IbeeOptions) {
     const baseUrl =
@@ -54,5 +64,9 @@ export class Ibee {
     this.gpuVms = new VmResource<CreateGpuVmRequest>(http, "gpu-vms");
     this.operations = new OperationsResource(http);
     this.computeCatalog = new ComputeCatalogResource(http);
+    this.vpcs = new VpcsResource(http);
+    this.reservedIps = new ReservedIpsResource(http);
+    this.firewalls = new FirewallsResource(http);
+    this.loadBalancers = new LoadBalancersResource(http);
   }
 }

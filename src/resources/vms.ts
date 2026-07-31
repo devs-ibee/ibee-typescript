@@ -2,10 +2,9 @@ import type { HttpClient } from "../core.js";
 import type {
   CloudVm,
   CreateVmRequest,
-  DeleteResponse,
-  NetworkInterface,
   OperationAccepted,
   OperationStatus,
+  VmMetrics,
 } from "../types.js";
 
 /** Cross-platform UUID (Node 18+ and browsers expose globalThis.crypto). */
@@ -31,12 +30,9 @@ export class VmResource<TCreate extends CreateVmRequest = CreateVmRequest> {
   ) {}
 
   private base(id?: string): string {
-    // Collection paths (list/create) keep a trailing slash so the gateway's
-    // prefix rewrite lands on the backend's slash-terminated route
-    // (/v2/virtual-machines/). Item paths append the id, no trailing slash.
     return id
       ? `/compute/${this.segment}/${encodeURIComponent(id)}`
-      : `/compute/${this.segment}/`;
+      : `/compute/${this.segment}`;
   }
 
   /** The API returns a bare array of VMs. */
@@ -66,21 +62,6 @@ export class VmResource<TCreate extends CreateVmRequest = CreateVmRequest> {
       method: "GET",
       path: this.base(args.vmId),
       workspaceId: args.workspaceId,
-    });
-  }
-
-  update(args: {
-    workspaceId: string;
-    vmId: string;
-    name?: string;
-    tags?: string[];
-  }): Promise<CloudVm> {
-    const { workspaceId, vmId, ...body } = args;
-    return this.http.request({
-      method: "PATCH",
-      path: this.base(vmId),
-      workspaceId,
-      body,
     });
   }
 
@@ -141,51 +122,10 @@ export class VmResource<TCreate extends CreateVmRequest = CreateVmRequest> {
     return this.action(args.workspaceId, args.vmId, "reboot", args.force, args.idempotencyKey);
   }
 
-  getMetrics(args: { workspaceId: string; vmId: string }): Promise<unknown> {
+  getMetrics(args: { workspaceId: string; vmId: string }): Promise<VmMetrics> {
     return this.http.request({
       method: "GET",
       path: `${this.base(args.vmId)}/metrics`,
-      workspaceId: args.workspaceId,
-    });
-  }
-
-  /** The API returns a bare array of network interfaces. */
-  listNetworkInterfaces(args: {
-    workspaceId: string;
-    vmId: string;
-  }): Promise<NetworkInterface[]> {
-    return this.http.request({
-      method: "GET",
-      path: `${this.base(args.vmId)}/network-interfaces`,
-      workspaceId: args.workspaceId,
-    });
-  }
-
-  attachNetworkInterface(args: {
-    workspaceId: string;
-    vmId: string;
-    networkId: string;
-    idempotencyKey?: string;
-  }): Promise<NetworkInterface> {
-    return this.http.request({
-      method: "POST",
-      path: `${this.base(args.vmId)}/network-interfaces`,
-      workspaceId: args.workspaceId,
-      idempotencyKey: args.idempotencyKey ?? randomUUID(),
-      body: { network_id: args.networkId },
-    });
-  }
-
-  detachNetworkInterface(args: {
-    workspaceId: string;
-    vmId: string;
-    interfaceId: string;
-  }): Promise<DeleteResponse> {
-    return this.http.request({
-      method: "DELETE",
-      path: `${this.base(args.vmId)}/network-interfaces/${encodeURIComponent(
-        args.interfaceId,
-      )}`,
       workspaceId: args.workspaceId,
     });
   }
