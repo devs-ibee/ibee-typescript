@@ -1,6 +1,8 @@
 # IBEE Solutions TypeScript SDK
 
-Official TypeScript / JavaScript SDK for the IBEE Solutions cloud API. Works in Node 18+ and modern browsers.
+Official TypeScript / JavaScript SDK for the IBEE Solutions cloud API. Manage
+compute, VPC networking, Reserved IPs, firewalls, load balancers, object
+storage, and secrets from Node 18+ or modern browsers.
 
 ## Installation
 
@@ -20,7 +22,14 @@ const buckets = await client.objectStorage.listBuckets({ workspaceId: "710995" }
 await client.objectStorage.createBucket({
   workspaceId: "710995",
   name: "my-bucket",
+  siteId: "site_blr_01",
   region: "in-south-1",
+});
+const s3Key = await client.objectStorage.createS3Credential({
+  workspaceId: "710995",
+  name: "application-key",
+  bucketScope: "specific",
+  allowedBuckets: ["my-bucket"],
 });
 
 // Secret Store
@@ -28,9 +37,17 @@ const stores = await client.secretStore.listSecretStores({ workspaceId: "710995"
 
 // Cloud VMs
 const vms = await client.cloudVms.list({ workspaceId: "710995" });
+const plans = await client.computeCatalog.listPlans({
+  workspaceId: "710995",
+  vmType: "cloud",
+  siteId: "site_blr_01",
+  currency: "INR",
+  billingInterval: "MONTHLY",
+});
 await client.cloudVms.create({
   workspaceId: "710995",
   name: "web-01",
+  site_id: "site_blr_01",
   os_distro: "ubuntu",
   os_type: "linux",
   cpu: 2,
@@ -39,6 +56,29 @@ await client.cloudVms.create({
   template_id: "tmpl_ubuntu_2204",
   ssh_key_ids: ["ssh_key_123"],
 });
+
+// VPC networking
+const vpc = await client.vpcs.create({
+  workspaceId: "710995",
+  name: "production",
+  siteId: "site_blr_01",
+  cidr: "10.20.0.0/24",
+});
+await client.vpcs.createSubnet({
+  workspaceId: "710995",
+  vpcId: vpc.vpc_id,
+  name: "applications",
+  cidr: "10.20.0.0/25",
+});
+
+// Public IPs, firewalls, and load balancers
+const reservedIp = await client.reservedIps.reserve({
+  workspaceId: "710995",
+  siteId: "site_blr_01",
+  label: "production-ingress",
+});
+const firewallGroups = await client.firewalls.listGroups({ workspaceId: "710995" });
+const loadBalancers = await client.loadBalancers.list({ workspaceId: "710995" });
 ```
 
 ## Environments
@@ -78,8 +118,13 @@ try {
 | Resource | Methods |
 |---|---|
 | `client.secretStore` | listSecretStores, createSecretStore, getSecretStore, updateSecretStore, archiveSecretStore, listSecrets, createSecret, getSecret, deleteSecret, getSecretValue, updateSecretValue |
-| `client.objectStorage` | listBuckets, createBucket, deleteBucket |
-| `client.cloudVms` / `client.gpuVms` | list, create, get, update, delete, start, stop, reboot, getMetrics, listNetworkInterfaces, attachNetworkInterface, detachNetworkInterface |
+| `client.objectStorage` | bucket list/create/get/update/delete and S3 credential list/create/get/revoke |
+| `client.vpcs` | listSites, list, create, get, update, delete, subnet/node/NAT/port-forwarding lifecycle |
+| `client.reservedIps` | list, reserve, get, update, release, attach, move, detach |
+| `client.firewalls` | firewall group, rule, and VM attachment lifecycle |
+| `client.loadBalancers` | list, createL4, createL7, get, updateL4, updateL7, delete, getStatus |
+| `client.computeCatalog` | typed site, plan, and image discovery |
+| `client.cloudVms` / `client.gpuVms` | list, create, get, delete, start, stop, reboot, getMetrics |
 | `client.operations` | get |
 
 ## Related
