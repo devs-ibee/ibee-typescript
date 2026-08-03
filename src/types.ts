@@ -232,7 +232,8 @@ export interface DeleteResponse {
 /** Body of POST /compute/cloud-vms. */
 export interface CreateVmRequest {
   name: string;
-  site_id: string;
+  /** Optional placement override; omit to use automatic placement. */
+  site_id?: string;
   os_distro: string;
   os_type: string;
   cpu: number;

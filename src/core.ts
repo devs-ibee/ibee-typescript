@@ -15,7 +15,7 @@ export interface RequestArgs {
 }
 
 export interface ClientOptions {
-  /** API token (`ibee_live_...` / `ibee_dev_...`). */
+  /** API token (`ibee_prod_key_...` / `ibee_dev_key_...`). */
   token: string;
   /** Base URL. Defaults to the production gateway. */
   baseUrl?: string;

@@ -31,8 +31,8 @@ export class ObjectStorageResource {
   createBucket(args: {
     workspaceId: string;
     name: string;
-    /** Site/datacenter where the bucket is provisioned. */
-    siteId: string;
+    /** Optional placement override; omit to use the workspace default. */
+    siteId?: string;
     siteName?: string;
     region?: string;
     plan?: string;

@@ -15,15 +15,13 @@ npm install ibee-sdk
 ```ts
 import { Ibee } from "ibee-sdk";
 
-const client = new Ibee({ token: "ibee_live_xxxxxxxxxxxx" });
+const client = new Ibee({ token: "ibee_prod_key_xxxxxxxxxxxx" });
 
 // Object storage
 const buckets = await client.objectStorage.listBuckets({ workspaceId: "710995" });
 await client.objectStorage.createBucket({
   workspaceId: "710995",
   name: "my-bucket",
-  siteId: "site_blr_01",
-  region: "in-south-1",
 });
 const s3Key = await client.objectStorage.createS3Credential({
   workspaceId: "710995",
@@ -47,7 +45,6 @@ const plans = await client.computeCatalog.listPlans({
 await client.cloudVms.create({
   workspaceId: "710995",
   name: "web-01",
-  site_id: "site_blr_01",
   os_distro: "ubuntu",
   os_type: "linux",
   cpu: 2,
@@ -94,6 +91,10 @@ const dev = new Ibee({
   environment: IbeeEnvironment.DEVELOPMENT, // https://api.ibee.co.in/v1
 });
 ```
+
+Bucket and VM placement are automatic when `siteId` / `site_id` is omitted.
+Pass a site returned by the corresponding catalog only when placement must be
+pinned to a specific location.
 
 Or override the base URL entirely with `baseUrl`.
 

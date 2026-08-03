@@ -47,7 +47,7 @@ test("token does not leak via JSON.stringify of the client", () => {
   assert.ok(!JSON.stringify(client).includes("ibee_dev_key_secret"));
 });
 
-test("createBucket sends required site and optional region in the body", async () => {
+test("createBucket sends explicit site and region in the body", async () => {
   const { calls, fetchImpl } = stub({ json: { name: "b" } });
   const client = new Ibee({ token: "t", fetch: fetchImpl });
   await client.objectStorage.createBucket({
@@ -60,6 +60,15 @@ test("createBucket sends required site and optional region in the body", async (
   assert.equal(body.site_id, "site1");
   assert.equal(body.region, "in-south-1");
   assert.equal(calls[0].method, "POST");
+});
+
+test("createBucket can omit placement for the workspace default", async () => {
+  const { calls, fetchImpl } = stub({ json: { name: "b" } });
+  const client = new Ibee({ token: "t", fetch: fetchImpl });
+  await client.objectStorage.createBucket({ workspaceId: "1", name: "b" });
+  const body = JSON.parse(calls[0].body);
+  assert.equal(body.site_id, undefined);
+  assert.equal(body.region, undefined);
 });
 
 test("createSecret sends secret_name and value (spec field names)", async () => {
