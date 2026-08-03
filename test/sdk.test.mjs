@@ -110,6 +110,75 @@ test("cloudVms.create attaches an idempotency key", async () => {
   assert.match(calls[0].url, /\/compute\/cloud-vms/);
 });
 
+test("cloud VM lifecycle uses canonical paths, methods, and idempotency", async () => {
+  const { calls, fetchImpl } = stub({
+    json: {
+      operation_id: "op1",
+      vm_id: "vm1",
+      status: "accepted",
+      submitted_at: "2026-08-04T10:00:00Z",
+    },
+  });
+  const client = new Ibee({ token: "t", fetch: fetchImpl });
+
+  await client.cloudVms.list({ workspaceId: "710995" });
+  await client.cloudVms.create({
+    workspaceId: "710995",
+    idempotencyKey: "create-key",
+    name: "web",
+    site_id: "site-1",
+    plan_id: "plan-1",
+    template_id: "image-1",
+    os_distro: "ubuntu",
+    os_type: "linux",
+    cpu: 2,
+    ram_mb: 4096,
+  });
+  await client.cloudVms.get({ workspaceId: "710995", vmId: "vm/1" });
+  await client.cloudVms.start({
+    workspaceId: "710995",
+    vmId: "vm1",
+    idempotencyKey: "start-key",
+  });
+  await client.cloudVms.stop({
+    workspaceId: "710995",
+    vmId: "vm1",
+    force: true,
+    idempotencyKey: "stop-key",
+  });
+  await client.cloudVms.reboot({
+    workspaceId: "710995",
+    vmId: "vm1",
+    force: false,
+    idempotencyKey: "reboot-key",
+  });
+  await client.cloudVms.getMetrics({ workspaceId: "710995", vmId: "vm1" });
+  await client.cloudVms.delete({
+    workspaceId: "710995",
+    vmId: "vm1",
+    idempotencyKey: "delete-key",
+  });
+  await client.operations.get({ workspaceId: "710995", operationId: "op/1" });
+
+  assert.deepEqual(
+    calls.map(({ method }) => method),
+    ["GET", "POST", "GET", "POST", "POST", "POST", "GET", "DELETE", "GET"],
+  );
+  assert.match(calls[0].url, /\/compute\/cloud-vms\?workspace_id=710995$/);
+  assert.match(calls[1].url, /\/compute\/cloud-vms\?workspace_id=710995$/);
+  assert.equal(calls[1].headers.get("x-idempotency-key"), "create-key");
+  assert.equal(JSON.parse(calls[1].body).site_id, "site-1");
+  assert.match(calls[2].url, /\/compute\/cloud-vms\/vm%2F1\?/);
+  assert.match(calls[3].url, /\/actions\/start\?/);
+  assert.equal(calls[3].body, undefined);
+  assert.equal(calls[3].headers.get("x-idempotency-key"), "start-key");
+  assert.deepEqual(JSON.parse(calls[4].body), { force: true });
+  assert.deepEqual(JSON.parse(calls[5].body), { force: false });
+  assert.match(calls[6].url, /\/compute\/cloud-vms\/vm1\/metrics\?/);
+  assert.equal(calls[7].headers.get("x-idempotency-key"), "delete-key");
+  assert.match(calls[8].url, /\/compute\/operations\/op%2F1\?/);
+});
+
 test("gpuVms.create forwards gpu_count and gpu_model", async () => {
   const { calls, fetchImpl } = stub({ json: { operation_id: "op1" } });
   const client = new Ibee({ token: "t", fetch: fetchImpl });
@@ -301,6 +370,84 @@ test("compute catalog sends required VM type and placement filters", async () =>
   assert.match(calls[1].url, /billing_interval=MONTHLY/);
   assert.match(calls[2].url, /\/compute\/images\?/);
   assert.match(calls[2].url, /site_id=site1/);
+});
+
+test("billing eligibility is an explicit typed preflight for billable creates", async () => {
+  const decision = {
+    organization_id: "org1",
+    allowed: true,
+    reason: "ok",
+    billing_mode: "PREPAID",
+    billing_state: "CURRENT",
+    currency: "INR",
+    sku_code: "STANDARD-2-8-50",
+    estimated_cost_minor: 120000,
+    effective_balance_minor: 200000,
+    evaluated_at: "2026-08-04T10:00:00Z",
+  };
+  const { calls, fetchImpl } = stub({ json: decision });
+  const client = new Ibee({ token: "t", fetch: fetchImpl });
+
+  const result = await client.billing.checkResourceEligibility({
+    workspaceId: "710995",
+    skuCode: "STANDARD-2-8-50",
+    estimatedCostMinor: 120000,
+  });
+
+  assert.deepEqual(result, decision);
+  assert.equal(calls.length, 1, "the preflight is one explicit request");
+  assert.equal(calls[0].method, "POST");
+  assert.match(
+    calls[0].url,
+    /\/billing\/resource-eligibility\?workspace_id=710995$/,
+  );
+  assert.deepEqual(JSON.parse(calls[0].body), {
+    sku_code: "STANDARD-2-8-50",
+    estimated_cost_minor: 120000,
+  });
+  assert.equal(calls[0].headers.get("x-idempotency-key"), null);
+});
+
+test("VM create never performs a hidden billing preflight", async () => {
+  const { calls, fetchImpl } = stub({ json: {} });
+  const client = new Ibee({ token: "t", fetch: fetchImpl });
+
+  await client.cloudVms.create({
+    workspaceId: "1",
+    name: "web",
+    site_id: "site-1",
+    plan_id: "plan-1",
+    template_id: "image-1",
+    os_distro: "ubuntu",
+    os_type: "linux",
+    cpu: 2,
+    ram_mb: 4096,
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/compute\/cloud-vms\?/);
+});
+
+test("billing eligibility denial is preserved as an ApiError", async () => {
+  const denial = {
+    error: {
+      code: "BILLING_CREATE_BLOCKED",
+      message: "Insufficient balance",
+      details: { reason: "insufficient_balance" },
+    },
+  };
+  const { fetchImpl } = stub({ status: 402, json: denial });
+  const client = new Ibee({ token: "t", fetch: fetchImpl });
+
+  await assert.rejects(
+    () => client.billing.checkResourceEligibility({ workspaceId: "1" }),
+    (err) => {
+      assert.ok(err instanceof ApiError);
+      assert.equal(err.statusCode, 402);
+      assert.deepEqual(err.body, denial);
+      return true;
+    },
+  );
 });
 
 test("throws ApiError on non-2xx with parsed body", async () => {

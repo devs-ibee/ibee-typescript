@@ -1,7 +1,9 @@
 import type { HttpClient } from "../core.js";
 import type {
   CloudVm,
+  CreateGpuVmRequest,
   CreateVmRequest,
+  GpuVm,
   OperationAccepted,
   OperationStatus,
   VmMetrics,
@@ -23,7 +25,10 @@ function randomUUID(): string {
  * different path segments (`cloud-vms` / `gpu-vms`). `TCreate` is the body type
  * of the create call (GPU VMs additionally require gpu_count / gpu_model).
  */
-export class VmResource<TCreate extends CreateVmRequest = CreateVmRequest> {
+export class VmResource<
+  TCreate extends CreateVmRequest = CreateVmRequest,
+  TVm extends CloudVm = CloudVm,
+> {
   constructor(
     private readonly http: HttpClient,
     private readonly segment: string,
@@ -36,7 +41,7 @@ export class VmResource<TCreate extends CreateVmRequest = CreateVmRequest> {
   }
 
   /** The API returns a bare array of VMs. */
-  list(args: { workspaceId: string }): Promise<CloudVm[]> {
+  list(args: { workspaceId: string }): Promise<TVm[]> {
     return this.http.request({
       method: "GET",
       path: this.base(),
@@ -57,7 +62,7 @@ export class VmResource<TCreate extends CreateVmRequest = CreateVmRequest> {
     });
   }
 
-  get(args: { workspaceId: string; vmId: string }): Promise<CloudVm> {
+  get(args: { workspaceId: string; vmId: string }): Promise<TVm> {
     return this.http.request({
       method: "GET",
       path: this.base(args.vmId),
@@ -100,7 +105,7 @@ export class VmResource<TCreate extends CreateVmRequest = CreateVmRequest> {
     vmId: string;
     force?: boolean;
     idempotencyKey?: string;
-  }) {
+  }): Promise<OperationAccepted> {
     return this.action(args.workspaceId, args.vmId, "start", args.force, args.idempotencyKey);
   }
 
@@ -109,7 +114,7 @@ export class VmResource<TCreate extends CreateVmRequest = CreateVmRequest> {
     vmId: string;
     force?: boolean;
     idempotencyKey?: string;
-  }) {
+  }): Promise<OperationAccepted> {
     return this.action(args.workspaceId, args.vmId, "stop", args.force, args.idempotencyKey);
   }
 
@@ -118,7 +123,7 @@ export class VmResource<TCreate extends CreateVmRequest = CreateVmRequest> {
     vmId: string;
     force?: boolean;
     idempotencyKey?: string;
-  }) {
+  }): Promise<OperationAccepted> {
     return this.action(args.workspaceId, args.vmId, "reboot", args.force, args.idempotencyKey);
   }
 
@@ -130,6 +135,9 @@ export class VmResource<TCreate extends CreateVmRequest = CreateVmRequest> {
     });
   }
 }
+
+export type CloudVmResource = VmResource<CreateVmRequest, CloudVm>;
+export type GpuVmResource = VmResource<CreateGpuVmRequest, GpuVm>;
 
 export class OperationsResource {
   constructor(private readonly http: HttpClient) {}

@@ -1,5 +1,6 @@
 import { HttpClient, type ClientOptions } from "./core.js";
 import { IbeeEnvironment } from "./environments.js";
+import { BillingResource } from "./resources/billing.js";
 import { ComputeCatalogResource } from "./resources/compute.js";
 import {
   FirewallsResource,
@@ -10,7 +11,7 @@ import {
 import { ObjectStorageResource } from "./resources/objectStorage.js";
 import { SecretStoreResource } from "./resources/secretStore.js";
 import { OperationsResource, VmResource } from "./resources/vms.js";
-import type { CreateGpuVmRequest } from "./types.js";
+import type { CreateGpuVmRequest, GpuVm } from "./types.js";
 
 export { IbeeEnvironment } from "./environments.js";
 export { ApiError } from "./errors.js";
@@ -43,9 +44,10 @@ export interface IbeeOptions extends Omit<ClientOptions, "baseUrl"> {
  */
 export class Ibee {
   readonly secretStore: SecretStoreResource;
+  readonly billing: BillingResource;
   readonly objectStorage: ObjectStorageResource;
   readonly cloudVms: VmResource;
-  readonly gpuVms: VmResource<CreateGpuVmRequest>;
+  readonly gpuVms: VmResource<CreateGpuVmRequest, GpuVm>;
   readonly operations: OperationsResource;
   readonly computeCatalog: ComputeCatalogResource;
   readonly vpcs: VpcsResource;
@@ -59,9 +61,10 @@ export class Ibee {
     const http = new HttpClient({ ...options, baseUrl });
 
     this.secretStore = new SecretStoreResource(http);
+    this.billing = new BillingResource(http);
     this.objectStorage = new ObjectStorageResource(http);
     this.cloudVms = new VmResource(http, "cloud-vms");
-    this.gpuVms = new VmResource<CreateGpuVmRequest>(http, "gpu-vms");
+    this.gpuVms = new VmResource<CreateGpuVmRequest, GpuVm>(http, "gpu-vms");
     this.operations = new OperationsResource(http);
     this.computeCatalog = new ComputeCatalogResource(http);
     this.vpcs = new VpcsResource(http);

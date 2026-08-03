@@ -44,6 +44,14 @@ const plans = await client.computeCatalog.listPlans({
   currency: "INR",
   billingInterval: "MONTHLY",
 });
+const eligibility = await client.billing.checkResourceEligibility({
+  workspaceId: "710995",
+  skuCode: plans.plans[0].code,
+  estimatedCostMinor: plans.plans[0].monthly_price_minor,
+});
+if (!eligibility.allowed) {
+  throw new Error(`Billing blocked VM creation: ${eligibility.reason}`);
+}
 await client.cloudVms.create({
   workspaceId: "710995",
   name: "web-01",
@@ -97,6 +105,14 @@ const dev = new Ibee({
 
 Or override the base URL entirely with `baseUrl`.
 
+## Billing preflight
+
+Call `client.billing.checkResourceEligibility(...)` immediately before every
+billable product create request (VMs, storage, Reserved IPs, load balancers,
+and other metered resources). The check is explicit so SDK users control when
+network requests happen. A successful preflight is not a reservation: the
+product service repeats the authoritative billing check during creation.
+
 ## Error handling
 
 Non-2xx responses throw an `ApiError` with the HTTP status and parsed body:
@@ -124,6 +140,7 @@ try {
 | `client.firewalls` | firewall group, rule, and VM attachment lifecycle |
 | `client.loadBalancers` | list, createL4, createL7, get, updateL4, updateL7, delete, getStatus |
 | `client.computeCatalog` | typed site, plan, and image discovery |
+| `client.billing` | explicit billing resource-eligibility preflight for billable creates |
 | `client.cloudVms` / `client.gpuVms` | list, create, get, delete, start, stop, reboot, getMetrics |
 | `client.operations` | get |
 

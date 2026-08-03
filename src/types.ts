@@ -98,21 +98,43 @@ export interface S3CredentialRevoked {
   message: string;
 }
 
+export type VmLifecycleStatus =
+  | "pending"
+  | "creating"
+  | "provisioning"
+  | "configuring"
+  | "running"
+  | "starting"
+  | "stopping"
+  | "stopped"
+  | "rebooting"
+  | "resizing"
+  | "attaching_volume"
+  | "detaching_volume"
+  | "resizing_plan"
+  | "resizing_disk"
+  | "deleting"
+  | "deleted"
+  | "error";
+
 export interface CloudVm {
   id?: string;
   name?: string;
-  status?: string;
+  status?: VmLifecycleStatus;
   cpu?: number;
   ram_mb?: number;
   disk_gb?: number;
   os_type?: string;
   os_distro?: string;
-  plan_name?: string;
-  public_ip?: string;
-  private_ip?: string;
+  site_id?: string;
+  site_name?: string;
+  plan_id?: string;
+  plan_name?: string | null;
+  public_ip?: string | null;
+  private_ip?: string | null;
   tags?: string[];
   created_at?: string;
-  updated_at?: string;
+  updated_at?: string | null;
 }
 
 export type GpuVm = CloudVm & {
@@ -122,23 +144,23 @@ export type GpuVm = CloudVm & {
 
 export interface VmMetrics {
   vm_id: string;
-  vm_type: "cloud" | "gpu" | string;
+  vm_type: VmType;
   power_state: string;
-  monitoring_status: "available" | "unavailable" | "stale" | string;
-  last_collected_at?: string;
-  cpu_percent?: number;
-  memory_used_bytes?: number;
-  memory_used_percent?: number;
-  storage_used_bytes?: number;
-  storage_total_bytes?: number;
-  storage_used_percent?: number;
-  storage_provisioned_bytes?: number;
-  disk_read_bps?: number;
-  disk_write_bps?: number;
-  disk_read_iops?: number;
-  disk_write_iops?: number;
-  net_rx_bps?: number;
-  net_tx_bps?: number;
+  monitoring_status: "active" | "unavailable" | "stale";
+  last_collected_at?: string | null;
+  cpu_percent?: number | null;
+  memory_used_bytes?: number | null;
+  memory_used_percent?: number | null;
+  storage_used_bytes?: number | null;
+  storage_total_bytes?: number | null;
+  storage_used_percent?: number | null;
+  storage_provisioned_bytes?: number | null;
+  disk_read_bps?: number | null;
+  disk_write_bps?: number | null;
+  disk_read_iops?: number | null;
+  disk_write_iops?: number | null;
+  net_rx_bps?: number | null;
+  net_tx_bps?: number | null;
   month_rx_bytes: number;
   month_tx_bytes: number;
 }
@@ -213,15 +235,81 @@ export interface ComputeImageList {
 }
 
 export interface OperationAccepted {
-  operation_id?: string;
-  id?: string;
-  status?: string;
+  operation_id: string;
+  vm_id: string;
+  status: ComputeOperationStatus;
+  submitted_at: string;
 }
 
+export type ComputeOperationAction =
+  | "create"
+  | "start"
+  | "stop"
+  | "reboot"
+  | "delete"
+  | "resize"
+  | "attach_volume"
+  | "detach_volume"
+  | "resize_plan"
+  | "resize_root_disk"
+  | "update_access"
+  | "snapshot"
+  | "restore"
+  | "rebuild"
+  | "rescue";
+
+export type ComputeOperationStatus =
+  | "accepted"
+  | "running"
+  | "waiting"
+  | "compensating"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "timed_out";
+
 export interface OperationStatus {
-  operation_id?: string;
-  status?: string;
-  action?: string;
+  operation_id: string;
+  vm_id: string;
+  action: ComputeOperationAction;
+  status: ComputeOperationStatus;
+  current_step?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  submitted_at: string;
+  updated_at: string;
+}
+
+/** Body of the explicit preflight for any billable resource creation. */
+export interface BillingEligibilityRequest {
+  sku_code?: string;
+  estimated_cost_minor?: number;
+}
+
+/**
+ * Billing admission decision. Billing amount fields can be omitted when the
+ * caller can create resources but is not permitted to view billing details.
+ */
+export type BillingMode = "PREPAID" | "POSTPAID";
+export type BillingState =
+  | "CURRENT"
+  | "PAYMENT_DUE"
+  | "PAST_DUE"
+  | "SOFT_SUSPENDED"
+  | "HARD_SUSPENDED";
+
+export interface BillingEligibility {
+  organization_id: string;
+  allowed: boolean;
+  reason: string;
+  billing_mode?: BillingMode;
+  billing_state?: BillingState;
+  currency?: string;
+  sku_code?: string | null;
+  estimated_cost_minor?: number | null;
+  effective_balance_minor?: number | null;
+  credit_headroom_minor?: number | null;
+  evaluated_at?: string;
 }
 
 export interface DeleteResponse {
