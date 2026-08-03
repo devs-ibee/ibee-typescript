@@ -48,6 +48,14 @@ export interface BucketList {
   next_continuation_token?: string;
 }
 
+export interface DefaultRetention {
+  mode: "GOVERNANCE" | "COMPLIANCE";
+  /** Retention period in days; provide either days or years. */
+  days?: number;
+  /** Retention period in years; provide either years or days. */
+  years?: number;
+}
+
 export interface Bucket {
   bucket_name?: string;
   minio_id?: string;
@@ -320,7 +328,7 @@ export interface DeleteResponse {
 /** Body of POST /compute/cloud-vms. */
 export interface CreateVmRequest {
   name: string;
-  site_id: string;
+  site_id?: string;
   os_distro: string;
   os_type: string;
   cpu: number;

@@ -47,18 +47,21 @@ test("token does not leak via JSON.stringify of the client", () => {
   assert.ok(!JSON.stringify(client).includes("ibee_dev_key_secret"));
 });
 
-test("createBucket sends required site and optional region in the body", async () => {
+test("createBucket omits compute sites and supports optional storage placement", async () => {
   const { calls, fetchImpl } = stub({ json: { name: "b" } });
   const client = new Ibee({ token: "t", fetch: fetchImpl });
   await client.objectStorage.createBucket({
     workspaceId: "1",
     name: "b",
-    siteId: "site1",
     region: "in-south-1",
+    objectLockEnabled: true,
+    defaultRetention: { mode: "GOVERNANCE", days: 30 },
   });
   const body = JSON.parse(calls[0].body);
-  assert.equal(body.site_id, "site1");
+  assert.equal("site_id" in body, false);
   assert.equal(body.region, "in-south-1");
+  assert.equal(body.object_lock_enabled, true);
+  assert.deepEqual(body.default_retention, { mode: "GOVERNANCE", days: 30 });
   assert.equal(calls[0].method, "POST");
 });
 
@@ -98,7 +101,6 @@ test("cloudVms.create attaches an idempotency key", async () => {
   await client.cloudVms.create({
     workspaceId: "1",
     name: "web",
-    site_id: "site-1",
     plan_id: "plan-1",
     template_id: "image-1",
     os_distro: "ubuntu",
@@ -107,6 +109,7 @@ test("cloudVms.create attaches an idempotency key", async () => {
     ram_mb: 4096,
   });
   assert.ok(calls[0].headers.get("x-idempotency-key"));
+  assert.equal("site_id" in JSON.parse(calls[0].body), false);
   assert.match(calls[0].url, /\/compute\/cloud-vms/);
 });
 
