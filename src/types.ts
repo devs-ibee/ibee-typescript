@@ -7,7 +7,7 @@ export interface SecretStore {
   name?: string;
   store_key?: string;
   description?: string;
-  status?: string;
+  status?: "active" | "archived" | "deleting";
   created_at?: string;
   updated_at?: string;
 }
@@ -21,19 +21,132 @@ export interface SecretStoreList {
 
 export interface Secret {
   id?: string;
-  name?: string;
-  status?: string;
+  organization_id?: string;
+  workspace_id?: string;
+  store_id?: string;
+  store_key?: string;
+  secret_name?: string;
+  status?: "active" | "soft_deleted";
+  created_at?: string;
   updated_at?: string;
 }
 
 export interface SecretList {
   secrets?: Secret[];
   total?: number;
+  page?: number;
+  limit?: number;
 }
 
 export interface SecretValue {
-  version?: number;
-  value?: Record<string, string>;
+  id?: string;
+  secret_name?: string;
+  data?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
+export interface BatchCreateSecretItem {
+  secret_name: string;
+  value: Record<string, unknown>;
+}
+
+export interface BatchCreateSecretResult {
+  secret_name: string;
+  status: "created" | "skipped" | "failed";
+  secret?: Secret | null;
+  error?: string | null;
+}
+
+export interface BatchCreateSecretsResponse {
+  results: BatchCreateSecretResult[];
+  created_count: number;
+  skipped_count: number;
+  failed_count: number;
+}
+
+export interface SecretVersionSummary {
+  version: number;
+  created_time: string;
+  deletion_time: string;
+  destroyed: boolean;
+}
+
+export interface SecretVersions {
+  secret_id: string;
+  secret_name: string;
+  current_version: number;
+  oldest_version: number;
+  versions: Record<string, SecretVersionSummary>;
+}
+
+export interface SecretVersion {
+  secret_id: string;
+  secret_name: string;
+  version: number;
+  data: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+}
+
+export interface SecretLifecycleStatus {
+  status: "destroyed" | "permanently_deleted";
+}
+
+export type SecretIdentityAuthMethod = "approle" | "kubernetes";
+export type SecretIdentityPolicyMode = "read_only" | "read_write";
+
+export interface SecretIdentity {
+  id: string;
+  organization_id: string;
+  workspace_id: string;
+  name: string;
+  auth_method: SecretIdentityAuthMethod;
+  openbao_role_name: string;
+  status: "active" | "disabled";
+  token_policy_mode: SecretIdentityPolicyMode;
+  k8s_namespace?: string | null;
+  k8s_service_account?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SecretIdentityList {
+  identities: SecretIdentity[];
+  total: number;
+}
+
+export interface SecretIdentityAccess {
+  identity_id: string;
+  auth_method: SecretIdentityAuthMethod;
+  role_id?: string | null;
+  /** Fresh AppRole credential. Treat this value as sensitive. */
+  secret_id?: string | null;
+  secret_id_accessor?: string | null;
+  openbao_role_name?: string | null;
+  k8s_namespace?: string | null;
+  k8s_service_account?: string | null;
+}
+
+export interface SecretIdentityScope {
+  id: string;
+  identity_id: string;
+  scope_type: string;
+  store_id: string;
+  organization_id: string;
+  workspace_id: string;
+  access_mode: SecretIdentityPolicyMode;
+  allow_version_read: boolean;
+  allow_rollback: boolean;
+  allow_destroy: boolean;
+  created_at: string;
+}
+
+export interface SecretIdentityScopeList {
+  scopes: SecretIdentityScope[];
+  total: number;
+}
+
+export interface SecretIdentityActionStatus {
+  status: "deleted" | "revoked";
 }
 
 export interface BucketSummary {

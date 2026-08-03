@@ -92,6 +92,173 @@ test("updateSecretValue sends value and optional cas", async () => {
   assert.equal(body.cas, 3);
 });
 
+test("Secret Store exposes all 35 control-plane operations", async () => {
+  const { calls, fetchImpl } = stub({ json: {} });
+  const client = new Ibee({ token: "t", baseUrl: "https://api.example.test/v1", fetch: fetchImpl });
+  const workspaceId = "973318";
+  const storeId = "store-123";
+  const secretId = "secret-456";
+
+  const methods = [
+    "listSecretStores", "createSecretStore", "getSecretStore", "updateSecretStore",
+    "archiveSecretStore", "unarchiveSecretStore", "permanentlyDeleteSecretStore",
+    "listSecrets", "createSecret", "batchCreateSecrets", "getSecret", "deleteSecret",
+    "getSecretValue", "updateSecretValue", "patchSecretValue", "undeleteSecret",
+    "destroySecretVersions", "permanentlyDeleteSecret", "listSecretVersions",
+    "getSecretVersion", "rollbackSecret",
+    "listSecretIdentities", "createSecretIdentity", "getSecretIdentity",
+    "updateSecretIdentity", "disableSecretIdentity", "enableSecretIdentity",
+    "getSecretIdentityAccess", "rotateSecretIdentitySecretId",
+    "revokeSecretIdentitySessions", "listSecretIdentityScopes",
+    "createSecretIdentityScope", "updateSecretIdentityScope",
+    "deleteSecretIdentityScope", "deleteSecretIdentity",
+  ];
+  for (const method of methods) {
+    assert.equal(typeof client.secretStore[method], "function", `secretStore.${method}`);
+  }
+
+  await client.secretStore.listSecretStores({ workspaceId, page: 2, limit: 25, includeArchived: true });
+  await client.secretStore.createSecretStore({ workspaceId, name: "production" });
+  await client.secretStore.getSecretStore({ workspaceId, storeId });
+  await client.secretStore.updateSecretStore({ workspaceId, storeId, description: "updated" });
+  await client.secretStore.archiveSecretStore({ workspaceId, storeId });
+  await client.secretStore.unarchiveSecretStore({ workspaceId, storeId });
+  await client.secretStore.permanentlyDeleteSecretStore({ workspaceId, storeId });
+  await client.secretStore.listSecrets({ workspaceId, storeId, q: "database", page: 3, limit: 10 });
+  await client.secretStore.createSecret({ workspaceId, storeId, name: "database-url", value: { url: "redacted" } });
+  await client.secretStore.batchCreateSecrets({
+    workspaceId,
+    storeId,
+    secrets: [{ secret_name: "api-key", value: { key: "redacted" } }],
+  });
+  await client.secretStore.getSecret({ workspaceId, secretId });
+  await client.secretStore.deleteSecret({ workspaceId, secretId });
+  await client.secretStore.getSecretValue({ workspaceId, secretId });
+  await client.secretStore.updateSecretValue({ workspaceId, secretId, value: { key: "replacement" }, cas: 1 });
+  await client.secretStore.patchSecretValue({ workspaceId, secretId, value: { username: "ibee" } });
+  await client.secretStore.undeleteSecret({ workspaceId, secretId, versions: [1] });
+  await client.secretStore.destroySecretVersions({ workspaceId, secretId, versions: [1] });
+  await client.secretStore.permanentlyDeleteSecret({ workspaceId, secretId });
+  await client.secretStore.listSecretVersions({ workspaceId, secretId });
+  await client.secretStore.getSecretVersion({ workspaceId, secretId, version: 1 });
+  await client.secretStore.rollbackSecret({ workspaceId, secretId, version: 1 });
+  const identityId = "identity-789";
+  const scopeId = "scope-123";
+  await client.secretStore.listSecretIdentities({ workspaceId, storeId });
+  await client.secretStore.createSecretIdentity({
+    workspaceId,
+    storeId,
+    authMethod: "approle",
+    name: "payments-api",
+    tokenPolicyMode: "read_write",
+  });
+  await client.secretStore.getSecretIdentity({ workspaceId, identityId });
+  await client.secretStore.updateSecretIdentity({ workspaceId, identityId, tokenPolicyMode: "read_only" });
+  await client.secretStore.disableSecretIdentity({ workspaceId, identityId });
+  await client.secretStore.enableSecretIdentity({ workspaceId, identityId });
+  await client.secretStore.getSecretIdentityAccess({ workspaceId, identityId });
+  await client.secretStore.rotateSecretIdentitySecretId({ workspaceId, identityId });
+  await client.secretStore.revokeSecretIdentitySessions({ workspaceId, identityId });
+  await client.secretStore.listSecretIdentityScopes({ workspaceId, identityId });
+  await client.secretStore.createSecretIdentityScope({
+    workspaceId,
+    identityId,
+    storeId,
+    accessMode: "read_write",
+    allowRollback: true,
+  });
+  await client.secretStore.updateSecretIdentityScope({
+    workspaceId,
+    scopeId,
+    accessMode: "read_only",
+  });
+  await client.secretStore.deleteSecretIdentityScope({ workspaceId, scopeId });
+  await client.secretStore.deleteSecretIdentity({ workspaceId, identityId });
+
+  assert.deepEqual(
+    calls.map((call) => [call.method, new URL(call.url).pathname]),
+    [
+      ["GET", "/v1/secret-store/stores"],
+      ["POST", "/v1/secret-store/stores"],
+      ["GET", `/v1/secret-store/stores/${storeId}`],
+      ["PATCH", `/v1/secret-store/stores/${storeId}`],
+      ["POST", `/v1/secret-store/stores/${storeId}/archive`],
+      ["POST", `/v1/secret-store/stores/${storeId}/unarchive`],
+      ["DELETE", `/v1/secret-store/stores/${storeId}/permanent`],
+      ["GET", `/v1/secret-store/stores/${storeId}/secrets`],
+      ["POST", `/v1/secret-store/stores/${storeId}/secrets`],
+      ["POST", `/v1/secret-store/stores/${storeId}/secrets:batchIngest`],
+      ["GET", `/v1/secret-store/secrets/${secretId}`],
+      ["DELETE", `/v1/secret-store/secrets/${secretId}`],
+      ["GET", `/v1/secret-store/secrets/${secretId}/value`],
+      ["PUT", `/v1/secret-store/secrets/${secretId}/value`],
+      ["PATCH", `/v1/secret-store/secrets/${secretId}/value`],
+      ["POST", `/v1/secret-store/secrets/${secretId}/undelete`],
+      ["POST", `/v1/secret-store/secrets/${secretId}/destroy`],
+      ["DELETE", `/v1/secret-store/secrets/${secretId}/permanent`],
+      ["GET", `/v1/secret-store/secrets/${secretId}/versions`],
+      ["GET", `/v1/secret-store/secrets/${secretId}/versions/1`],
+      ["POST", `/v1/secret-store/secrets/${secretId}/rollback`],
+      ["GET", `/v1/secret-store/stores/${storeId}/identities`],
+      ["POST", `/v1/secret-store/stores/${storeId}/identities`],
+      ["GET", `/v1/secret-store/identities/${identityId}`],
+      ["PATCH", `/v1/secret-store/identities/${identityId}`],
+      ["POST", `/v1/secret-store/identities/${identityId}/disable`],
+      ["POST", `/v1/secret-store/identities/${identityId}/enable`],
+      ["GET", `/v1/secret-store/identities/${identityId}/access`],
+      ["POST", `/v1/secret-store/identities/${identityId}/rotate-secret-id`],
+      ["POST", `/v1/secret-store/identities/${identityId}/revoke`],
+      ["GET", `/v1/secret-store/identities/${identityId}/scopes`],
+      ["POST", `/v1/secret-store/identities/${identityId}/scopes`],
+      ["PATCH", `/v1/secret-store/scopes/${scopeId}`],
+      ["DELETE", `/v1/secret-store/scopes/${scopeId}`],
+      ["DELETE", `/v1/secret-store/identities/${identityId}`],
+    ],
+  );
+  for (const call of calls) {
+    assert.equal(new URL(call.url).searchParams.get("workspace_id"), workspaceId);
+  }
+
+  const storeListQuery = new URL(calls[0].url).searchParams;
+  assert.equal(storeListQuery.get("page"), "2");
+  assert.equal(storeListQuery.get("limit"), "25");
+  assert.equal(storeListQuery.get("include_archived"), "true");
+  const secretListQuery = new URL(calls[7].url).searchParams;
+  assert.equal(secretListQuery.get("q"), "database");
+  assert.equal(secretListQuery.get("page"), "3");
+  assert.equal(secretListQuery.get("limit"), "10");
+
+  assert.deepEqual(JSON.parse(calls[1].body), { name: "production" });
+  assert.deepEqual(JSON.parse(calls[3].body), { description: "updated" });
+  assert.deepEqual(JSON.parse(calls[8].body), {
+    secret_name: "database-url",
+    value: { url: "redacted" },
+  });
+  assert.deepEqual(JSON.parse(calls[9].body), {
+    secrets: [{ secret_name: "api-key", value: { key: "redacted" } }],
+  });
+  assert.deepEqual(JSON.parse(calls[13].body), {
+    value: { key: "replacement" },
+    cas: 1,
+  });
+  assert.deepEqual(JSON.parse(calls[14].body), { value: { username: "ibee" } });
+  assert.deepEqual(JSON.parse(calls[15].body), { versions: [1] });
+  assert.deepEqual(JSON.parse(calls[16].body), { versions: [1] });
+  assert.deepEqual(JSON.parse(calls[20].body), { version: 1 });
+  assert.deepEqual(JSON.parse(calls[22].body), {
+    auth_method: "approle",
+    name: "payments-api",
+    token_policy_mode: "read_write",
+  });
+  assert.deepEqual(JSON.parse(calls[24].body), { token_policy_mode: "read_only" });
+  assert.deepEqual(JSON.parse(calls[31].body), {
+    store_id: storeId,
+    access_mode: "read_write",
+    allow_rollback: true,
+  });
+  assert.deepEqual(JSON.parse(calls[32].body), { access_mode: "read_only" });
+});
+
 test("cloudVms.create attaches an idempotency key", async () => {
   const { calls, fetchImpl } = stub({ json: { operation_id: "op1" } });
   const client = new Ibee({ token: "t", fetch: fetchImpl });
