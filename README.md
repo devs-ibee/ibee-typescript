@@ -22,7 +22,6 @@ const buckets = await client.objectStorage.listBuckets({ workspaceId: "710995" }
 await client.objectStorage.createBucket({
   workspaceId: "710995",
   name: "my-bucket",
-  siteId: "site_blr_01",
   region: "in-south-1",
 });
 const s3Key = await client.objectStorage.createS3Credential({
