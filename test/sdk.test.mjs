@@ -303,6 +303,61 @@ test("compute catalog sends required VM type and placement filters", async () =>
   assert.match(calls[2].url, /site_id=site1/);
 });
 
+test("billing eligibility sends the workspace and optional estimate fields", async () => {
+  const decision = {
+    organization_id: "250612",
+    allowed: true,
+    reason: "sufficient_balance",
+    billing_mode: "PREPAID",
+    billing_state: "CURRENT",
+    currency: "INR",
+    sku_code: "STANDARD-2-8-50",
+    estimated_cost_minor: 120000,
+    effective_balance_minor: 500000,
+    credit_headroom_minor: null,
+    evaluated_at: "2026-08-04T10:00:00Z",
+  };
+  const { calls, fetchImpl } = stub({ json: decision });
+  const client = new Ibee({ token: "t", fetch: fetchImpl });
+
+  const result = await client.billing.checkResourceEligibility({
+    workspaceId: "710995",
+    skuCode: "STANDARD-2-8-50",
+    estimatedCostMinor: 120000,
+  });
+
+  assert.deepEqual(result, decision);
+  assert.equal(calls[0].method, "POST");
+  assert.match(
+    calls[0].url,
+    /\/billing\/resource-eligibility\?workspace_id=710995$/,
+  );
+  assert.deepEqual(JSON.parse(calls[0].body), {
+    sku_code: "STANDARD-2-8-50",
+    estimated_cost_minor: 120000,
+  });
+});
+
+test("billing eligibility supports an empty optional request body", async () => {
+  const { calls, fetchImpl } = stub({
+    json: {
+      organization_id: "250612",
+      allowed: false,
+      reason: "billing_profile_not_found",
+      billing_mode: "PREPAID",
+      billing_state: "CURRENT",
+      currency: "INR",
+      evaluated_at: "2026-08-04T10:00:00Z",
+    },
+  });
+  const client = new Ibee({ token: "t", fetch: fetchImpl });
+
+  await client.billing.checkResourceEligibility({ workspaceId: "710995" });
+
+  assert.deepEqual(JSON.parse(calls[0].body), {});
+  assert.equal(calls[0].headers.get("content-type"), "application/json");
+});
+
 test("throws ApiError on non-2xx with parsed body", async () => {
   const { fetchImpl } = stub({ status: 401, json: { error: "invalid_api_key" } });
   const client = new Ibee({ token: "bad", fetch: fetchImpl });

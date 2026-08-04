@@ -146,6 +146,35 @@ export interface VmMetrics {
 export type VmType = "cloud" | "gpu";
 export type BillingInterval = "HOURLY" | "MONTHLY";
 
+export type BillingMode = "PREPAID" | "POSTPAID";
+export type BillingState =
+  | "CURRENT"
+  | "PAYMENT_DUE"
+  | "PAST_DUE"
+  | "SOFT_SUSPENDED"
+  | "HARD_SUSPENDED";
+
+/** Body of POST /billing/resource-eligibility. */
+export interface BillingEligibilityRequest {
+  sku_code?: string;
+  estimated_cost_minor?: number;
+}
+
+/** Point-in-time decision returned by POST /billing/resource-eligibility. */
+export interface BillingEligibility {
+  organization_id: string;
+  allowed: boolean;
+  reason: string;
+  billing_mode: BillingMode;
+  billing_state: BillingState;
+  currency: string;
+  sku_code?: string | null;
+  estimated_cost_minor?: number | null;
+  effective_balance_minor?: number | null;
+  credit_headroom_minor?: number | null;
+  evaluated_at: string;
+}
+
 export interface ComputeSite {
   site_id: string;
   name: string;

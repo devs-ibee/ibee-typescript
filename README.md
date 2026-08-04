@@ -17,6 +17,15 @@ import { Ibee } from "ibee-sdk";
 
 const client = new Ibee({ token: "ibee_live_xxxxxxxxxxxx" });
 
+// Point-in-time billing preflight before a billable create. This does not
+// reserve funds or guarantee that the later product operation will succeed.
+const eligibility = await client.billing.checkResourceEligibility({
+  workspaceId: "710995",
+  skuCode: "STANDARD-2-8-50",
+  estimatedCostMinor: 120000,
+});
+if (!eligibility.allowed) throw new Error(`Not eligible: ${eligibility.reason}`);
+
 // Object storage
 const buckets = await client.objectStorage.listBuckets({ workspaceId: "710995" });
 await client.objectStorage.createBucket({
@@ -117,6 +126,7 @@ try {
 
 | Resource | Methods |
 |---|---|
+| `client.billing` | checkResourceEligibility |
 | `client.secretStore` | listSecretStores, createSecretStore, getSecretStore, updateSecretStore, archiveSecretStore, listSecrets, createSecret, getSecret, deleteSecret, getSecretValue, updateSecretValue |
 | `client.objectStorage` | bucket list/create/get/update/delete and S3 credential list/create/get/revoke |
 | `client.vpcs` | listSites, list, create, get, update, delete, subnet/node/NAT/port-forwarding lifecycle |

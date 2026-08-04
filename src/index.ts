@@ -1,5 +1,6 @@
 import { HttpClient, type ClientOptions } from "./core.js";
 import { IbeeEnvironment } from "./environments.js";
+import { BillingResource } from "./resources/billing.js";
 import { ComputeCatalogResource } from "./resources/compute.js";
 import {
   FirewallsResource,
@@ -42,6 +43,7 @@ export interface IbeeOptions extends Omit<ClientOptions, "baseUrl"> {
  * ```
  */
 export class Ibee {
+  readonly billing: BillingResource;
   readonly secretStore: SecretStoreResource;
   readonly objectStorage: ObjectStorageResource;
   readonly cloudVms: VmResource;
@@ -58,6 +60,7 @@ export class Ibee {
       options.baseUrl ?? options.environment ?? IbeeEnvironment.DEFAULT;
     const http = new HttpClient({ ...options, baseUrl });
 
+    this.billing = new BillingResource(http);
     this.secretStore = new SecretStoreResource(http);
     this.objectStorage = new ObjectStorageResource(http);
     this.cloudVms = new VmResource(http, "cloud-vms");
