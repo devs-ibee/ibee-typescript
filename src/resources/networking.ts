@@ -1,4 +1,5 @@
 import type { HttpClient } from "../core.js";
+import type { BillingResource } from "./billing.js";
 import type {
   FirewallAttachment,
   FirewallGroup,
@@ -25,7 +26,10 @@ import type {
 const pathId = (value: string) => encodeURIComponent(value);
 
 export class VpcsResource {
-  constructor(private readonly http: HttpClient) {}
+  constructor(
+    private readonly http: HttpClient,
+    private readonly billing: BillingResource,
+  ) {}
 
   listSites(args: { workspaceId: string }): Promise<NetworkingSite[]> {
     return this.http.request({
@@ -228,7 +232,7 @@ export class VpcsResource {
     });
   }
 
-  createNatGateway(args: {
+  async createNatGateway(args: {
     workspaceId: string;
     vpcId: string;
     subnetId?: string;
@@ -236,6 +240,7 @@ export class VpcsResource {
     name?: string;
   }): Promise<NatGateway> {
     const { workspaceId, vpcId, subnetId, reservedPublicIpId, name } = args;
+    await this.billing.requireResourceEligibility({ workspaceId });
     return this.http.request({
       method: "POST",
       path: `/networking/vpcs/${pathId(vpcId)}/nat-gateways`,
@@ -357,7 +362,10 @@ export class VpcsResource {
 }
 
 export class ReservedIpsResource {
-  constructor(private readonly http: HttpClient) {}
+  constructor(
+    private readonly http: HttpClient,
+    private readonly billing: BillingResource,
+  ) {}
 
   list(args: { workspaceId: string; siteId?: string }): Promise<ReservedIp[]> {
     return this.http.request({
@@ -368,11 +376,12 @@ export class ReservedIpsResource {
     });
   }
 
-  reserve(args: {
+  async reserve(args: {
     workspaceId: string;
     siteId: string;
     label?: string;
   }): Promise<ReservedIp> {
+    await this.billing.requireResourceEligibility({ workspaceId: args.workspaceId });
     return this.http.request({
       method: "POST",
       path: "/networking/reserved-ips",
@@ -617,7 +626,10 @@ interface CreateLoadBalancerArgs {
 }
 
 export class LoadBalancersResource {
-  constructor(private readonly http: HttpClient) {}
+  constructor(
+    private readonly http: HttpClient,
+    private readonly billing: BillingResource,
+  ) {}
 
   list(args: {
     workspaceId: string;
@@ -641,8 +653,12 @@ export class LoadBalancersResource {
     });
   }
 
-  createL4(args: CreateLoadBalancerArgs): Promise<LoadBalancer> {
+  async createL4(args: CreateLoadBalancerArgs): Promise<LoadBalancer> {
     const { workspaceId, ...body } = args;
+    await this.billing.requireResourceEligibility({
+      workspaceId,
+      skuCode: "LOADBALA-STD",
+    });
     return this.http.request({
       method: "POST",
       path: "/networking/load-balancers/l4",
@@ -651,13 +667,17 @@ export class LoadBalancersResource {
     });
   }
 
-  createL7(
+  async createL7(
     args: CreateLoadBalancerArgs & {
       customDomain?: { hostname: string };
       rules?: LoadBalancerRule[];
     },
   ): Promise<LoadBalancer> {
     const { workspaceId, customDomain, ...rest } = args;
+    await this.billing.requireResourceEligibility({
+      workspaceId,
+      skuCode: "LOADBALA-STD",
+    });
     return this.http.request({
       method: "POST",
       path: "/networking/load-balancers/l7",

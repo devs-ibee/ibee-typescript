@@ -1,4 +1,5 @@
 import type { HttpClient } from "../core.js";
+import type { BillingResource } from "./billing.js";
 import type {
   Bucket,
   BucketList,
@@ -11,7 +12,10 @@ import type {
 } from "../types.js";
 
 export class ObjectStorageResource {
-  constructor(private readonly http: HttpClient) {}
+  constructor(
+    private readonly http: HttpClient,
+    private readonly billing: BillingResource,
+  ) {}
 
   listBuckets(args: {
     workspaceId: string;
@@ -29,7 +33,7 @@ export class ObjectStorageResource {
     });
   }
 
-  createBucket(args: {
+  async createBucket(args: {
     workspaceId: string;
     name: string;
     /** Optional storage region; omit when the environment has one region. */
@@ -39,6 +43,10 @@ export class ObjectStorageResource {
     defaultRetention?: DefaultRetention;
     tags?: string[];
   }): Promise<Bucket> {
+    await this.billing.requireResourceEligibility({
+      workspaceId: args.workspaceId,
+      skuCode: "OBJECTST-STD",
+    });
     return this.http.request({
       method: "POST",
       path: "/object-storage/buckets",
@@ -99,13 +107,17 @@ export class ObjectStorageResource {
     });
   }
 
-  createS3Credential(args: {
+  async createS3Credential(args: {
     workspaceId: string;
     name?: string;
     permissionType?: string;
     bucketScope?: "all" | "specific";
     allowedBuckets?: string[];
   }): Promise<S3CredentialCreated> {
+    await this.billing.requireResourceEligibility({
+      workspaceId: args.workspaceId,
+      skuCode: "OBJECTST-STD",
+    });
     return this.http.request({
       method: "POST",
       path: "/object-storage/credentials",

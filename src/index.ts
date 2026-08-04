@@ -60,16 +60,21 @@ export class Ibee {
       options.baseUrl ?? options.environment ?? IbeeEnvironment.DEFAULT;
     const http = new HttpClient({ ...options, baseUrl });
 
-    this.secretStore = new SecretStoreResource(http);
     this.billing = new BillingResource(http);
-    this.objectStorage = new ObjectStorageResource(http);
-    this.cloudVms = new VmResource(http, "cloud-vms");
-    this.gpuVms = new VmResource<CreateGpuVmRequest, GpuVm>(http, "gpu-vms");
+    this.secretStore = new SecretStoreResource(http, this.billing);
+    this.objectStorage = new ObjectStorageResource(http, this.billing);
+    this.cloudVms = new VmResource(http, this.billing, "cloud-vms", "cloud");
+    this.gpuVms = new VmResource<CreateGpuVmRequest, GpuVm>(
+      http,
+      this.billing,
+      "gpu-vms",
+      "gpu",
+    );
     this.operations = new OperationsResource(http);
     this.computeCatalog = new ComputeCatalogResource(http);
-    this.vpcs = new VpcsResource(http);
-    this.reservedIps = new ReservedIpsResource(http);
+    this.vpcs = new VpcsResource(http, this.billing);
+    this.reservedIps = new ReservedIpsResource(http, this.billing);
     this.firewalls = new FirewallsResource(http);
-    this.loadBalancers = new LoadBalancersResource(http);
+    this.loadBalancers = new LoadBalancersResource(http, this.billing);
   }
 }

@@ -6,14 +6,36 @@ import { ApiError, Ibee, IbeeEnvironment } from "../dist/index.js";
 function stub(resp = {}) {
   const calls = [];
   const fetchImpl = async (url, init) => {
+    const requestUrl = String(url);
     calls.push({
-      url: String(url),
+      url: requestUrl,
       method: init.method ?? "GET",
       headers: new Headers(init.headers),
       body: init.body,
     });
-    return new Response(JSON.stringify(resp.json ?? {}), {
-      status: resp.status ?? 200,
+    const requestBody = init.body ? JSON.parse(init.body) : {};
+    const isBilling = requestUrl.includes("/billing/resource-eligibility?");
+    const isPlans = requestUrl.includes("/compute/plans?");
+    const defaultPlans = {
+      plans: [
+        { plan_id: "plan-1", code: "STANDARD-2-8-50", selectable: true, pricing_status: "priced" },
+        { plan_id: "gpu-plan-1", code: "GPU-A100-1", selectable: true, pricing_status: "priced" },
+      ],
+    };
+    const defaultDecision = {
+      organization_id: "org1",
+      allowed: true,
+      reason: "ok",
+      sku_code: requestBody.sku_code ?? null,
+    };
+    const json = isBilling
+      ? (resp.billingJson ?? (resp.status >= 400 || typeof resp.json?.allowed === "boolean" ? resp.json : defaultDecision))
+      : isPlans
+        ? (resp.catalogJson ?? defaultPlans)
+        : (resp.json ?? {});
+    const status = isBilling ? (resp.billingStatus ?? resp.status ?? 200) : (resp.status ?? 200);
+    return new Response(JSON.stringify(json), {
+      status,
       headers: { "content-type": "application/json" },
     });
   };
@@ -57,12 +79,14 @@ test("createBucket omits compute sites and supports optional storage placement",
     objectLockEnabled: true,
     defaultRetention: { mode: "GOVERNANCE", days: 30 },
   });
-  const body = JSON.parse(calls[0].body);
+  assert.match(calls[0].url, /\/billing\/resource-eligibility\?/);
+  assert.deepEqual(JSON.parse(calls[0].body), { sku_code: "OBJECTST-STD" });
+  const body = JSON.parse(calls[1].body);
   assert.equal("site_id" in body, false);
   assert.equal(body.region, "in-south-1");
   assert.equal(body.object_lock_enabled, true);
   assert.deepEqual(body.default_retention, { mode: "GOVERNANCE", days: 30 });
-  assert.equal(calls[0].method, "POST");
+  assert.equal(calls[1].method, "POST");
 });
 
 test("createSecret sends secret_name and value (spec field names)", async () => {
@@ -74,7 +98,8 @@ test("createSecret sends secret_name and value (spec field names)", async () => 
     name: "db-url",
     value: { url: "postgres://x" },
   });
-  const body = JSON.parse(calls[0].body);
+  assert.deepEqual(JSON.parse(calls[0].body), { sku_code: "SECRETMA-STD" });
+  const body = JSON.parse(calls[1].body);
   assert.equal(body.secret_name, "db-url");
   assert.deepEqual(body.value, { url: "postgres://x" });
   assert.equal(body.name, undefined);
@@ -108,9 +133,11 @@ test("cloudVms.create attaches an idempotency key", async () => {
     cpu: 2,
     ram_mb: 4096,
   });
-  assert.ok(calls[0].headers.get("x-idempotency-key"));
-  assert.equal("site_id" in JSON.parse(calls[0].body), false);
-  assert.match(calls[0].url, /\/compute\/cloud-vms/);
+  assert.match(calls[0].url, /\/compute\/plans\?/);
+  assert.deepEqual(JSON.parse(calls[1].body), { sku_code: "STANDARD-2-8-50" });
+  assert.ok(calls[2].headers.get("x-idempotency-key"));
+  assert.equal("site_id" in JSON.parse(calls[2].body), false);
+  assert.match(calls[2].url, /\/compute\/cloud-vms/);
 });
 
 test("cloud VM lifecycle uses canonical paths, methods, and idempotency", async () => {
@@ -165,21 +192,25 @@ test("cloud VM lifecycle uses canonical paths, methods, and idempotency", async 
 
   assert.deepEqual(
     calls.map(({ method }) => method),
-    ["GET", "POST", "GET", "POST", "POST", "POST", "GET", "DELETE", "GET"],
+    ["GET", "GET", "POST", "POST", "GET", "POST", "POST", "POST", "GET", "DELETE", "GET"],
   );
   assert.match(calls[0].url, /\/compute\/cloud-vms\?workspace_id=710995$/);
-  assert.match(calls[1].url, /\/compute\/cloud-vms\?workspace_id=710995$/);
-  assert.equal(calls[1].headers.get("x-idempotency-key"), "create-key");
-  assert.equal(JSON.parse(calls[1].body).site_id, "site-1");
-  assert.match(calls[2].url, /\/compute\/cloud-vms\/vm%2F1\?/);
-  assert.match(calls[3].url, /\/actions\/start\?/);
-  assert.equal(calls[3].body, undefined);
-  assert.equal(calls[3].headers.get("x-idempotency-key"), "start-key");
-  assert.deepEqual(JSON.parse(calls[4].body), { force: true });
-  assert.deepEqual(JSON.parse(calls[5].body), { force: false });
-  assert.match(calls[6].url, /\/compute\/cloud-vms\/vm1\/metrics\?/);
-  assert.equal(calls[7].headers.get("x-idempotency-key"), "delete-key");
-  assert.match(calls[8].url, /\/compute\/operations\/op%2F1\?/);
+  assert.match(calls[1].url, /\/compute\/plans\?/);
+  assert.deepEqual(JSON.parse(calls[2].body), { sku_code: "STANDARD-2-8-50" });
+  assert.equal(calls[1].headers.get("x-idempotency-key"), null);
+  assert.equal(calls[2].headers.get("x-idempotency-key"), null);
+  assert.match(calls[3].url, /\/compute\/cloud-vms\?workspace_id=710995$/);
+  assert.equal(calls[3].headers.get("x-idempotency-key"), "create-key");
+  assert.equal(JSON.parse(calls[3].body).site_id, "site-1");
+  assert.match(calls[4].url, /\/compute\/cloud-vms\/vm%2F1\?/);
+  assert.match(calls[5].url, /\/actions\/start\?/);
+  assert.equal(calls[5].body, undefined);
+  assert.equal(calls[5].headers.get("x-idempotency-key"), "start-key");
+  assert.deepEqual(JSON.parse(calls[6].body), { force: true });
+  assert.deepEqual(JSON.parse(calls[7].body), { force: false });
+  assert.match(calls[8].url, /\/compute\/cloud-vms\/vm1\/metrics\?/);
+  assert.equal(calls[9].headers.get("x-idempotency-key"), "delete-key");
+  assert.match(calls[10].url, /\/compute\/operations\/op%2F1\?/);
 });
 
 test("gpuVms.create forwards gpu_count and gpu_model", async () => {
@@ -198,10 +229,12 @@ test("gpuVms.create forwards gpu_count and gpu_model", async () => {
     gpu_count: 1,
     gpu_model: "A100",
   });
-  const body = JSON.parse(calls[0].body);
+  assert.match(calls[0].url, /\/compute\/plans\?/);
+  assert.deepEqual(JSON.parse(calls[1].body), { sku_code: "GPU-A100-1" });
+  const body = JSON.parse(calls[2].body);
   assert.equal(body.gpu_count, 1);
   assert.equal(body.gpu_model, "A100");
-  assert.match(calls[0].url, /\/compute\/gpu-vms/);
+  assert.match(calls[2].url, /\/compute\/gpu-vms/);
 });
 
 test("power actions send force when provided", async () => {
@@ -315,10 +348,11 @@ test("port forwarding, Reserved IP, firewall, and load balancer bodies are mappe
     backends: [{ target: "vm1", port: 8443 }],
     customDomain: { hostname: "app.example.com" },
   });
-  assert.deepEqual(JSON.parse(calls[4].body).custom_domain, {
+  assert.deepEqual(JSON.parse(calls[4].body), { sku_code: "LOADBALA-STD" });
+  assert.deepEqual(JSON.parse(calls[5].body).custom_domain, {
     hostname: "app.example.com",
   });
-  assert.match(calls[4].url, /\/networking\/load-balancers\/l7\?/);
+  assert.match(calls[5].url, /\/networking\/load-balancers\/l7\?/);
 });
 
 test("object storage bucket and S3 credential lifecycle uses canonical paths", async () => {
@@ -345,9 +379,10 @@ test("object storage bucket and S3 credential lifecycle uses canonical paths", a
   assert.equal(calls[1].method, "PATCH");
   assert.deepEqual(JSON.parse(calls[1].body), { is_public: true });
   assert.match(calls[2].url, /\/object-storage\/credentials\?/);
-  assert.deepEqual(JSON.parse(calls[3].body).allowed_buckets, ["assets"]);
-  assert.match(calls[4].url, /\/object-storage\/credentials\/AK123\?/);
-  assert.equal(calls[5].method, "DELETE");
+  assert.deepEqual(JSON.parse(calls[3].body), { sku_code: "OBJECTST-STD" });
+  assert.deepEqual(JSON.parse(calls[4].body).allowed_buckets, ["assets"]);
+  assert.match(calls[5].url, /\/object-storage\/credentials\/AK123\?/);
+  assert.equal(calls[6].method, "DELETE");
 });
 
 test("compute catalog sends required VM type and placement filters", async () => {
@@ -411,7 +446,7 @@ test("billing eligibility is an explicit typed preflight for billable creates", 
   assert.equal(calls[0].headers.get("x-idempotency-key"), null);
 });
 
-test("VM create never performs a hidden billing preflight", async () => {
+test("VM create resolves the catalog SKU and performs billing preflight", async () => {
   const { calls, fetchImpl } = stub({ json: {} });
   const client = new Ibee({ token: "t", fetch: fetchImpl });
 
@@ -427,8 +462,158 @@ test("VM create never performs a hidden billing preflight", async () => {
     ram_mb: 4096,
   });
 
-  assert.equal(calls.length, 1);
-  assert.match(calls[0].url, /\/compute\/cloud-vms\?/);
+  assert.equal(calls.length, 3);
+  assert.match(calls[0].url, /\/compute\/plans\?/);
+  assert.deepEqual(JSON.parse(calls[1].body), { sku_code: "STANDARD-2-8-50" });
+  assert.match(calls[2].url, /\/compute\/cloud-vms\?/);
+});
+
+const billableCreates = [
+  {
+    name: "secret store",
+    productPath: "/secret-store/stores?",
+    sku: "SECRETMA-STD",
+    run: (client) => client.secretStore.createSecretStore({ workspaceId: "1", name: "app" }),
+  },
+  {
+    name: "secret",
+    productPath: "/secret-store/stores/st1/secrets?",
+    sku: "SECRETMA-STD",
+    run: (client) => client.secretStore.createSecret({
+      workspaceId: "1", storeId: "st1", name: "token", value: { token: "x" },
+    }),
+  },
+  {
+    name: "bucket",
+    productPath: "/object-storage/buckets?",
+    sku: "OBJECTST-STD",
+    run: (client) => client.objectStorage.createBucket({ workspaceId: "1", name: "assets" }),
+  },
+  {
+    name: "S3 credential",
+    productPath: "/object-storage/credentials?",
+    sku: "OBJECTST-STD",
+    run: (client) => client.objectStorage.createS3Credential({ workspaceId: "1", name: "ci" }),
+  },
+  {
+    name: "NAT gateway",
+    productPath: "/networking/vpcs/vpc1/nat-gateways?",
+    sku: undefined,
+    run: (client) => client.vpcs.createNatGateway({ workspaceId: "1", vpcId: "vpc1" }),
+  },
+  {
+    name: "Reserved IP",
+    productPath: "/networking/reserved-ips?",
+    sku: undefined,
+    run: (client) => client.reservedIps.reserve({ workspaceId: "1", siteId: "site1" }),
+  },
+  {
+    name: "L4 load balancer",
+    productPath: "/networking/load-balancers/l4?",
+    sku: "LOADBALA-STD",
+    run: (client) => client.loadBalancers.createL4({
+      workspaceId: "1", name: "edge", protocol: "tcp", backends: [],
+    }),
+  },
+  {
+    name: "L7 load balancer",
+    productPath: "/networking/load-balancers/l7?",
+    sku: "LOADBALA-STD",
+    run: (client) => client.loadBalancers.createL7({
+      workspaceId: "1", name: "web", protocol: "http", backends: [],
+    }),
+  },
+  {
+    name: "Cloud VM",
+    productPath: "/compute/cloud-vms?",
+    sku: "STANDARD-2-8-50",
+    run: (client) => client.cloudVms.create({
+      workspaceId: "1", idempotencyKey: "cloud-key", name: "web", plan_id: "plan-1",
+      template_id: "image-1", os_distro: "ubuntu", os_type: "linux", cpu: 2, ram_mb: 4096,
+    }),
+  },
+  {
+    name: "GPU VM",
+    productPath: "/compute/gpu-vms?",
+    sku: "GPU-A100-1",
+    run: (client) => client.gpuVms.create({
+      workspaceId: "1", idempotencyKey: "gpu-key", name: "trainer", plan_id: "gpu-plan-1",
+      template_id: "image-1", os_distro: "ubuntu", os_type: "linux", cpu: 8, ram_mb: 32768,
+      gpu_count: 1, gpu_model: "A100",
+    }),
+  },
+];
+
+for (const scenario of billableCreates) {
+  test(`${scenario.name} billing denial prevents the product POST`, async () => {
+    const { calls, fetchImpl } = stub({
+      billingJson: {
+        organization_id: "org1",
+        allowed: false,
+        reason: "insufficient_balance",
+        sku_code: scenario.sku ?? null,
+      },
+    });
+    const client = new Ibee({ token: "t", fetch: fetchImpl });
+
+    await assert.rejects(
+      () => scenario.run(client),
+      (err) => err instanceof ApiError && err.statusCode === 402,
+    );
+
+    const billingCall = calls.find(({ url }) => url.includes("/billing/resource-eligibility?"));
+    assert.ok(billingCall, "billing preflight did not run");
+    assert.deepEqual(JSON.parse(billingCall.body),
+      scenario.sku === undefined ? {} : { sku_code: scenario.sku });
+    assert.equal(
+      calls.some(({ method, url }) => method === "POST" && url.includes(scenario.productPath)),
+      false,
+      "product POST ran after a billing denial",
+    );
+  });
+}
+
+test("malformed or SKU-mismatched billing decisions fail closed", async () => {
+  for (const billingJson of [
+    { organization_id: "org1", reason: "missing allowed", sku_code: "OBJECTST-STD" },
+    { allowed: true, reason: "missing organization", sku_code: "OBJECTST-STD" },
+    { organization_id: "org1", allowed: true, reason: "ok", sku_code: "WRONG-SKU" },
+  ]) {
+    const { calls, fetchImpl } = stub({ billingJson });
+    const client = new Ibee({ token: "t", fetch: fetchImpl });
+    await assert.rejects(
+      () => client.objectStorage.createBucket({ workspaceId: "1", name: "assets" }),
+      (err) => err instanceof ApiError && err.statusCode === 502,
+    );
+    assert.equal(calls.some(({ url }) => url.includes("/object-storage/buckets?")), false);
+  }
+});
+
+test("VM create fails closed when the requested catalog plan cannot be resolved", async () => {
+  const { calls, fetchImpl } = stub({ catalogJson: { plans: [] } });
+  const client = new Ibee({ token: "t", fetch: fetchImpl });
+  await assert.rejects(
+    () => client.cloudVms.create({
+      workspaceId: "1", name: "web", plan_id: "missing-plan", template_id: "image-1",
+      os_distro: "ubuntu", os_type: "linux", cpu: 2, ram_mb: 4096,
+    }),
+    (err) => err instanceof ApiError && err.statusCode === 422,
+  );
+  assert.equal(calls.some(({ url }) => url.includes("/billing/resource-eligibility?")), false);
+  assert.equal(calls.some(({ url }) => url.includes("/compute/cloud-vms?")), false);
+});
+
+test("an unavailable billing preflight prevents the product POST", async () => {
+  const { calls, fetchImpl } = stub({
+    billingStatus: 503,
+    billingJson: { error: { code: "BILLING_UNAVAILABLE", message: "try again" } },
+  });
+  const client = new Ibee({ token: "t", fetch: fetchImpl });
+  await assert.rejects(
+    () => client.secretStore.createSecretStore({ workspaceId: "1", name: "app" }),
+    (err) => err instanceof ApiError && err.statusCode === 503,
+  );
+  assert.equal(calls.some(({ url }) => url.includes("/secret-store/stores?")), false);
 });
 
 test("billing eligibility denial is preserved as an ApiError", async () => {
