@@ -56,6 +56,37 @@ await client.cloudVms.create({
   ssh_key_ids: ["ssh_key_123"],
 });
 
+// VM lifecycle and recovery
+await client.cloudVms.stop({
+  workspaceId: "710995",
+  vmId: "vm_123",
+});
+await client.cloudVms.resize({
+  workspaceId: "710995",
+  vmId: "vm_123",
+  request: { cpu: 4, ram_mb: 8192 },
+});
+const snapshot = await client.cloudVms.createSnapshot({
+  workspaceId: "710995",
+  vmId: "vm_123",
+  request: { name: "before-upgrade", mode: "all_attached" },
+});
+await client.cloudVms.enableBackups({
+  workspaceId: "710995",
+  vmId: "vm_123",
+  request: {
+    schedule: { frequency: "daily", timezone: "Asia/Kolkata", hour: 20 },
+    retention_days: 14,
+  },
+});
+
+// Sensitive, short-lived graphical console URL — do not log or persist it.
+const consoleSession = await client.vmConsole.createSession({
+  workspaceId: "710995",
+  vmId: "vm_123",
+  vmType: "cloud",
+});
+
 // VPC networking
 const vpc = await client.vpcs.create({
   workspaceId: "710995",
@@ -138,7 +169,8 @@ try {
 | `client.loadBalancers` | list, createL4, createL7, get, updateL4, updateL7, delete, getStatus |
 | `client.computeCatalog` | typed site, plan, and image discovery |
 | `client.billing` | automatic and explicit billing resource-eligibility preflight for billable creates |
-| `client.cloudVms` / `client.gpuVms` | list, create, get, delete, start, stop, reboot, getMetrics |
+| `client.cloudVms` / `client.gpuVms` | full lifecycle: power, access, resize/precheck, volumes, mount guidance, events, metrics, snapshots, backup policy/runs, and restore |
+| `client.vmConsole` | createSession, getSession, closeSession |
 | `client.operations` | get |
 
 ## Related

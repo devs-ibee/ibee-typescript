@@ -245,6 +245,301 @@ test("power actions send force when provided", async () => {
   assert.match(calls[0].url, /\/actions\/stop\?/);
 });
 
+test("Cloud and GPU VM resources expose the complete lifecycle surface", () => {
+  const client = new Ibee({ token: "t" });
+  const methods = [
+    "list", "create", "get", "delete", "start", "stop", "reboot", "getMetrics",
+    "updateAccess", "precheckResize", "resize", "resizePlan", "resizeRootDisk",
+    "attachVolume", "detachVolume", "acknowledgeMountGuidance", "listEvents",
+    "getMetricsTimeseries", "getBandwidth", "createSnapshot", "listSnapshots",
+    "restoreSnapshot", "getSnapshot", "deleteSnapshot", "getSnapshotRestore",
+    "getBackupPolicy", "updateBackupPolicy", "enableBackups", "disableBackups",
+    "rescheduleBackup", "createBackupRun", "listBackupRuns", "getBackupRun",
+    "restoreBackup", "getBackupRestore",
+  ];
+  for (const resource of [client.cloudVms, client.gpuVms]) {
+    for (const method of methods) {
+      assert.equal(typeof resource[method], "function", method);
+    }
+  }
+  for (const method of ["createSession", "getSession", "closeSession"]) {
+    assert.equal(typeof client.vmConsole[method], "function", `vmConsole.${method}`);
+  }
+});
+
+test("extended VM writes use canonical bodies and idempotency headers", async () => {
+  const { calls, fetchImpl } = stub({ json: {} });
+  const client = new Ibee({ token: "t", fetch: fetchImpl });
+
+  await client.cloudVms.updateAccess({
+    workspaceId: "ws",
+    vmId: "vm/1",
+    idempotencyKey: "access-key",
+    request: {
+      ssh_key_mode: "add",
+      ssh_key_ids: ["key-1"],
+      password_auth_enabled: false,
+    },
+  });
+  await client.cloudVms.precheckResize({
+    workspaceId: "ws",
+    vmId: "vm/1",
+    request: { cpu: 4, ram_mb: 8192 },
+  });
+  await client.cloudVms.resize({
+    workspaceId: "ws",
+    vmId: "vm/1",
+    idempotencyKey: "resize-key",
+    request: { cpu: 4, ram_mb: 8192, requested_by: "sdk" },
+  });
+  await client.cloudVms.resizePlan({
+    workspaceId: "ws",
+    vmId: "vm/1",
+    idempotencyKey: "plan-key",
+    request: { cpu: 8, ram_mb: 16384, allow_online: true },
+  });
+  await client.cloudVms.resizeRootDisk({
+    workspaceId: "ws",
+    vmId: "vm/1",
+    idempotencyKey: "disk-key",
+    request: { new_size_gb: 200, allow_online: false },
+  });
+  await client.cloudVms.attachVolume({
+    workspaceId: "ws",
+    vmId: "vm/1",
+    idempotencyKey: "attach-key",
+    request: { volume_id: "vol-1", mode: "single-writer" },
+  });
+  await client.cloudVms.detachVolume({
+    workspaceId: "ws",
+    vmId: "vm/1",
+    idempotencyKey: "detach-key",
+    request: { volume_id: "vol-1", force: true, confirm_unmounted: true },
+  });
+  await client.cloudVms.acknowledgeMountGuidance({
+    workspaceId: "ws",
+    vmId: "vm/1",
+    volumeId: "vol-1",
+  });
+
+  assert.deepEqual(
+    calls.map(({ method }) => method),
+    ["PATCH", "POST", "POST", "PATCH", "PATCH", "POST", "POST", "POST"],
+  );
+  assert.match(calls[0].url, /\/compute\/cloud-vms\/vm%2F1\/actions\/access\?/);
+  assert.equal(calls[0].headers.get("x-idempotency-key"), "access-key");
+  assert.deepEqual(JSON.parse(calls[0].body), {
+    ssh_key_mode: "add",
+    ssh_key_ids: ["key-1"],
+    password_auth_enabled: false,
+  });
+  assert.match(calls[1].url, /\/actions\/resize\/precheck\?/);
+  assert.equal(calls[1].headers.get("x-idempotency-key"), null);
+  assert.deepEqual(JSON.parse(calls[1].body), { cpu: 4, ram_mb: 8192 });
+  assert.equal(calls[2].headers.get("x-idempotency-key"), "resize-key");
+  assert.deepEqual(JSON.parse(calls[3].body), { cpu: 8, ram_mb: 16384, allow_online: true });
+  assert.equal(calls[3].headers.get("x-idempotency-key"), "plan-key");
+  assert.deepEqual(JSON.parse(calls[4].body), { new_size_gb: 200, allow_online: false });
+  assert.equal(calls[4].headers.get("x-idempotency-key"), "disk-key");
+  assert.deepEqual(JSON.parse(calls[5].body), { volume_id: "vol-1", mode: "single-writer" });
+  assert.equal(calls[5].headers.get("x-idempotency-key"), "attach-key");
+  assert.deepEqual(JSON.parse(calls[6].body), {
+    volume_id: "vol-1",
+    force: true,
+    confirm_unmounted: true,
+  });
+  assert.equal(calls[6].headers.get("x-idempotency-key"), "detach-key");
+  assert.deepEqual(JSON.parse(calls[7].body), { volume_id: "vol-1" });
+  assert.equal(calls[7].headers.get("x-idempotency-key"), null);
+});
+
+test("VM observability methods forward limit, range, and month queries", async () => {
+  const { calls, fetchImpl } = stub({ json: {} });
+  const client = new Ibee({ token: "t", fetch: fetchImpl });
+
+  await client.cloudVms.listEvents({ workspaceId: "ws", vmId: "vm1", limit: 250 });
+  await client.cloudVms.getMetricsTimeseries({ workspaceId: "ws", vmId: "vm1", range: "24h" });
+  await client.cloudVms.getBandwidth({ workspaceId: "ws", vmId: "vm1", month: "2026-08" });
+
+  assert.match(calls[0].url, /\/events\?workspace_id=ws&limit=250$/);
+  assert.match(calls[1].url, /\/metrics\/timeseries\?workspace_id=ws&range=24h$/);
+  assert.match(calls[2].url, /\/metrics\/bandwidth\?workspace_id=ws&month=2026-08$/);
+  assert.deepEqual(calls.map(({ method }) => method), ["GET", "GET", "GET"]);
+});
+
+test("snapshot and backup lifecycle forwards exact paths, queries, and bodies", async () => {
+  const { calls, fetchImpl } = stub({ json: {} });
+  const client = new Ibee({ token: "t", fetch: fetchImpl });
+
+  await client.cloudVms.createSnapshot({
+    workspaceId: "ws",
+    vmId: "vm1",
+    request: {
+      name: "before-upgrade",
+      mode: "selective",
+      selected_data_volume_ids: ["vol-1"],
+    },
+  });
+  await client.cloudVms.listSnapshots({
+    workspaceId: "ws",
+    vmId: "vm1",
+    limit: 25,
+    offset: 50,
+    search: "upgrade",
+  });
+  await client.cloudVms.restoreSnapshot({
+    workspaceId: "ws",
+    vmId: "vm/1",
+    snapshotSetId: "snap/1",
+    request: { target_mode: "new_vm", target_vm_name: "restored" },
+  });
+  await client.cloudVms.getSnapshot({ workspaceId: "ws", snapshotSetId: "snap/1" });
+  await client.cloudVms.deleteSnapshot({ workspaceId: "ws", snapshotSetId: "snap/1" });
+  await client.cloudVms.getSnapshotRestore({ workspaceId: "ws", restoreId: "restore/1" });
+  await client.cloudVms.getBackupPolicy({ workspaceId: "ws", vmId: "vm1" });
+  await client.cloudVms.updateBackupPolicy({
+    workspaceId: "ws",
+    vmId: "vm1",
+    request: { retention_days: 30, incremental_enabled: true },
+  });
+  await client.cloudVms.enableBackups({
+    workspaceId: "ws",
+    vmId: "vm1",
+    request: { schedule: { frequency: "daily", hour: 20 }, retention_days: 14 },
+  });
+  await client.cloudVms.disableBackups({
+    workspaceId: "ws",
+    vmId: "vm1",
+    request: { requested_by: "sdk" },
+  });
+  await client.cloudVms.rescheduleBackup({
+    workspaceId: "ws",
+    vmId: "vm1",
+    request: { next_run_at: "2026-08-10T20:00:00Z" },
+  });
+  await client.cloudVms.createBackupRun({
+    workspaceId: "ws",
+    vmId: "vm1",
+    request: { reason: "release" },
+  });
+  await client.cloudVms.listBackupRuns({
+    workspaceId: "ws",
+    vmId: "vm1",
+    limit: 10,
+    offset: 20,
+    search: "release",
+  });
+  await client.cloudVms.getBackupRun({ workspaceId: "ws", runId: "run/1" });
+  await client.cloudVms.restoreBackup({
+    workspaceId: "ws",
+    vmId: "vm1",
+    request: { recovery_point_id: "backup-1", target_mode: "replace", auto_start: true },
+  });
+  await client.cloudVms.getBackupRestore({ workspaceId: "ws", restoreId: "restore/2" });
+
+  assert.deepEqual(
+    calls.map(({ method }) => method),
+    [
+      "POST", "GET", "POST", "GET", "DELETE", "GET", "GET", "PATCH",
+      "POST", "POST", "PATCH", "POST", "GET", "GET", "POST", "GET",
+    ],
+  );
+  assert.match(calls[0].url, /\/cloud-vms\/vm1\/snapshots\?/);
+  assert.deepEqual(JSON.parse(calls[0].body), {
+    name: "before-upgrade",
+    mode: "selective",
+    selected_data_volume_ids: ["vol-1"],
+  });
+  assert.match(calls[1].url, /limit=25&offset=50&search=upgrade$/);
+  assert.match(calls[2].url, /\/cloud-vm-snapshots\/snap%2F1\/actions\/restore\?workspace_id=ws&vm_id=vm%2F1$/);
+  assert.deepEqual(JSON.parse(calls[2].body), {
+    target_mode: "new_vm",
+    target_vm_name: "restored",
+  });
+  assert.match(calls[3].url, /\/cloud-vm-snapshots\/snap%2F1\?workspace_id=ws$/);
+  assert.match(calls[4].url, /\/cloud-vm-snapshots\/snap%2F1\?workspace_id=ws$/);
+  assert.match(calls[5].url, /\/cloud-vm-snapshots\/restores\/restore%2F1\?workspace_id=ws$/);
+  assert.match(calls[6].url, /\/backups\/policy\?/);
+  assert.deepEqual(JSON.parse(calls[7].body), { retention_days: 30, incremental_enabled: true });
+  assert.deepEqual(JSON.parse(calls[8].body), {
+    schedule: { frequency: "daily", hour: 20 },
+    retention_days: 14,
+  });
+  assert.deepEqual(JSON.parse(calls[9].body), { requested_by: "sdk" });
+  assert.deepEqual(JSON.parse(calls[10].body), { next_run_at: "2026-08-10T20:00:00Z" });
+  assert.deepEqual(JSON.parse(calls[11].body), { reason: "release" });
+  assert.match(calls[12].url, /\/backups\/runs\?workspace_id=ws&limit=10&offset=20&search=release$/);
+  assert.match(calls[13].url, /\/cloud-vm-backups\/runs\/run%2F1\?workspace_id=ws$/);
+  assert.deepEqual(JSON.parse(calls[14].body), {
+    recovery_point_id: "backup-1",
+    target_mode: "replace",
+    auto_start: true,
+  });
+  assert.match(calls[15].url, /\/cloud-vm-backups\/restores\/restore%2F2\?workspace_id=ws$/);
+  for (const call of calls) assert.equal(call.headers.get("x-idempotency-key"), null);
+});
+
+test("GPU recovery uses GPU-specific collection paths", async () => {
+  const { calls, fetchImpl } = stub({ json: {} });
+  const client = new Ibee({ token: "t", fetch: fetchImpl });
+  await client.gpuVms.listEvents({ workspaceId: "ws", vmId: "gpu/1" });
+  await client.gpuVms.createSnapshot({
+    workspaceId: "ws",
+    vmId: "gpu/1",
+    request: { name: "checkpoint" },
+  });
+  await client.gpuVms.restoreSnapshot({
+    workspaceId: "ws",
+    vmId: "gpu/1",
+    snapshotSetId: "snap/1",
+  });
+  await client.gpuVms.getSnapshot({ workspaceId: "ws", snapshotSetId: "snap/2" });
+  await client.gpuVms.getSnapshotRestore({ workspaceId: "ws", restoreId: "restore/1" });
+  await client.gpuVms.restoreBackup({
+    workspaceId: "ws",
+    vmId: "gpu/1",
+    request: { recovery_point_id: "backup/1" },
+  });
+  await client.gpuVms.getBackupRun({ workspaceId: "ws", runId: "run/1" });
+  await client.gpuVms.getBackupRestore({ workspaceId: "ws", restoreId: "restore/2" });
+  assert.match(calls[0].url, /\/compute\/gpu-vms\/gpu%2F1\/events\?/);
+  assert.match(calls[1].url, /\/compute\/gpu-vms\/gpu%2F1\/snapshots\?/);
+  assert.match(calls[2].url, /\/compute\/gpu-vm-snapshots\/snap%2F1\/actions\/restore\?workspace_id=ws&vm_id=gpu%2F1$/);
+  assert.match(calls[3].url, /\/compute\/gpu-vm-snapshots\/snap%2F2\?/);
+  assert.match(calls[4].url, /\/compute\/gpu-vm-snapshots\/restores\/restore%2F1\?/);
+  assert.match(calls[5].url, /\/compute\/gpu-vms\/gpu%2F1\/backups\/actions\/restore\?/);
+  assert.match(calls[6].url, /\/compute\/gpu-vm-backups\/runs\/run%2F1\?/);
+  assert.match(calls[7].url, /\/compute\/gpu-vm-backups\/restores\/restore%2F2\?/);
+  assert.deepEqual(JSON.parse(calls[2].body), {});
+});
+
+test("VM console sessions use encoded IDs and the close reason query", async () => {
+  const { calls, fetchImpl } = stub({ json: {} });
+  const client = new Ibee({ token: "t", fetch: fetchImpl });
+  await client.vmConsole.createSession({
+    workspaceId: "ws",
+    vmId: "vm/1",
+    vmType: "gpu",
+    requestedBy: "sdk",
+    userId: "user-1",
+  });
+  await client.vmConsole.getSession({ workspaceId: "ws", sessionId: "session/1" });
+  await client.vmConsole.closeSession({
+    workspaceId: "ws",
+    sessionId: "session/1",
+    reason: "finished",
+  });
+  assert.deepEqual(JSON.parse(calls[0].body), {
+    vm_id: "vm/1",
+    vm_type: "gpu",
+    requested_by: "sdk",
+    user_id: "user-1",
+  });
+  assert.match(calls[1].url, /\/compute\/console\/sessions\/session%2F1\?workspace_id=ws$/);
+  assert.match(calls[2].url, /\/compute\/console\/sessions\/session%2F1\?workspace_id=ws&reason=finished$/);
+  assert.deepEqual(calls.map(({ method }) => method), ["POST", "GET", "DELETE"]);
+});
+
 test("exposes every public networking resource family", () => {
   const client = new Ibee({ token: "t" });
   for (const method of [
