@@ -1,5 +1,6 @@
 import { HttpClient, type ClientOptions } from "./core.js";
 import { IbeeEnvironment } from "./environments.js";
+import { BillingResource } from "./resources/billing.js";
 import { ComputeCatalogResource } from "./resources/compute.js";
 import {
   FirewallsResource,
@@ -10,7 +11,8 @@ import {
 import { ObjectStorageResource } from "./resources/objectStorage.js";
 import { SecretStoreResource } from "./resources/secretStore.js";
 import { OperationsResource, VmResource } from "./resources/vms.js";
-import type { CreateGpuVmRequest } from "./types.js";
+import { VmConsoleResource } from "./resources/vmConsole.js";
+import type { CreateGpuVmRequest, GpuVm } from "./types.js";
 
 export { IbeeEnvironment } from "./environments.js";
 export { ApiError } from "./errors.js";
@@ -43,10 +45,12 @@ export interface IbeeOptions extends Omit<ClientOptions, "baseUrl"> {
  */
 export class Ibee {
   readonly secretStore: SecretStoreResource;
+  readonly billing: BillingResource;
   readonly objectStorage: ObjectStorageResource;
   readonly cloudVms: VmResource;
-  readonly gpuVms: VmResource<CreateGpuVmRequest>;
+  readonly gpuVms: VmResource<CreateGpuVmRequest, GpuVm>;
   readonly operations: OperationsResource;
+  readonly vmConsole: VmConsoleResource;
   readonly computeCatalog: ComputeCatalogResource;
   readonly vpcs: VpcsResource;
   readonly reservedIps: ReservedIpsResource;
@@ -58,15 +62,22 @@ export class Ibee {
       options.baseUrl ?? options.environment ?? IbeeEnvironment.DEFAULT;
     const http = new HttpClient({ ...options, baseUrl });
 
-    this.secretStore = new SecretStoreResource(http);
-    this.objectStorage = new ObjectStorageResource(http);
-    this.cloudVms = new VmResource(http, "cloud-vms");
-    this.gpuVms = new VmResource<CreateGpuVmRequest>(http, "gpu-vms");
+    this.billing = new BillingResource(http);
+    this.secretStore = new SecretStoreResource(http, this.billing);
+    this.objectStorage = new ObjectStorageResource(http, this.billing);
+    this.cloudVms = new VmResource(http, this.billing, "cloud-vms", "cloud");
+    this.gpuVms = new VmResource<CreateGpuVmRequest, GpuVm>(
+      http,
+      this.billing,
+      "gpu-vms",
+      "gpu",
+    );
     this.operations = new OperationsResource(http);
+    this.vmConsole = new VmConsoleResource(http);
     this.computeCatalog = new ComputeCatalogResource(http);
-    this.vpcs = new VpcsResource(http);
-    this.reservedIps = new ReservedIpsResource(http);
+    this.vpcs = new VpcsResource(http, this.billing);
+    this.reservedIps = new ReservedIpsResource(http, this.billing);
     this.firewalls = new FirewallsResource(http);
-    this.loadBalancers = new LoadBalancersResource(http);
+    this.loadBalancers = new LoadBalancersResource(http, this.billing);
   }
 }

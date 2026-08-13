@@ -1,7 +1,9 @@
 import type { HttpClient } from "../core.js";
+import type { BillingResource } from "./billing.js";
 import type {
   Bucket,
   BucketList,
+  DefaultRetention,
   DeleteResponse,
   S3Credential,
   S3CredentialCreated,
@@ -10,7 +12,10 @@ import type {
 } from "../types.js";
 
 export class ObjectStorageResource {
-  constructor(private readonly http: HttpClient) {}
+  constructor(
+    private readonly http: HttpClient,
+    private readonly billing: BillingResource,
+  ) {}
 
   listBuckets(args: {
     workspaceId: string;
@@ -28,33 +33,31 @@ export class ObjectStorageResource {
     });
   }
 
-  createBucket(args: {
+  async createBucket(args: {
     workspaceId: string;
     name: string;
-    /** Site/datacenter where the bucket is provisioned. */
-    siteId: string;
-    siteName?: string;
+    /** Optional storage region; omit when the environment has one region. */
     region?: string;
-    plan?: string;
     isPublic?: boolean;
-    bucketLockEnabled?: boolean;
+    objectLockEnabled?: boolean;
+    defaultRetention?: DefaultRetention;
     tags?: string[];
-    metadata?: Record<string, unknown>;
   }): Promise<Bucket> {
+    await this.billing.requireResourceEligibility({
+      workspaceId: args.workspaceId,
+      skuCode: "OBJECTST-STD",
+    });
     return this.http.request({
       method: "POST",
       path: "/object-storage/buckets",
       workspaceId: args.workspaceId,
       body: {
         name: args.name,
-        site_id: args.siteId,
-        site_name: args.siteName,
         region: args.region,
-        plan: args.plan,
         is_public: args.isPublic,
-        bucket_lock_enabled: args.bucketLockEnabled,
+        object_lock_enabled: args.objectLockEnabled,
+        default_retention: args.defaultRetention,
         tags: args.tags,
-        metadata: args.metadata,
       },
     });
   }
@@ -104,13 +107,17 @@ export class ObjectStorageResource {
     });
   }
 
-  createS3Credential(args: {
+  async createS3Credential(args: {
     workspaceId: string;
     name?: string;
     permissionType?: string;
     bucketScope?: "all" | "specific";
     allowedBuckets?: string[];
   }): Promise<S3CredentialCreated> {
+    await this.billing.requireResourceEligibility({
+      workspaceId: args.workspaceId,
+      skuCode: "OBJECTST-STD",
+    });
     return this.http.request({
       method: "POST",
       path: "/object-storage/credentials",

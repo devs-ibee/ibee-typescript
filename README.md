@@ -22,7 +22,6 @@ const buckets = await client.objectStorage.listBuckets({ workspaceId: "710995" }
 await client.objectStorage.createBucket({
   workspaceId: "710995",
   name: "my-bucket",
-  siteId: "site_blr_01",
   region: "in-south-1",
 });
 const s3Key = await client.objectStorage.createS3Credential({
@@ -55,6 +54,37 @@ await client.cloudVms.create({
   plan_id: "plan_standard_2c_4g",
   template_id: "tmpl_ubuntu_2204",
   ssh_key_ids: ["ssh_key_123"],
+});
+
+// VM lifecycle and recovery
+await client.cloudVms.stop({
+  workspaceId: "710995",
+  vmId: "vm_123",
+});
+await client.cloudVms.resize({
+  workspaceId: "710995",
+  vmId: "vm_123",
+  request: { cpu: 4, ram_mb: 8192 },
+});
+const snapshot = await client.cloudVms.createSnapshot({
+  workspaceId: "710995",
+  vmId: "vm_123",
+  request: { name: "before-upgrade", mode: "all_attached" },
+});
+await client.cloudVms.enableBackups({
+  workspaceId: "710995",
+  vmId: "vm_123",
+  request: {
+    schedule: { frequency: "daily", timezone: "Asia/Kolkata", hour: 20 },
+    retention_days: 14,
+  },
+});
+
+// Sensitive, short-lived graphical console URL — do not log or persist it.
+const consoleSession = await client.vmConsole.createSession({
+  workspaceId: "710995",
+  vmId: "vm_123",
+  vmType: "cloud",
 });
 
 // VPC networking
@@ -97,6 +127,20 @@ const dev = new Ibee({
 
 Or override the base URL entirely with `baseUrl`.
 
+## Billing preflight
+
+Every billable SDK create method automatically checks
+`client.billing.checkResourceEligibility(...)` before it sends the product
+POST. Fixed-price products use their canonical SKU; VM creates resolve the
+selected plan through the compute catalog and check its returned SKU. If the
+catalog, billing service, SKU binding, or admission decision is unavailable or
+invalid, creation fails closed and the product POST is not sent.
+
+You can still call `client.billing.checkResourceEligibility(...)` directly to
+show billing readiness before collecting a create form. A successful preflight
+is not a reservation: the product service repeats the authoritative billing
+check during creation.
+
 ## Error handling
 
 Non-2xx responses throw an `ApiError` with the HTTP status and parsed body:
@@ -124,7 +168,9 @@ try {
 | `client.firewalls` | firewall group, rule, and VM attachment lifecycle |
 | `client.loadBalancers` | list, createL4, createL7, get, updateL4, updateL7, delete, getStatus |
 | `client.computeCatalog` | typed site, plan, and image discovery |
-| `client.cloudVms` / `client.gpuVms` | list, create, get, delete, start, stop, reboot, getMetrics |
+| `client.billing` | automatic and explicit billing resource-eligibility preflight for billable creates |
+| `client.cloudVms` / `client.gpuVms` | full lifecycle: power, access, resize/precheck, volumes, mount guidance, events, metrics, snapshots, backup policy/runs, and restore |
+| `client.vmConsole` | createSession, getSession, closeSession |
 | `client.operations` | get |
 
 ## Related
