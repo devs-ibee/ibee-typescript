@@ -69,7 +69,7 @@ test("token does not leak via JSON.stringify of the client", () => {
   assert.ok(!JSON.stringify(client).includes("ibee_dev_key_secret"));
 });
 
-test("createBucket omits compute sites and supports optional storage placement", async () => {
+test("createBucket requires a storage region and never sends a compute site", async () => {
   const { calls, fetchImpl } = stub({ json: { name: "b" } });
   const client = new Ibee({ token: "t", fetch: fetchImpl });
   await client.objectStorage.createBucket({
@@ -203,8 +203,11 @@ test("Secret Store exposes all 35 control-plane operations", async () => {
   await client.secretStore.deleteSecretIdentityScope({ workspaceId, scopeId });
   await client.secretStore.deleteSecretIdentity({ workspaceId, identityId });
 
+  const secretCalls = calls.filter(
+    (call) => new URL(call.url).pathname !== "/v1/billing/resource-eligibility",
+  );
   assert.deepEqual(
-    calls.map((call) => [call.method, new URL(call.url).pathname]),
+    secretCalls.map((call) => [call.method, new URL(call.url).pathname]),
     [
       ["GET", "/v1/secret-store/stores"],
       ["POST", "/v1/secret-store/stores"],
@@ -247,44 +250,44 @@ test("Secret Store exposes all 35 control-plane operations", async () => {
     assert.equal(new URL(call.url).searchParams.get("workspace_id"), workspaceId);
   }
 
-  const storeListQuery = new URL(calls[0].url).searchParams;
+  const storeListQuery = new URL(secretCalls[0].url).searchParams;
   assert.equal(storeListQuery.get("page"), "2");
   assert.equal(storeListQuery.get("limit"), "25");
   assert.equal(storeListQuery.get("include_archived"), "true");
-  const secretListQuery = new URL(calls[7].url).searchParams;
+  const secretListQuery = new URL(secretCalls[7].url).searchParams;
   assert.equal(secretListQuery.get("q"), "database");
   assert.equal(secretListQuery.get("page"), "3");
   assert.equal(secretListQuery.get("limit"), "10");
 
-  assert.deepEqual(JSON.parse(calls[1].body), { name: "production" });
-  assert.deepEqual(JSON.parse(calls[3].body), { description: "updated" });
-  assert.deepEqual(JSON.parse(calls[8].body), {
+  assert.deepEqual(JSON.parse(secretCalls[1].body), { name: "production" });
+  assert.deepEqual(JSON.parse(secretCalls[3].body), { description: "updated" });
+  assert.deepEqual(JSON.parse(secretCalls[8].body), {
     secret_name: "database-url",
     value: { url: "redacted" },
   });
-  assert.deepEqual(JSON.parse(calls[9].body), {
+  assert.deepEqual(JSON.parse(secretCalls[9].body), {
     secrets: [{ secret_name: "api-key", value: { key: "redacted" } }],
   });
-  assert.deepEqual(JSON.parse(calls[13].body), {
+  assert.deepEqual(JSON.parse(secretCalls[13].body), {
     value: { key: "replacement" },
     cas: 1,
   });
-  assert.deepEqual(JSON.parse(calls[14].body), { value: { username: "ibee" } });
-  assert.deepEqual(JSON.parse(calls[15].body), { versions: [1] });
-  assert.deepEqual(JSON.parse(calls[16].body), { versions: [1] });
-  assert.deepEqual(JSON.parse(calls[20].body), { version: 1 });
-  assert.deepEqual(JSON.parse(calls[22].body), {
+  assert.deepEqual(JSON.parse(secretCalls[14].body), { value: { username: "ibee" } });
+  assert.deepEqual(JSON.parse(secretCalls[15].body), { versions: [1] });
+  assert.deepEqual(JSON.parse(secretCalls[16].body), { versions: [1] });
+  assert.deepEqual(JSON.parse(secretCalls[20].body), { version: 1 });
+  assert.deepEqual(JSON.parse(secretCalls[22].body), {
     auth_method: "approle",
     name: "payments-api",
     token_policy_mode: "read_write",
   });
-  assert.deepEqual(JSON.parse(calls[24].body), { token_policy_mode: "read_only" });
-  assert.deepEqual(JSON.parse(calls[31].body), {
+  assert.deepEqual(JSON.parse(secretCalls[24].body), { token_policy_mode: "read_only" });
+  assert.deepEqual(JSON.parse(secretCalls[31].body), {
     store_id: storeId,
     access_mode: "read_write",
     allow_rollback: true,
   });
-  assert.deepEqual(JSON.parse(calls[32].body), { access_mode: "read_only" });
+  assert.deepEqual(JSON.parse(secretCalls[32].body), { access_mode: "read_only" });
 });
 
 test("cloudVms.create attaches an idempotency key", async () => {
@@ -949,7 +952,9 @@ const billableCreates = [
     name: "bucket",
     productPath: "/object-storage/buckets?",
     sku: "OBJECTST-STD",
-    run: (client) => client.objectStorage.createBucket({ workspaceId: "1", name: "assets" }),
+    run: (client) => client.objectStorage.createBucket({
+      workspaceId: "1", name: "assets", region: "in-south-1",
+    }),
   },
   {
     name: "S3 credential",
@@ -1044,7 +1049,9 @@ test("malformed or SKU-mismatched billing decisions fail closed", async () => {
     const { calls, fetchImpl } = stub({ billingJson });
     const client = new Ibee({ token: "t", fetch: fetchImpl });
     await assert.rejects(
-      () => client.objectStorage.createBucket({ workspaceId: "1", name: "assets" }),
+      () => client.objectStorage.createBucket({
+        workspaceId: "1", name: "assets", region: "in-south-1",
+      }),
       (err) => err instanceof ApiError && err.statusCode === 502,
     );
     assert.equal(calls.some(({ url }) => url.includes("/object-storage/buckets?")), false);

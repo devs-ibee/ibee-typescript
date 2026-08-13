@@ -36,8 +36,8 @@ export class ObjectStorageResource {
   async createBucket(args: {
     workspaceId: string;
     name: string;
-    /** Optional storage region; omit when the environment has one region. */
-    region?: string;
+    /** Required Object Storage region identifier; this is not a compute site ID. */
+    region: string;
     isPublic?: boolean;
     objectLockEnabled?: boolean;
     defaultRetention?: DefaultRetention;
