@@ -1,8 +1,8 @@
 # IBEE Solutions TypeScript SDK
 
 Official TypeScript / JavaScript SDK for the IBEE Solutions cloud API. Manage
-compute, VPC networking, Reserved IPs, firewalls, load balancers, object
-storage, and secrets from Node 18+ or modern browsers.
+compute, VPC networking, Reserved IPs, firewalls, load balancers, object and
+block storage, CDN, and secrets from Node 18+ or modern browsers.
 
 ## Installation
 
@@ -109,6 +109,23 @@ const reservedIp = await client.reservedIps.reserve({
 });
 const firewallGroups = await client.firewalls.listGroups({ workspaceId: "710995" });
 const loadBalancers = await client.loadBalancers.list({ workspaceId: "710995" });
+
+// Block Storage
+const volume = await client.blockStorage.createVolume({
+  workspaceId: "710995",
+  name: "database",
+  size_gb: 100,
+  site_id: "site_blr_01",
+  volume_class: "balanced",
+});
+
+// CDN
+const distribution = await client.cdn.createDistribution({
+  workspaceId: "710995",
+  name: "assets",
+  origin_type: "bucket",
+  origin_id: "my-bucket",
+});
 ```
 
 ## Environments
@@ -127,19 +144,16 @@ const dev = new Ibee({
 
 Or override the base URL entirely with `baseUrl`.
 
-## Billing preflight
+## Billing admission and optional preview
 
-Every billable SDK create method automatically checks
-`client.billing.checkResourceEligibility(...)` before it sends the product
-POST. Fixed-price products use their canonical SKU; VM creates resolve the
-selected plan through the compute catalog and check its returned SKU. If the
-catalog, billing service, SKU binding, or admission decision is unavailable or
-invalid, creation fails closed and the product POST is not sent.
+Every create helper sends exactly one product request. The public edge performs
+the authoritative billing check before it forwards a billable request to the
+existing product service, so SDK users cannot bypass admission and do not need
+to orchestrate a separate preflight.
 
-You can still call `client.billing.checkResourceEligibility(...)` directly to
-show billing readiness before collecting a create form. A successful preflight
-is not a reservation: the product service repeats the authoritative billing
-check during creation.
+Call `client.billing.checkResourceEligibility(...)` explicitly only when an
+application wants to preview readiness before collecting a create form. A
+successful preview is not a reservation and does not replace edge admission.
 
 ## Secret Store lifecycle
 
@@ -193,12 +207,14 @@ try {
 |---|---|
 | `client.secretStore` | listSecretStores, createSecretStore, getSecretStore, updateSecretStore, archiveSecretStore, listSecrets, createSecret, getSecret, deleteSecret, getSecretValue, updateSecretValue |
 | `client.objectStorage` | bucket list/create/get/update/delete and S3 credential list/create/get/revoke |
+| `client.blockStorage` | volume list/create/get, operations, attach/detach, resize, and delete |
+| `client.cdn` | distributions, static website configuration, custom domains, URL generation, and cache purge |
 | `client.vpcs` | listSites, list, create, get, update, delete, subnet/node/NAT/port-forwarding lifecycle |
 | `client.reservedIps` | list, reserve, get, update, release, attach, move, detach |
 | `client.firewalls` | firewall group, rule, and VM attachment lifecycle |
 | `client.loadBalancers` | list, createL4, createL7, get, updateL4, updateL7, delete, getStatus |
 | `client.computeCatalog` | typed site, plan, and image discovery |
-| `client.billing` | automatic and explicit billing resource-eligibility preflight for billable creates |
+| `client.billing` | explicit, optional billing resource-eligibility preview |
 | `client.cloudVms` / `client.gpuVms` | full lifecycle: power, access, resize/precheck, volumes, mount guidance, events, metrics, snapshots, backup policy/runs, and restore |
 | `client.vmConsole` | createSession, getSession, closeSession |
 | `client.operations` | get |

@@ -438,6 +438,202 @@ export interface DeleteResponse {
   id?: string;
 }
 
+export type BlockVolumeClass = "capacity" | "balanced" | "performance";
+export type BlockVolumeState =
+  | "creating"
+  | "ready"
+  | "in-use"
+  | "attaching"
+  | "detaching"
+  | "resizing"
+  | "deleting"
+  | "error";
+
+export interface CreateBlockVolumeRequest {
+  name: string;
+  size_gb: number;
+  site_id: string;
+  site_name?: string | null;
+  sku_code?: string | null;
+  volume_class?: BlockVolumeClass;
+  replica_count?: number;
+  backup_enabled?: boolean;
+  idempotency_key?: string | null;
+}
+
+export interface BlockVolumeAttachment {
+  node_name: string;
+  mode: "single-writer" | "multi-writer";
+  device_path: string;
+  vm_id?: string | null;
+  vm_name?: string | null;
+  attached_at: string;
+}
+
+export interface BlockVolume {
+  id: string;
+  organization_id?: string;
+  workspace_id?: string;
+  workspace_name?: string | null;
+  site_id?: string | null;
+  site_name?: string | null;
+  name: string;
+  size_gb: number;
+  state: BlockVolumeState;
+  volume_class: BlockVolumeClass;
+  replica_count: number;
+  attachments: BlockVolumeAttachment[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BlockVolumeOperation {
+  id: string;
+  volume_id: string;
+  operation: "create" | "attach" | "detach" | "resize" | "delete";
+  status: "in-progress" | "succeeded" | "failed";
+  idempotency_key?: string | null;
+  result?: Record<string, unknown>;
+  error?: string | null;
+  created_at: string;
+  started_at: string;
+  completed_at?: string | null;
+}
+
+export interface BlockVolumeAction {
+  volume: BlockVolume;
+  operation: BlockVolumeOperation;
+}
+
+export interface BlockVolumeDelete {
+  status: "deleted";
+  id: string;
+  operation_id: string;
+}
+
+export interface AttachBlockVolumeRequest {
+  node_name: string;
+  mode?: "single-writer" | "multi-writer";
+  vm_id?: string | null;
+  vm_name?: string | null;
+  vm_state?: "running" | "stopped" | "suspended" | null;
+  vm_site_id?: string | null;
+  vm_type?: VmType;
+  idempotency_key?: string | null;
+}
+
+export interface DetachBlockVolumeRequest {
+  node_name: string;
+  force?: boolean;
+  confirm_unmounted?: boolean;
+  vm_state?: "running" | "stopped" | "suspended" | null;
+  vm_type?: VmType;
+  reason?: string | null;
+  idempotency_key?: string | null;
+}
+
+export interface ResizeBlockVolumeRequest {
+  new_size_gb: number;
+  vm_state?: "running" | "stopped" | "suspended" | null;
+  allow_online?: boolean;
+  idempotency_key?: string | null;
+}
+
+export interface GenerateCdnUrlRequest {
+  bucket_name: string;
+  object_key: string;
+  expires_in?: number | null;
+  disposition?: "inline" | "attachment" | null;
+}
+
+export interface GeneratedCdnUrl {
+  cdn_url: string;
+  expires_at?: string | null;
+}
+
+export type CdnOriginType = "bucket" | "custom";
+
+export interface CreateCdnDistributionRequest {
+  name: string;
+  origin_id: string;
+  origin_type?: CdnOriginType;
+  cache_policy?: "static-assets" | "media" | "short" | "no-cache";
+}
+
+export interface UpdateCdnDistributionRequest {
+  name?: string;
+  cache_policy?: "static-assets" | "media" | "short" | "no-cache";
+  enabled?: boolean;
+}
+
+export interface CdnDistribution {
+  id: string;
+  name: string;
+  origin_type: CdnOriginType;
+  origin_id: string;
+  cache_policy: string;
+  enabled: boolean;
+  status: "active" | "deploying" | "disabled" | "failed" | "deleted";
+  default_domain: string;
+  default_url: string;
+  custom_domains: string[];
+  created_at: string;
+  updated_at?: string | null;
+}
+
+export interface CdnDistributionList {
+  distributions: CdnDistribution[];
+  count: number;
+}
+
+export interface UpdateCdnWebsiteConfigRequest {
+  index_document?: string;
+}
+
+export interface CdnWebsiteConfig {
+  distribution_id: string;
+  enabled: boolean;
+  index_document: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface CdnCustomDomain {
+  domain: string;
+  status: "pending_validation" | "pending_tls" | "active" | "failed";
+  tls_status?: string | null;
+  created_at: string;
+  instructions?: string[] | null;
+}
+
+export interface CdnCustomDomainList {
+  distribution_id: string;
+  default_domain: string;
+  custom_domains: CdnCustomDomain[];
+}
+
+export interface CdnCustomDomainVerification {
+  domain: string;
+  status: "pending_validation" | "pending_tls" | "active" | "failed";
+  tls_status?: string | null;
+  message: string;
+}
+
+export interface PurgeCdnCacheRequest {
+  mode: "url" | "hostname" | "tag" | "prefix" | "all";
+  paths?: string[];
+  hostnames?: string[];
+  tags?: string[];
+  prefixes?: string[];
+}
+
+export interface CdnCachePurge {
+  success: boolean;
+  mode: "url" | "hostname" | "tag" | "prefix" | "all";
+  purged?: string[] | null;
+  message?: string | null;
+}
+
 /** Body of POST /compute/cloud-vms. */
 export interface CreateVmRequest {
   name: string;

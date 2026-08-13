@@ -1,5 +1,4 @@
 import type { HttpClient } from "../core.js";
-import type { BillingResource } from "./billing.js";
 import type {
   BatchCreateSecretItem,
   BatchCreateSecretsResponse,
@@ -22,10 +21,7 @@ import type {
 } from "../types.js";
 
 export class SecretStoreResource {
-  constructor(
-    private readonly http: HttpClient,
-    private readonly billing: BillingResource,
-  ) {}
+  constructor(private readonly http: HttpClient) {}
 
   listSecretStores(args: {
     workspaceId: string;
@@ -45,15 +41,11 @@ export class SecretStoreResource {
     });
   }
 
-  async createSecretStore(args: {
+  createSecretStore(args: {
     workspaceId: string;
     name: string;
     description?: string;
   }): Promise<SecretStore> {
-    await this.billing.requireResourceEligibility({
-      workspaceId: args.workspaceId,
-      skuCode: "SECRETMA-STD",
-    });
     return this.http.request({
       method: "POST",
       path: "/secret-store/stores",
@@ -140,16 +132,12 @@ export class SecretStoreResource {
    * Create a secret. `value` is a map of key/value entries.
    * Wire body: `{ secret_name, value }`.
    */
-  async createSecret(args: {
+  createSecret(args: {
     workspaceId: string;
     storeId: string;
     name: string;
     value: Record<string, unknown>;
   }): Promise<Secret> {
-    await this.billing.requireResourceEligibility({
-      workspaceId: args.workspaceId,
-      skuCode: "SECRETMA-STD",
-    });
     return this.http.request({
       method: "POST",
       path: `/secret-store/stores/${encodeURIComponent(args.storeId)}/secrets`,

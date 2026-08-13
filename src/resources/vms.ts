@@ -1,6 +1,4 @@
 import type { HttpClient } from "../core.js";
-import { ApiError } from "../errors.js";
-import type { BillingResource } from "./billing.js";
 import type {
   BackupPolicy,
   BackupPolicyDisableRequest,
@@ -60,7 +58,6 @@ export class VmResource<
 > {
   constructor(
     private readonly http: HttpClient,
-    private readonly billing: BillingResource,
     private readonly segment: string,
     private readonly vmType: "cloud" | "gpu",
   ) {}
@@ -94,51 +91,10 @@ export class VmResource<
     });
   }
 
-  async create(
+  create(
     args: { workspaceId: string; idempotencyKey?: string } & TCreate,
   ): Promise<OperationAccepted> {
     const { workspaceId, idempotencyKey, ...body } = args;
-    const plans = await this.http.request<{
-      plans?: Array<{
-        plan_id?: string;
-        code?: string;
-        selectable?: boolean;
-        pricing_status?: string;
-      }>;
-    }>({
-      method: "GET",
-      path: "/compute/plans",
-      workspaceId,
-      query: {
-        vm_type: this.vmType,
-        site_id: body.site_id,
-      },
-    });
-    const plan = Array.isArray(plans?.plans)
-      ? plans.plans.find((candidate) => candidate.plan_id === body.plan_id)
-      : undefined;
-    if (
-      !plan ||
-      !plan.code ||
-      plan.selectable !== true ||
-      plan.pricing_status !== "priced"
-    ) {
-      throw new ApiError(
-        422,
-        {
-          error: {
-            code: "VM_PLAN_NOT_BILLABLE",
-            message: "The requested VM plan is missing, unavailable, or unpriced",
-            details: { plan_id: body.plan_id, vm_type: this.vmType },
-          },
-        },
-        "The requested VM plan is missing, unavailable, or unpriced",
-      );
-    }
-    await this.billing.requireResourceEligibility({
-      workspaceId,
-      skuCode: plan.code,
-    });
     return this.http.request({
       method: "POST",
       path: this.base(),

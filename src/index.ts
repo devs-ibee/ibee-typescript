@@ -1,6 +1,8 @@
 import { HttpClient, type ClientOptions } from "./core.js";
 import { IbeeEnvironment } from "./environments.js";
 import { BillingResource } from "./resources/billing.js";
+import { BlockStorageResource } from "./resources/blockStorage.js";
+import { CdnResource } from "./resources/cdn.js";
 import { ComputeCatalogResource } from "./resources/compute.js";
 import {
   FirewallsResource,
@@ -46,6 +48,8 @@ export interface IbeeOptions extends Omit<ClientOptions, "baseUrl"> {
 export class Ibee {
   readonly secretStore: SecretStoreResource;
   readonly billing: BillingResource;
+  readonly blockStorage: BlockStorageResource;
+  readonly cdn: CdnResource;
   readonly objectStorage: ObjectStorageResource;
   readonly cloudVms: VmResource;
   readonly gpuVms: VmResource<CreateGpuVmRequest, GpuVm>;
@@ -63,21 +67,22 @@ export class Ibee {
     const http = new HttpClient({ ...options, baseUrl });
 
     this.billing = new BillingResource(http);
-    this.secretStore = new SecretStoreResource(http, this.billing);
-    this.objectStorage = new ObjectStorageResource(http, this.billing);
-    this.cloudVms = new VmResource(http, this.billing, "cloud-vms", "cloud");
+    this.secretStore = new SecretStoreResource(http);
+    this.objectStorage = new ObjectStorageResource(http);
+    this.cloudVms = new VmResource(http, "cloud-vms", "cloud");
     this.gpuVms = new VmResource<CreateGpuVmRequest, GpuVm>(
       http,
-      this.billing,
       "gpu-vms",
       "gpu",
     );
     this.operations = new OperationsResource(http);
     this.vmConsole = new VmConsoleResource(http);
     this.computeCatalog = new ComputeCatalogResource(http);
-    this.vpcs = new VpcsResource(http, this.billing);
-    this.reservedIps = new ReservedIpsResource(http, this.billing);
+    this.vpcs = new VpcsResource(http);
+    this.reservedIps = new ReservedIpsResource(http);
     this.firewalls = new FirewallsResource(http);
-    this.loadBalancers = new LoadBalancersResource(http, this.billing);
+    this.loadBalancers = new LoadBalancersResource(http);
+    this.blockStorage = new BlockStorageResource(http);
+    this.cdn = new CdnResource(http);
   }
 }

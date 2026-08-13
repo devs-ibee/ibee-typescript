@@ -5,7 +5,7 @@ import type {
   BillingEligibilityRequest,
 } from "../types.js";
 
-/** Explicit billing admission checks shared by every billable product. */
+/** Optional billing-admission preview for applications that need it. */
 export class BillingResource {
   constructor(private readonly http: HttpClient) {}
 
@@ -13,8 +13,8 @@ export class BillingResource {
    * Check whether the workspace may create a billable resource.
    *
    * Call this directly when an application needs to display admission state.
-   * Billable SDK create methods also run the strict check automatically, and
-   * the product service repeats the authoritative check during creation.
+   * Product creates make one request. The public edge performs authoritative
+   * billing admission before it forwards that request to the product service.
    */
   checkResourceEligibility(args: {
     workspaceId: string;
@@ -38,9 +38,8 @@ export class BillingResource {
   /**
    * Require a positive, well-formed billing decision before provisioning.
    *
-   * Product create helpers use this strict variant so an unavailable billing
-   * service, an unsupported/mismatched SKU, or a malformed response can never
-   * degrade into an unguarded create request.
+   * This opt-in helper is useful for form previews. It does not reserve funds
+   * or replace the authoritative edge admission performed during create.
    */
   async requireResourceEligibility(args: {
     workspaceId: string;
