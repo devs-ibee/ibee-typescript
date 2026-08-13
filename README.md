@@ -141,6 +141,36 @@ show billing readiness before collecting a create form. A successful preflight
 is not a reservation: the product service repeats the authoritative billing
 check during creation.
 
+## Secret Store lifecycle
+
+Secret Store exposes the complete store, secret-version, application-identity,
+and identity-scope lifecycle. Every request requires the owning `workspaceId`.
+Value and identity-access responses may contain sensitive credentials and must
+not be logged.
+
+```ts
+await client.secretStore.patchSecretValue({
+  workspaceId: "710995",
+  secretId: secret.id!,
+  value: { username: "payments-v2" },
+});
+const versions = await client.secretStore.listSecretVersions({
+  workspaceId: "710995",
+  secretId: secret.id!,
+});
+await client.secretStore.rollbackSecret({
+  workspaceId: "710995",
+  secretId: secret.id!,
+  version: versions.oldest_version,
+});
+```
+
+Stores support archive, unarchive, and explicit permanent deletion. Secrets
+support batch creation, soft deletion, undelete, version destruction, rollback,
+and permanent deletion. Workload identities support AppRole or Kubernetes
+authentication, credential rotation, session revocation, and per-store scopes.
+Permanent-delete and version-destroy operations are irreversible.
+
 ## Error handling
 
 Non-2xx responses throw an `ApiError` with the HTTP status and parsed body:

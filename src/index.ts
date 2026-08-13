@@ -36,11 +36,11 @@ export interface IbeeOptions extends Omit<ClientOptions, "baseUrl"> {
  * ```ts
  * import { Ibee, IbeeEnvironment } from "ibee-sdk";
  *
- * const client = new Ibee({ token: "ibee_live_xxx" });
+ * const client = new Ibee({ token: "ibee_prod_key_xxx" });
  * const buckets = await client.objectStorage.listBuckets({ workspaceId: "710995" });
  *
  * // development gateway
- * const dev = new Ibee({ token: "ibee_dev_xxx", environment: IbeeEnvironment.DEVELOPMENT });
+ * const dev = new Ibee({ token: "ibee_dev_key_xxx", environment: IbeeEnvironment.DEVELOPMENT });
  * ```
  */
 export class Ibee {
