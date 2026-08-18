@@ -1,5 +1,9 @@
 import { ApiError } from "./errors.js";
 
+const WORKSPACE_ID_PATTERN = /^[1-9][0-9]*$/;
+const WORKSPACE_ID_ERROR =
+  "workspace_id must be a positive numeric string (for example, '710995').";
+
 export interface RequestArgs {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   /** Path after the base URL, e.g. `/secret-store/stores`. */
@@ -15,7 +19,7 @@ export interface RequestArgs {
 }
 
 export interface ClientOptions {
-  /** API token (`ibee_live_...` / `ibee_dev_...`). */
+  /** API token (`ibee_prod_key_...` / `ibee_dev_key_...`). */
   token: string;
   /** Base URL. Defaults to the production gateway. */
   baseUrl?: string;
@@ -51,6 +55,9 @@ export class HttpClient {
   }
 
   async request<T>(args: RequestArgs): Promise<T> {
+    if (typeof args.workspaceId !== "string" || !WORKSPACE_ID_PATTERN.test(args.workspaceId)) {
+      throw new Error(WORKSPACE_ID_ERROR);
+    }
     const url = new URL(this.baseUrl + args.path);
     url.searchParams.set("workspace_id", args.workspaceId);
     if (args.query) {

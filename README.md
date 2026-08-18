@@ -1,8 +1,8 @@
 # IBEE Solutions TypeScript SDK
 
 Official TypeScript / JavaScript SDK for the IBEE Solutions cloud API. Manage
-compute, VPC networking, Reserved IPs, firewalls, load balancers, object
-storage, and secrets from Node 18+ or modern browsers.
+compute, VPC networking, Reserved IPs, firewalls, load balancers, object and
+block storage, CDN, and secrets from Node 18+ or modern browsers.
 
 ## Installation
 
@@ -22,7 +22,6 @@ const buckets = await client.objectStorage.listBuckets({ workspaceId: "710995" }
 await client.objectStorage.createBucket({
   workspaceId: "710995",
   name: "my-bucket",
-  siteId: "site_blr_01",
   region: "in-south-1",
 });
 const s3Key = await client.objectStorage.createS3Credential({
@@ -57,6 +56,37 @@ await client.cloudVms.create({
   ssh_key_ids: ["ssh_key_123"],
 });
 
+// VM lifecycle and recovery
+await client.cloudVms.stop({
+  workspaceId: "710995",
+  vmId: "vm_123",
+});
+await client.cloudVms.resize({
+  workspaceId: "710995",
+  vmId: "vm_123",
+  request: { cpu: 4, ram_mb: 8192 },
+});
+const snapshot = await client.cloudVms.createSnapshot({
+  workspaceId: "710995",
+  vmId: "vm_123",
+  request: { name: "before-upgrade", mode: "all_attached" },
+});
+await client.cloudVms.enableBackups({
+  workspaceId: "710995",
+  vmId: "vm_123",
+  request: {
+    schedule: { frequency: "daily", timezone: "Asia/Kolkata", hour: 20 },
+    retention_days: 14,
+  },
+});
+
+// Sensitive, short-lived graphical console URL — do not log or persist it.
+const consoleSession = await client.vmConsole.createSession({
+  workspaceId: "710995",
+  vmId: "vm_123",
+  vmType: "cloud",
+});
+
 // VPC networking
 const vpc = await client.vpcs.create({
   workspaceId: "710995",
@@ -79,6 +109,23 @@ const reservedIp = await client.reservedIps.reserve({
 });
 const firewallGroups = await client.firewalls.listGroups({ workspaceId: "710995" });
 const loadBalancers = await client.loadBalancers.list({ workspaceId: "710995" });
+
+// Block Storage
+const volume = await client.blockStorage.createVolume({
+  workspaceId: "710995",
+  name: "database",
+  size_gb: 100,
+  site_id: "site_blr_01",
+  volume_class: "balanced",
+});
+
+// CDN
+const distribution = await client.cdn.createDistribution({
+  workspaceId: "710995",
+  name: "assets",
+  origin_type: "bucket",
+  origin_id: "my-bucket",
+});
 ```
 
 ## Environments
@@ -96,6 +143,47 @@ const dev = new Ibee({
 ```
 
 Or override the base URL entirely with `baseUrl`.
+
+## Billing admission and optional preview
+
+Every create helper sends exactly one product request. The public edge performs
+the authoritative billing check before it forwards a billable request to the
+existing product service, so SDK users cannot bypass admission and do not need
+to orchestrate a separate preflight.
+
+Call `client.billing.checkResourceEligibility(...)` explicitly only when an
+application wants to preview readiness before collecting a create form. A
+successful preview is not a reservation and does not replace edge admission.
+
+## Secret Store lifecycle
+
+Secret Store exposes the complete store, secret-version, application-identity,
+and identity-scope lifecycle. Every request requires the owning `workspaceId`.
+Value and identity-access responses may contain sensitive credentials and must
+not be logged.
+
+```ts
+await client.secretStore.patchSecretValue({
+  workspaceId: "710995",
+  secretId: secret.id!,
+  value: { username: "payments-v2" },
+});
+const versions = await client.secretStore.listSecretVersions({
+  workspaceId: "710995",
+  secretId: secret.id!,
+});
+await client.secretStore.rollbackSecret({
+  workspaceId: "710995",
+  secretId: secret.id!,
+  version: versions.oldest_version,
+});
+```
+
+Stores support archive, unarchive, and explicit permanent deletion. Secrets
+support batch creation, soft deletion, undelete, version destruction, rollback,
+and permanent deletion. Workload identities support AppRole or Kubernetes
+authentication, credential rotation, session revocation, and per-store scopes.
+Permanent-delete and version-destroy operations are irreversible.
 
 ## Error handling
 
@@ -119,12 +207,16 @@ try {
 |---|---|
 | `client.secretStore` | listSecretStores, createSecretStore, getSecretStore, updateSecretStore, archiveSecretStore, listSecrets, createSecret, getSecret, deleteSecret, getSecretValue, updateSecretValue |
 | `client.objectStorage` | bucket list/create/get/update/delete and S3 credential list/create/get/revoke |
+| `client.blockStorage` | volume list/create/get, operations, attach/detach, resize, and delete |
+| `client.cdn` | distributions, static website configuration, custom domains, URL generation, and cache purge |
 | `client.vpcs` | listSites, list, create, get, update, delete, subnet/node/NAT/port-forwarding lifecycle |
 | `client.reservedIps` | list, reserve, get, update, release, attach, move, detach |
 | `client.firewalls` | firewall group, rule, and VM attachment lifecycle |
 | `client.loadBalancers` | list, createL4, createL7, get, updateL4, updateL7, delete, getStatus |
 | `client.computeCatalog` | typed site, plan, and image discovery |
-| `client.cloudVms` / `client.gpuVms` | list, create, get, delete, start, stop, reboot, getMetrics |
+| `client.billing` | explicit, optional billing resource-eligibility preview |
+| `client.cloudVms` / `client.gpuVms` | full lifecycle: power, access, resize/precheck, volumes, mount guidance, events, metrics, snapshots, backup policy/runs, and restore |
+| `client.vmConsole` | createSession, getSession, closeSession |
 | `client.operations` | get |
 
 ## Related

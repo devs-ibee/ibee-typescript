@@ -1,5 +1,8 @@
 import { HttpClient, type ClientOptions } from "./core.js";
 import { IbeeEnvironment } from "./environments.js";
+import { BillingResource } from "./resources/billing.js";
+import { BlockStorageResource } from "./resources/blockStorage.js";
+import { CdnResource } from "./resources/cdn.js";
 import { ComputeCatalogResource } from "./resources/compute.js";
 import {
   FirewallsResource,
@@ -10,7 +13,8 @@ import {
 import { ObjectStorageResource } from "./resources/objectStorage.js";
 import { SecretStoreResource } from "./resources/secretStore.js";
 import { OperationsResource, VmResource } from "./resources/vms.js";
-import type { CreateGpuVmRequest } from "./types.js";
+import { VmConsoleResource } from "./resources/vmConsole.js";
+import type { CreateGpuVmRequest, GpuVm } from "./types.js";
 
 export { IbeeEnvironment } from "./environments.js";
 export { ApiError } from "./errors.js";
@@ -34,19 +38,23 @@ export interface IbeeOptions extends Omit<ClientOptions, "baseUrl"> {
  * ```ts
  * import { Ibee, IbeeEnvironment } from "ibee-sdk";
  *
- * const client = new Ibee({ token: "ibee_live_xxx" });
+ * const client = new Ibee({ token: "ibee_prod_key_xxx" });
  * const buckets = await client.objectStorage.listBuckets({ workspaceId: "710995" });
  *
  * // development gateway
- * const dev = new Ibee({ token: "ibee_dev_xxx", environment: IbeeEnvironment.DEVELOPMENT });
+ * const dev = new Ibee({ token: "ibee_dev_key_xxx", environment: IbeeEnvironment.DEVELOPMENT });
  * ```
  */
 export class Ibee {
   readonly secretStore: SecretStoreResource;
+  readonly billing: BillingResource;
+  readonly blockStorage: BlockStorageResource;
+  readonly cdn: CdnResource;
   readonly objectStorage: ObjectStorageResource;
   readonly cloudVms: VmResource;
-  readonly gpuVms: VmResource<CreateGpuVmRequest>;
+  readonly gpuVms: VmResource<CreateGpuVmRequest, GpuVm>;
   readonly operations: OperationsResource;
+  readonly vmConsole: VmConsoleResource;
   readonly computeCatalog: ComputeCatalogResource;
   readonly vpcs: VpcsResource;
   readonly reservedIps: ReservedIpsResource;
@@ -58,15 +66,23 @@ export class Ibee {
       options.baseUrl ?? options.environment ?? IbeeEnvironment.DEFAULT;
     const http = new HttpClient({ ...options, baseUrl });
 
+    this.billing = new BillingResource(http);
     this.secretStore = new SecretStoreResource(http);
     this.objectStorage = new ObjectStorageResource(http);
-    this.cloudVms = new VmResource(http, "cloud-vms");
-    this.gpuVms = new VmResource<CreateGpuVmRequest>(http, "gpu-vms");
+    this.cloudVms = new VmResource(http, "cloud-vms", "cloud");
+    this.gpuVms = new VmResource<CreateGpuVmRequest, GpuVm>(
+      http,
+      "gpu-vms",
+      "gpu",
+    );
     this.operations = new OperationsResource(http);
+    this.vmConsole = new VmConsoleResource(http);
     this.computeCatalog = new ComputeCatalogResource(http);
     this.vpcs = new VpcsResource(http);
     this.reservedIps = new ReservedIpsResource(http);
     this.firewalls = new FirewallsResource(http);
     this.loadBalancers = new LoadBalancersResource(http);
+    this.blockStorage = new BlockStorageResource(http);
+    this.cdn = new CdnResource(http);
   }
 }
