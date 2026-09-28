@@ -229,8 +229,13 @@ export class ApiError extends Error {
   readonly retryAfterSeconds?: number;
   /** Idempotency key sent with the failed request (reuse it to retry safely). */
   idempotencyKey?: string;
-  /** True for 429/502/503/504. */
+  /**
+   * True for 429/502/503/504, except deterministic billing admission
+   * failures (`BILLING_ADMISSION_CODES`).
+   */
   readonly retryable: boolean;
+  /** Short suggestion for resolving the error, when the SDK has one. */
+  hint?: string;
 
   constructor(statusCode: number, body: unknown, message?: string, init: ApiErrorInit = {}) {
     const parsed = parseErrorBody(statusCode, body);
@@ -249,7 +254,7 @@ export class ApiError extends Error {
     this.requestId = headerGet(init.headers, "x-request-id");
     this.retryAfterSeconds = parseRetryAfterSeconds(init.headers);
     this.idempotencyKey = init.idempotencyKey;
-    this.retryable = RETRYABLE_STATUSES.has(statusCode);
+    this.retryable = RETRYABLE_STATUSES.has(statusCode) && !BILLING_ADMISSION_CODES.has(this.code);
   }
 }
 
@@ -442,9 +447,9 @@ const SECRET_RESOURCE_PATTERN =
 /**
  * The store, secret, identity or scope does not exist in this workspace.
  * Secret Store answers 403 (not 404) for missing and foreign resources, so
- * this is a `ForbiddenError` subclass.
+ * this is a `ForbiddenError` (and `WorkspaceNotAllowedError`) subclass.
  */
-export class ResourceNotFoundError extends ForbiddenError {
+export class ResourceNotFoundError extends WorkspaceNotAllowedError {
   /** `store`, `secret`, `identity` or `scope`. */
   readonly kind?: string;
   readonly resourceId?: string;
@@ -452,6 +457,7 @@ export class ResourceNotFoundError extends ForbiddenError {
   constructor(...a: ConstructorParameters<typeof ApiError>) {
     super(...a);
     this.name = "ResourceNotFoundError";
+    this.hint = "it does not exist or belongs to another workspace";
     const match = SECRET_RESOURCE_PATTERN.exec(this.message);
     if (match) {
       this.kind = match[1].toLowerCase();
@@ -462,11 +468,19 @@ export class ResourceNotFoundError extends ForbiddenError {
 }
 /** The store is archived or being deleted, so identities and scopes cannot use it. */
 export class StoreNotActiveError extends ForbiddenError {
-  constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "StoreNotActiveError"; }
+  constructor(...a: ConstructorParameters<typeof ApiError>) {
+    super(...a);
+    this.name = "StoreNotActiveError";
+    this.hint = "restore (unarchive) the store first";
+  }
 }
 /** The application identity is disabled; enable it first. */
 export class IdentityDisabledError extends ForbiddenError {
-  constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "IdentityDisabledError"; }
+  constructor(...a: ConstructorParameters<typeof ApiError>) {
+    super(...a);
+    this.name = "IdentityDisabledError";
+    this.hint = "enable the identity first";
+  }
 }
 /** The operation needs a different auth method (secret-ID rotation is AppRole only). */
 export class AuthMethodMismatchError extends ForbiddenError {
@@ -474,11 +488,19 @@ export class AuthMethodMismatchError extends ForbiddenError {
 }
 /** A read-only identity cannot be granted write, rollback or destroy permissions. */
 export class ScopePermissionError extends ForbiddenError {
-  constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "ScopePermissionError"; }
+  constructor(...a: ConstructorParameters<typeof ApiError>) {
+    super(...a);
+    this.name = "ScopePermissionError";
+    this.hint = "change the identity's token_policy_mode to read_write first";
+  }
 }
 /** 409 STORE_ARCHIVED: unarchive the store first. */
 export class StoreArchivedError extends ConflictError {
-  constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "StoreArchivedError"; }
+  constructor(...a: ConstructorParameters<typeof ApiError>) {
+    super(...a);
+    this.name = "StoreArchivedError";
+    this.hint = "unarchive the store first";
+  }
 }
 /** 409 STORE_DELETING: the store is being permanently deleted. */
 export class StoreDeletingError extends ConflictError {
@@ -490,7 +512,43 @@ export class StoreDeletingError extends ConflictError {
  * `cas` was sent the most likely cause is that the current version differs.
  */
 export class CasConflictError extends BadGatewayError {
-  constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "CasConflictError"; }
+  constructor(...a: ConstructorParameters<typeof ApiError>) {
+    super(...a);
+    this.name = "CasConflictError";
+    this.hint = "the current version differs from cas";
+  }
+}
+
+/** Hint for `SecretValueNotFoundError`. */
+const SECRET_VALUE_NOT_FOUND_HINT =
+  "the latest version may be soft-deleted or destroyed; undelete it or write a new value";
+
+/**
+ * 404 reading a secret value or one version: that version is soft-deleted,
+ * destroyed or does not exist. A `NotFoundError` subclass.
+ */
+export class SecretValueNotFoundError extends NotFoundError {
+  constructor(...a: ConstructorParameters<typeof ApiError>) {
+    super(...a);
+    this.name = "SecretValueNotFoundError";
+    this.hint = SECRET_VALUE_NOT_FOUND_HINT;
+  }
+}
+
+/** Hint for `ScopeValidationError`. */
+const SCOPE_VALIDATION_HINT = "send accessMode 'read_write' or clear allowRollback/allowDestroy";
+
+/**
+ * 422 "Read-only scopes cannot grant rollback or destroy permissions": the
+ * updated scope would be `read_only` with rollback or destroy allowed. An
+ * `UnprocessableEntityError` subclass.
+ */
+export class ScopeValidationError extends UnprocessableEntityError {
+  constructor(...a: ConstructorParameters<typeof ApiError>) {
+    super(...a);
+    this.name = "ScopeValidationError";
+    this.hint = SCOPE_VALIDATION_HINT;
+  }
 }
 /**
  * 503 LIFECYCLE_OPERATION_INCOMPLETE: a permanent store delete did not
@@ -505,6 +563,7 @@ export class DeletionIncompleteError extends ServiceUnavailableError {
     const d = isRecord(this.details) ? this.details : {};
     this.failedSteps = Array.isArray(d.failed_steps) ? d.failed_steps.map(String) : [];
     this.storeId = str(d.store_id);
+    this.hint = "repeat the same call to finish the deletion";
   }
 }
 
@@ -549,13 +608,18 @@ function secretStoreErrorFromResponse(
       }
       return undefined;
     case 404:
-      if (/\/secret-store\/secrets\/[^/]+\/value\/?$/.test(path)) {
-        return new NotFoundError(
+      if (/\/secret-store\/secrets\/[^/]+\/(value|versions\/[^/]+)\/?$/.test(path)) {
+        return new SecretValueNotFoundError(
           statusCode,
           body,
-          `${message || "Secret value not found"} (the latest version may be soft-deleted or destroyed; undelete it or write a new value)`,
+          `${message || "Secret value not found"} (${SECRET_VALUE_NOT_FOUND_HINT})`,
           init,
         );
+      }
+      return undefined;
+    case 422:
+      if (message.startsWith("Read-only scopes cannot grant")) {
+        return new ScopeValidationError(statusCode, body, `${message} (${SCOPE_VALIDATION_HINT})`, init);
       }
       return undefined;
     case 409:
@@ -580,7 +644,12 @@ const STORAGE_RESTRICTED_MESSAGES = new Set([
 ]);
 const WORKSPACE_MISMATCH = /does not match API token context|does not belong to workspace/i;
 const INACTIVE_KEY_CODES = new Set(["key_revoked", "key_disabled", "key_inactive", "key_expired"]);
-const BILLING_ADMISSION_CODES = new Set([
+/**
+ * 502 codes for a deterministic billing admission failure (no usable
+ * decision, catalog or plan). Retrying cannot fix them, so they are never
+ * retried and `retryable` is false.
+ */
+export const BILLING_ADMISSION_CODES: ReadonlySet<string> = new Set([
   "billing_admission_error",
   "invalid_billing_decision",
   "compute_catalog_error",
@@ -599,7 +668,8 @@ export function createTypeForPath(path: string | undefined): BillingCreateType |
   if (/^\/compute\/gpu-vms\/?$/.test(p)) return "gpu_vm";
   if (/^\/compute\/cloud-vms\/?$/.test(p)) return "vm";
   if (/^\/block-storage\/volumes\/?$/.test(p)) return "block_storage";
-  if (/^\/object-storage\/(buckets|credentials)\/?$/.test(p)) return "object_storage";
+  if (/^\/object-storage\/buckets\/?$/.test(p)) return "object_storage";
+  if (/^\/object-storage\/credentials\/?$/.test(p)) return "s3_credential";
   if (/^\/networking\/load-balancers\//.test(p)) return "load_balancer";
   if (/^\/networking\/reserved-ips(\/convert)?\/?$/.test(p)) return "reserved_ip";
   if (/^\/networking\/vpcs\/[^/]+\/nat-gateways\/?$/.test(p)) return "nat_gateway";
@@ -702,7 +772,14 @@ export function isPaymentBlockError(err: unknown): boolean {
   if (code === "billing_denied" || code === "insufficient_balance" || code === "insufficient_funds") {
     return true;
   }
-  const msg = String(e.message ?? "").toLowerCase();
+  // A missing scope is a permission problem, never a payment wall (its
+  // SDK-built message mentions "insufficient_scope").
+  if (err instanceof InsufficientScopeError || code === "insufficient_scope") return false;
+  // For API errors only the server's own message is inspected, not the
+  // SDK's fallback text built from the status and code.
+  const msg = (
+    err instanceof ApiError ? parseErrorBody(err.statusCode, err.body).message ?? "" : String(e.message ?? "")
+  ).toLowerCase();
   return (
     msg.includes("insufficient") ||
     msg.includes("payment required") ||
@@ -827,6 +904,8 @@ export class IbeeCdnPurgeError extends ApiError {
 }
 /** Python SDK name for `IbeeCdnPurgeError`. */
 export const CdnPurgeFailedError = IbeeCdnPurgeError;
+/** Python SDK name for `IbeeCdnPurgeError` (type). */
+export type CdnPurgeFailedError = IbeeCdnPurgeError;
 
 /** A CDN custom domain was still pending when the client-side wait ended. */
 export class CdnDomainVerificationTimeoutError extends IbeeError {

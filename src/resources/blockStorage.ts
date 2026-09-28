@@ -1,5 +1,5 @@
 import type { HttpClient } from "../core.js";
-import { ForbiddenError, NotFoundError } from "../errors.js";
+import { ForbiddenError } from "../errors.js";
 import { buildIdempotencyKey } from "../idempotency.js";
 import { collect, paginateOffset } from "../pagination.js";
 import {
@@ -16,6 +16,7 @@ import {
   validateNodeSafeDetach,
   validateVolumeResize,
   validateVolumeVmState,
+  validateVmId,
   validateVolumeVmType,
   validateWorkspaceId,
   volumeVmType,
@@ -42,8 +43,8 @@ const pathId = (value: string) => encodeURIComponent(value);
 
 /**
  * Resolve the idempotency key for a volume write: an explicit argument wins,
- * then a key already in the request body, else a portal-style generated key
- * (`create-volume-...`, `attach-volume-...`, ...).
+ * then a key already in the request body, else a generated key scoped
+ * `block-volume-<action>` (`block-volume-create-...`, as in the Python SDK).
  */
 function volumeKey(
   action: string,
@@ -53,7 +54,7 @@ function volumeKey(
 ): string {
   const supplied = explicit ?? inBody ?? undefined;
   if (supplied !== undefined) return validateIdempotencyKey(supplied);
-  return buildIdempotencyKey(`${action}-volume`, ident);
+  return buildIdempotencyKey(`block-volume-${action}`, ident);
 }
 
 /** Optional idempotency key argument shared by volume writes. */
@@ -71,8 +72,9 @@ export interface CreateVolumeOptions {
   /**
    * When `site_name` is omitted, read the compute sites (needs `vm.read`) and
    * fill it from the site with this `site_id`, like the portal's location
-   * picker (default true). An unknown `site_id` is refused; a 403/404 skips
-   * the lookup.
+   * picker (default true). An unknown `site_id` is refused when the list was
+   * read; any failure of the lookup (403/404, 5xx, network) skips it, since
+   * `site_name` is optional.
    */
   resolveSiteName?: boolean;
 }
@@ -108,13 +110,21 @@ export interface AttachVolumeToVmArgs extends VolumeIdempotencyArgs {
   requestedBy?: string;
   /** Poll the operation (every 2 s, up to 2 min) and re-read the volume. */
   wait?: boolean | VmWaitOptions;
+  /**
+   * VM state check (running, stopped or error). Default: checked when the
+   * VM is readable; `false` skips it; `true` also requires `vm.read`.
+   */
+  checkState?: boolean;
 }
 
 /** Arguments of `blockStorage.detachFromVm`. */
 export interface DetachVolumeFromVmArgs extends VolumeIdempotencyArgs {
   workspaceId: string;
   volumeId: string;
-  /** VM to detach from. Read from the volume's single attachment when omitted. */
+  /**
+   * VM to detach from. Read from the volume's single attachment when
+   * omitted. Required when the token lacks `block-storage.read`.
+   */
   vmId?: string;
   /** VM type of the VM (default: the attachment's or the volume's). */
   vmType?: VmType;
@@ -227,7 +237,9 @@ export class BlockStorageResource {
       try {
         sites = await this.http.request<ComputeSiteList>({ method: "GET", path: "/compute/sites", workspaceId });
       } catch (err) {
-        if (!(err instanceof ForbiddenError) && !(err instanceof NotFoundError)) throw err;
+        // Best effort: the server does not need site_name.
+        if (err instanceof IbeeValidationError) throw err;
+        sites = undefined;
       }
       if (sites && Array.isArray(sites.sites)) {
         const site = sites.sites.find((s) => String(s?.site_id ?? "") === body.site_id);
@@ -439,13 +451,16 @@ export class BlockStorageResource {
   async attachToVm(args: AttachVolumeToVmArgs): Promise<VolumeVmActionResult> {
     validateWorkspaceId(args.workspaceId);
     const volumeId = validateBlockVolumeId(args.volumeId);
+    const vmId = validateVmId(args.vmId);
     const requestedType = validateVolumeVmType(args.vmType);
     const mode = validateAttachMode(args.mode);
     let volume: BlockVolume | undefined;
+    let volumeUnreadable = false;
     try {
       volume = await this.fetchVolume(args.workspaceId, volumeId);
     } catch (err) {
       if (!(err instanceof ForbiddenError)) throw err;
+      volumeUnreadable = true;
       if (!args.billingCatalog) {
         throw new IbeeValidationError(
           "billing_catalog is required; grant block-storage.read or pass billingCatalog",
@@ -464,8 +479,11 @@ export class BlockStorageResource {
     }
     const accepted = await this.vms[vmType].attachVolume({
       workspaceId: args.workspaceId,
-      vmId: args.vmId,
+      vmId,
       volume,
+      // The volume read already returned 403: do not repeat it.
+      skipVolumeRead: volumeUnreadable,
+      checkState: args.checkState,
       idempotencyKey: args.idempotencyKey,
       request: {
         volume_id: volumeId,
@@ -485,7 +503,8 @@ export class BlockStorageResource {
    * `force: true`. The SDK reads the volume to find the VM (when `vmId` is
    * omitted) and its type, then calls `cloudVms.detachVolume` or
    * `gpuVms.detachVolume`. With `wait` it polls the operation and re-reads
-   * the volume.
+   * the volume. Without `block-storage.read`, pass `vmId` (and `vmType`,
+   * default `cloud`) and the detach is sent without reading the volume.
    */
   async detachFromVm(args: DetachVolumeFromVmArgs): Promise<VolumeVmActionResult> {
     validateWorkspaceId(args.workspaceId);
@@ -498,12 +517,30 @@ export class BlockStorageResource {
       );
     }
     const requestedType = validateVolumeVmType(args.vmType);
-    const vmIdArg = args.vmId === undefined || args.vmId === null ? undefined : String(args.vmId).trim();
-    const volume = await this.fetchVolume(args.workspaceId, volumeId);
-    const att = resolveSingleAttachment(volume, { vmId: vmIdArg || undefined, forVm: true });
-    const vmId = String(att.vm_id);
-    const vmType: BlockVolumeVmType =
-      requestedType ?? (att.vm_type ? volumeVmType({ vm_type: att.vm_type }) : volumeVmType(volume));
+    const vmIdArg = args.vmId === undefined || args.vmId === null ? undefined : validateVmId(args.vmId);
+    let volume: BlockVolume | undefined;
+    try {
+      volume = await this.fetchVolume(args.workspaceId, volumeId);
+    } catch (err) {
+      if (!(err instanceof ForbiddenError)) throw err;
+      if (!vmIdArg) {
+        throw new IbeeValidationError(
+          "Reading the volume needs block-storage.read; grant it or pass vmId and vmType",
+          "volume_unreadable",
+          "vm_id",
+        );
+      }
+    }
+    let vmId: string;
+    let vmType: BlockVolumeVmType;
+    if (volume) {
+      const att = resolveSingleAttachment(volume, { vmId: vmIdArg, forVm: true });
+      vmId = String(att.vm_id);
+      vmType = requestedType ?? (att.vm_type ? volumeVmType({ vm_type: att.vm_type }) : volumeVmType(volume));
+    } else {
+      vmId = vmIdArg as string;
+      vmType = requestedType ?? "cloud";
+    }
     const accepted = await this.vms[vmType].detachVolume({
       workspaceId: args.workspaceId,
       vmId,

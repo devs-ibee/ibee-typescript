@@ -244,10 +244,13 @@ Every Secret Store method checks its input the way the portal does and throws
   `patchSecretValue` also accepts `null`, which deletes that key.
 - `batchCreateSecrets`: 1..500 items, each checked like `createSecret`;
   repeated names emit an `IbeeSecretStoreWarning` (the API skips them).
+  `chunkBatchSecrets(items)` splits a larger import into requests of at most
+  500 items and 64 KiB.
 - Versions are integers >= 1; version lists hold 1..100 entries and are
   de-duplicated. `cas` is an integer >= 0. `page` >= 1, `limit` 1..200,
   search `q` is trimmed and at most 128 characters.
-- Every Secret Store request body is limited to 64 KiB.
+- Every Secret Store request body is limited to 64 KiB (checked before the
+  billing preflight). `workspaceId` is trimmed.
 
 ```ts
 // Portal-style create: billing check, then reuse an existing store on conflict.
@@ -265,10 +268,10 @@ await client.secretStore.createSecret({
   billingPreflight: true,
 });
 
-// Archived stores are listed only on request; listAll* pages for you.
+// listAll* pages for you (no item cap). Archived stores are included by
+// default, as in the portal; pass includeArchived: false to hide them.
 const stores = await client.secretStore.listAllSecretStores({
   workspaceId: "710995",
-  includeArchived: true,
 });
 const secrets = await client.secretStore.listAllSecrets({
   workspaceId: "710995",
@@ -291,8 +294,10 @@ Pre-checks the portal runs:
 - `undeleteSecret` without `versions` restores the current version.
 
 A pre-check that the token cannot perform (403 `insufficient_scope`, for
-example a token without `billing.read` or `secret-store.read`) is skipped and
-the request is sent; the API enforces the same rule.
+example a token without `billing.read` or `secret-store.read`) is skipped with
+an `IbeeSecretStoreWarning` (`IbeeBillingWarning` for billing) and the request
+is sent; the API enforces the same rule. With `ifExists: "return"` a store
+lookup the token cannot perform keeps the original `ConflictError`.
 
 `createSecretIdentity` always sends `token_policy_mode` (default `read_only`)
 and sends the Kubernetes fields only for `kubernetes` identities.
@@ -314,11 +319,26 @@ Secret Store errors are typed:
 | `AuthMethodMismatchError` (403) | rotation of a Kubernetes identity |
 | `ScopePermissionError` (403) | write/rollback/destroy for a read-only identity |
 | `StoreArchivedError`, `StoreDeletingError` (409) | the store is archived (restore it first) or being deleted |
+| `SecretValueNotFoundError` (404) | reading a value or version that is soft-deleted, destroyed or missing |
+| `ScopeValidationError` (422) | an updated scope would be `read_only` with rollback or destroy |
 | `CasConflictError` (502) | `updateSecretValue` with `cas` failed, most likely a version mismatch |
 | `DeletionIncompleteError` (503) | a permanent store delete did not finish (`failedSteps`); call it again |
 
-All 403 classes extend `ForbiddenError` and the 409 classes extend
-`ConflictError`, so 0.3.0 `instanceof` checks keep working.
+All 403 classes extend `ForbiddenError` (`ResourceNotFoundError` also extends
+`WorkspaceNotAllowedError`, as in the Python SDK) and the 409 classes extend
+`ConflictError`, so 0.3.0 `instanceof` checks keep working. Where the SDK has
+a suggestion, `err.hint` carries it.
+
+Client-side validation codes match the Python SDK (and the CLI):
+
+| Rule | `IbeeValidationError.code` (`field`) |
+|---|---|
+| Store or identity name | `invalid_name` |
+| Batch size | `invalid_secrets` |
+| Rollback target | `rollback_to_current`, `unknown_version`, `version_destroyed` |
+| Secret-ID rotation | `auth_method_mismatch`, `identity_disabled` (`identity_id`) |
+| Scope store | `scope_already_exists`, `store_not_active`, `store_not_found` |
+| Write access for a read-only identity | `scope_permission_denied` (`access_mode`) |
 
 ## Errors
 
@@ -359,7 +379,8 @@ try {
 Errors raised by the SDK itself extend `IbeeError`: `IbeeValidationError`
 (input rejected before sending; has `code` and `field`),
 `OperationFailedError` and `OperationTimeoutError`. `isPaymentBlockError(err)`
-tells whether an error means a payment or wallet problem.
+tells whether an error means a payment or wallet problem (a missing scope,
+`InsufficientScopeError`, never does).
 
 ## Retries and idempotency
 
@@ -370,14 +391,17 @@ repeating it cannot duplicate a side effect:
 - Cloud/GPU VM writes and block-volume writes, which carry an idempotency key.
 
 Only 429, 502, 503 and 504 responses and network errors are retried. 408, 409,
-500 and other errors are never retried. `Retry-After` is honoured (capped at
+500 and other errors are never retried, nor are deterministic billing
+admission failures (502 with a code in `BILLING_ADMISSION_CODES`, such as
+`invalid_billing_decision`; their `retryable` is false). `Retry-After` is honoured (capped at
 30 s); otherwise the delay is 1 s, 2 s, 4 s ... with ±10% jitter.
 
 VM writes send `X-Idempotency-Key`; block-volume create/attach/detach/resize
 send `idempotency_key` in the body and delete sends it as a query parameter.
 When you omit `idempotencyKey`, the SDK generates one the way the portal does
-(`buildIdempotencyKey("cloud-vm-start", vmId)`), and every automatic retry
-reuses it. A failed call reports the key in `err.idempotencyKey`; pass it back
+(`buildIdempotencyKey("cloud-vm-start", vmId)`; block-volume keys are scoped
+`block-volume-<action>`, and VM volume actions `<cloud|gpu>-vm-attach-volume` /
+`-detach-volume`, as in the Python SDK), and every automatic retry reuses it. A failed call reports the key in `err.idempotencyKey`; pass it back
 as `idempotencyKey` to retry safely. Your own keys must be 1-128 printable
 ASCII characters with no spaces.
 
@@ -432,13 +456,24 @@ Other VM rules:
   `in_place`. `request.plan_id` resolves the shape and the new SKU, carrying
   over the Windows licence.
 - **`resizePlan`:** rejects a no-op change, and needs `confirm_downgrade` for a
-  downgrade.
+  downgrade. `request.plan_id` (with optional `billing_term` and
+  `windows_license`) takes cpu/ram_mb from the plan and builds the new SKU.
+- **`precheckResize`:** with `plan_id` only the plan's shape is used (no SKU or
+  Windows licence is needed).
 - **`resizeRootDisk`:** can only grow the disk.
 - **`updateAccess`:** checks the key mode, keys and password rules
-  (8+ characters, no line breaks).
+  (8+ characters, no line breaks). Like the portal and the Python SDK it reads
+  the VM by default: the VM must be a running Linux VM, password login can be
+  disabled only while a key remains, removing the last key needs
+  `confirm_remove_last_ssh_key`, and `admin_username` defaults to the VM's.
+  `checkState: false` skips the read.
 - **`checkState: true`:** applies the portal's state matrix (start only when
-  stopped, stop/reboot only when running, access only on running Linux VMs).
+  stopped, stop/reboot only when running).
 - **`attachVolume`:** reads the volume first and uses its Block Storage SKU.
+  The VM must be running, stopped or in error (checked by default when the
+  token can read the VM; `checkState: false` skips it).
+- **Idempotency keys** you pass are validated before any request; `null` is
+  treated like an omitted key.
 - **`detachVolume`:** needs `confirm_unmounted: true` or `force: true`.
 
 ## Snapshots, backups and restores
@@ -458,7 +493,13 @@ returned on an existing snapshot set or backup run.
   where 0 is Monday. The timezone must be a valid IANA zone.
 - **`enableBackups`** fills the portal defaults: 12:00 UTC, a 30-minute
   window, 7-day retention, a weekly full backup and incremental backups on.
-- **`updateBackupPolicy`** merges your changes into the saved schedule.
+- **`updateBackupPolicy`** merges your changes into the saved schedule
+  (the schedule's shape and ranges are checked before any request).
+- **`deleteSnapshot({ checkState: true })`** refuses a running or restoring
+  snapshot. `createSnapshot({ wait })` and `waitForSnapshot` accept
+  `succeeded` or `available` and fail fast with `RecoveryFailedError`.
+- **`restoreBackup`** accepts a run ID or a recovery point ID and sends the
+  run's `recovery_point_id`.
 
 ```ts
 const restore = await client.cloudVms.restoreSnapshot({
@@ -472,9 +513,11 @@ const restore = await client.cloudVms.restoreSnapshot({
 
 For `new_vm` restores the SDK fills in the rest:
 
-- the target plan: your `target_plan_id`, or the VM's own plan. It sets the
-  `target_*` fields and `target_billing_catalog`, and checks the plan disk
-  against the recovery point's root disk.
+- the target plan: your `target_plan_id`, or the VM's own plan. It must be
+  selectable (pricing is not required) with a disk at least the recovery
+  point's root disk. It sets the `target_*` fields and `target_billing_catalog`.
+- for snapshot restores into a VPC, the shared VPC rules: `nat` only in a NAT
+  Gateway VPC, no dedicated public IP in a NAT Gateway VPC.
 - the default names, `<vm>-snapshot-restored-YYYYMMDD` for the VM and
   `<volume>-backup-restored-YYYYMMDD` for volumes, using the recovery point
   date in UTC.
@@ -488,7 +531,13 @@ Two methods are not yet part of the published API contract:
 
 Networking calls apply the portal's rules before sending and throw
 `IbeeValidationError` (with `code` and `field`) when a request would be
-refused.
+refused. The codes match the Python SDK and the CLI, for example
+`subnet_outside_vpc`, `subnet_overlap`, `address_outside_subnet`,
+`address_not_usable`, `address_is_gateway`, `nat_gateway_unavailable`,
+`reserved_ip_site_mismatch`, `reserved_ip_attached`,
+`reserved_ip_unavailable`, `reserved_ip_attached_to_service`,
+`reserved_ip_not_movable`, `virtual_ip_has_reserved_ip`, `duplicate_name`
+and `invalid_auto_cidr`.
 
 **VPCs and subnets**
 
@@ -501,9 +550,14 @@ refused.
 - `vpcs.createSubnet` reads the VPC (`checkVpc`, default true). The CIDR must
   be a sub-range of the VPC that does not overlap other subnets, and a VPC
   holds at most 10 subnets.
-- `vpcs.delete({ checkDependencies: true, deleteNatGateway: true })` works
-  like the portal's delete dialog. Attached nodes and virtual IPs block the
-  delete. The NAT gateway is deleted first, and the SDK waits for it to go.
+- `vpcs.delete` reads the VPC first by default, like the portal's delete
+  dialog: attached nodes block the delete, and so does a NAT gateway unless
+  `deleteNatGateway: true` (it is deleted first and the SDK waits for it to
+  go; `natIpAction` and `natBillingCatalog` are passed to it).
+  `checkDependencies: true` also refuses while virtual IPs exist;
+  `checkDependencies: false` skips the read.
+- An explicit subnet `cidr` with `autoCidr: true` is refused
+  (`invalid_auto_cidr`), as for VPCs.
 
 **NAT gateways and port forwarding**
 
@@ -512,7 +566,8 @@ refused.
 - `deleteNatGateway` accepts `publicIpAction` (`reserve`/`release`),
   `billingCatalog` and `wait`. Reserving a platform address needs the
   RESERVED-IP catalog. `defaultNatDeleteIpAction` returns the portal
-  default.
+  default. A gateway still listed after the wait throws `IbeeError`
+  (`nat_gateway_deleting`), not a validation error: the delete was accepted.
 - `replaceNatGatewayPublicIp` swaps the gateway's public IP to a Reserved IP.
 - Port-forwarding rules take single ports (1..65535) and `targetType`
   `vm`/`vip`. With `checkState` (default true) the SDK checks four things:
@@ -709,7 +764,7 @@ them, or wait for the result with `operations.wait`:
 ```ts
 import { OperationFailedError, OperationTimeoutError } from "ibee-sdk";
 
-const accepted = await client.cloudVms.start({ workspaceId: "710995", vmId: "vm_123" });
+const accepted = await client.cloudVms.start({ workspaceId: "710995", vmId: "64b0c0ffee0000000000abcd" });
 try {
   const op = await client.operations.wait({
     workspaceId: "710995",

@@ -220,7 +220,7 @@ export class ObjectStorageResource {
       await this.billing.requireResourceEligibility({
         workspaceId: args.workspaceId,
         skuCode: OBJECT_STORAGE_SKU_CODE,
-        resourceType: "object_storage",
+        resourceType: "s3_credential",
       });
     }
     return this.http.request({

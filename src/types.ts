@@ -979,6 +979,11 @@ export interface VmResizeRequest {
   billing_term?: BillingTerm;
   /** Target SKU. Built from `plan_id` when omitted. */
   billing_catalog?: BillingCatalogSelection;
+  /**
+   * SDK-only: Windows licence SKU for a Windows VM (with `plan_id`). The
+   * VM's current licence is carried over when omitted.
+   */
+  windows_license?: BillingCatalogSelection;
   requested_by?: string;
 }
 
@@ -1007,8 +1012,22 @@ export interface VmResizePrecheck {
 }
 
 export interface VmResizePlanRequest {
-  cpu: number;
-  ram_mb: number;
+  /** Target vCPUs. Required unless `plan_id` is given. */
+  cpu?: number;
+  /** Target RAM in MB. Required unless `plan_id` is given. */
+  ram_mb?: number;
+  /**
+   * SDK-only: take cpu/ram_mb from this plan in the VM's site and build the
+   * target `billing_catalog` for `billing_term`. Not combinable with cpu/ram_mb.
+   */
+  plan_id?: string;
+  /** SDK-only: term for the target SKU (default HOURLY). Needs `plan_id` or `billing_catalog`. */
+  billing_term?: BillingTerm;
+  /**
+   * SDK-only: Windows licence SKU for a Windows VM (with `plan_id`). The
+   * VM's current licence is carried over when omitted.
+   */
+  windows_license?: BillingCatalogSelection;
   allow_online?: boolean;
   /** Required when cpu or ram_mb is lower than the VM's current value. */
   confirm_downgrade?: boolean;

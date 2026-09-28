@@ -105,6 +105,16 @@ export class BillingResource {
     ) {
       throw invalid("Billing eligibility returned an invalid response");
     }
+    // A decision that does not confirm the requested SKU is malformed,
+    // whether allowed or denied (checked first, as at the edge and in the
+    // Python SDK).
+    const requested = normaliseSkuCode(args.skuCode);
+    if (
+      requested !== undefined &&
+      String(decision.sku_code ?? "").trim().toUpperCase() !== requested.toUpperCase()
+    ) {
+      throw invalid("Billing eligibility did not confirm the requested SKU");
+    }
     if (decision.allowed !== true) {
       throw new BillingDeniedError(
         402,
@@ -118,13 +128,6 @@ export class BillingResource {
           resourceType: resourceType ?? "resource",
         },
       );
-    }
-    const requested = normaliseSkuCode(args.skuCode);
-    if (
-      requested !== undefined &&
-      String(decision.sku_code ?? "").trim().toUpperCase() !== requested.toUpperCase()
-    ) {
-      throw invalid("Billing eligibility did not confirm the requested SKU");
     }
     return decision;
   }

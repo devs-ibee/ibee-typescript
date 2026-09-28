@@ -396,8 +396,11 @@
     refused; server-managed fields (`volume_kind`, `billing_*`,
     `storage_performance`, attachment fields) are refused;
   - the create idempotency key is also sent as `X-Idempotency-Key`; generated
-    keys now use the portal prefixes (`create-volume-`, `attach-volume-`,
-    `detach-volume-`, `resize-volume-`, `delete-volume-`);
+    block-volume keys use the `block-volume-<action>` scope shared with the
+    Python SDK (`block-volume-create-`, `block-volume-attach-`,
+    `block-volume-detach-`, `block-volume-resize-`, `block-volume-delete-`).
+    VM volume actions (used by `attachToVm` / `detachFromVm`) keep the
+    `<cloud|gpu>-vm-attach-volume-` / `-detach-volume-` scope;
   - `deleteVolume` reads the volume and refuses an attached ("Detach this
     volume from all servers before deleting.") or busy volume unless
     `force` (`checkAttachments: false` skips the read);
@@ -481,8 +484,102 @@
 - Secret Store methods now return rejected promises for invalid input
   instead of sending the request.
 
+- **Review fixes (parity with the Python SDK, CLI and portal):**
+  - `cloudVms/gpuVms.updateAccess` reads the VM by default (running Linux VM,
+    password-login and last-key rules, `admin_username` default);
+    `checkState: false` opts out.
+  - `attachVolume` checks the VM state (running, stopped or error) by default
+    when the VM is readable, with an "attach a volume to" message
+    (`VmStateAction` gains `attach-volume` / `detach-volume`); with a caller
+    `billing_catalog` and `checkState: false` nothing is read.
+  - `resizePlan` accepts `plan_id`, `billing_term` and `windows_license`
+    (cpu/ram_mb and the SKU come from the plan; `cpu` / `ram_mb` are optional
+    in `VmResizePlanRequest`). `resize` accepts `windows_license`.
+  - `precheckResize({ plan_id })` resolves only the plan's shape, so Windows
+    VMs without a licence on record can be prechecked.
+  - `create` with `resolveCatalog: false` requires `disk_gb` (and `gpu_count`
+    for GPU VMs).
+  - New-VM restores accept a selectable plan without pricing; errors are
+    `invalid_restore_plan` / `restore_disk_too_small`. Snapshot restores into
+    a VPC apply the shared NAT / public-IP VPC rules before sending.
+  - `restoreBackup` sends the run's `recovery_point_id` (a run ID is
+    accepted as input) and refuses a run without one.
+  - `deleteSnapshot` accepts `checkState` (refuses running/restoring
+    snapshots, `snapshot_busy`); new `waitForSnapshot`; snapshot waits accept
+    `available` and read the status from the VM's snapshot list while the
+    snapshot is not yet readable by ID.
+  - `vpcs.delete` reads the VPC by default (nodes / NAT gateway checks;
+    `checkDependencies: false` skips it) and accepts `natBillingCatalog`.
+  - `firewalls.iterateGroups` / `listAllGroups` accept `pageSize` (1..100) and
+    de-duplicate by `firewall_group_id` or `id`.
+  - Load balancer `policy.retries` gets the portal defaults (3 attempts,
+    5000 ms, `5xx`/`reset`/`connect-failure`) for fields left out.
+  - `listAllSecretStores` / `iterateSecretStores` include archived stores by
+    default (`includeArchived: false` hides them), and Secret Store
+    `listAll*` helpers no longer stop at 10,000 items.
+  - Skipped Secret Store pre-checks emit an `IbeeSecretStoreWarning`.
+  - New `chunkBatchSecrets` splits large batch imports (500 items / 64 KiB).
+  - New `SecretValueNotFoundError` (404 on a value or version) and
+    `ScopeValidationError` (422 read-only scope); `ResourceNotFoundError` now
+    extends `WorkspaceNotAllowedError`; `ApiError.hint` carries suggestions.
+  - `BILLING_ADMISSION_CODES`, `createTypeForPath`, `validatePathId`,
+    `VOLUME_OPERATION_FAILED_MESSAGE` and `VOLUME_OPERATION_TIMEOUT_MESSAGE`
+    are exported; `CdnPurgeFailedError` is also a type.
+  - `IbeeValidationError.code` values now match the Python SDK and CLI:
+    `invalid_name` (store / identity names), `invalid_secrets` (batch size),
+    `rollback_to_current` / `unknown_version` / `version_destroyed`,
+    `auth_method_mismatch` / `identity_disabled` (field `identity_id`),
+    `scope_already_exists` / `store_not_active` / `store_not_found`,
+    `scope_permission_denied` (field `access_mode`), `duplicate_name`,
+    `nat_gateway_unavailable`, `subnet_outside_vpc` / `subnet_overlap`,
+    `address_outside_subnet` / `address_not_usable` / `address_is_gateway`,
+    `reserved_ip_attached_to_service`, `reserved_ip_site_mismatch` /
+    `reserved_ip_attached` / `reserved_ip_unavailable` /
+    `reserved_ip_not_user_reserved`, `virtual_ip_has_reserved_ip`,
+    `reserved_ip_not_movable` and `invalid_auto_cidr`.
+  - A NAT gateway still listed after `deleteNatGateway({ wait: true })`
+    throws `IbeeError` with code `nat_gateway_deleting` (was an
+    `IbeeValidationError` `nat_delete_pending`; the delete had been accepted).
+  - Operation IDs accept upper-case hex (as in the Python SDK).
+  - Secret Store `workspaceId` is trimmed before it is validated and sent.
+
 ### Fixed
 
+- A token missing a scope (403 `insufficient_scope`) is no longer reported by
+  `isPaymentBlockError` as a payment block.
+- Deterministic billing admission failures (502 `invalid_billing_decision`,
+  `block_storage_plan_unavailable`, ...) are no longer retried and report
+  `retryable: false`.
+- `billing.requireResourceEligibility` checks that the decision confirms the
+  SKU before the `allowed` flag, so a malformed denied decision is a
+  `BillingAdmissionError`, as at the edge and in the Python SDK.
+- S3 credential billing denials read "S3 credential" (create type
+  `s3_credential`), not "object storage bucket".
+- `billingBlockMessage` matches the billing state and create type in any case.
+- `idempotencyKey: null` on VM writes generates a key again (as in 0.3.0).
+- Caller idempotency keys and backup schedules are validated before any
+  request.
+- VM delete without `vm.read` sends the portal default
+  `public_ip_action: "release"` instead of failing on the pre-read.
+- `.` and `..` are refused as path IDs (snapshot, restore, run, recovery
+  point and networking IDs) instead of reaching a collection route.
+- `blockStorage.attachToVm` / `detachFromVm` validate `vmId` before any
+  request; `attachToVm` no longer reads the volume twice without
+  `block-storage.read`; `detachFromVm` works without `block-storage.read`
+  when `vmId` is given.
+- Volume attach/detach waits use the portal wording ("Volume operation
+  failed", "Operation timed out. Please refresh to check the latest state.").
+- `createVolume` skips the optional `site_name` lookup on any lookup failure
+  (5xx, network), not only 403/404.
+- A subnet `cidr` with `autoCidr: true` is refused instead of silently
+  overriding `autoCidr`.
+- `createNatGateway` retries with the same Reserved IP are no longer refused
+  when the VPC already has a NAT gateway.
+- `updatePortForwardingRule({ targetType: "vip", checkState: false })`
+  without announcers is refused locally instead of failing on the server.
+- Secret Store body size is checked before the billing preflight; a
+  `createSecretStore({ ifExists: "return" })` lookup the token cannot read
+  keeps the original `ConflictError`.
 - VM, GPU VM and firewall-group lists no longer silently stop at 10 items.
 - VM create, snapshot create, backup enable, manual backup run and VM volume
   attach no longer always fail with 422 for a missing `billing_catalog`.

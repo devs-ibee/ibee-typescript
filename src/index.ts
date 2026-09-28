@@ -29,6 +29,7 @@ export {
   AuthMethodMismatchError,
   BadGatewayError,
   BadRequestError,
+  BILLING_ADMISSION_CODES,
   BillingAdmissionError,
   BillingDeniedError,
   BillingForbiddenError,
@@ -59,6 +60,8 @@ export {
   ResourceNotFoundError,
   RouteNotAvailableError,
   ScopePermissionError,
+  ScopeValidationError,
+  SecretValueNotFoundError,
   ServiceUnavailableError,
   StoreArchivedError,
   StoreDeletingError,
@@ -68,6 +71,7 @@ export {
   UnprocessableEntityError,
   WorkspaceNotAllowedError,
   apiErrorFromResponse,
+  createTypeForPath,
   defaultCodeForStatus,
   isPaymentBlockError,
   parseErrorBody,
@@ -111,6 +115,9 @@ export {
   VM_NAME_PATTERN,
   VM_RESIZE_LIMITS,
   VM_VOLUME_MODES,
+  VOLUME_OPERATION_FAILED_MESSAGE,
+  VOLUME_OPERATION_TIMEOUT_MESSAGE,
+  validatePathId,
   assertVmActionAllowed,
   expandBatchNames,
   isValidTimeZone,
@@ -270,6 +277,7 @@ export {
   assertRotateAllowed,
   checkRollbackTarget,
   checkScopeStoreEligibility,
+  chunkBatchSecrets,
   isSecretStorePath,
   normalizeSearchQuery,
   normalizeSecretName,
@@ -482,3 +490,4 @@ export function waitForComputeOperation(
 ): Promise<OperationStatus> {
   return client.operations.wait(args);
 }
+export type { ChunkBatchSecretsOptions } from "./validation.js";

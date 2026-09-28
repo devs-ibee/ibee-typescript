@@ -249,7 +249,7 @@ test("edge 402 billing_denied becomes BillingDeniedError with portal copy and re
   await assert.rejects(
     c.cloudVms.create({
       workspaceId: WS, idempotencyKey: "my-key", name: "web", site_id: "s1", plan_id: "p", template_id: "i",
-      os_distro: "ubuntu", os_type: "linux", cpu: 2, ram_mb: 4096, resolveCatalog: false,
+      os_distro: "ubuntu", os_type: "linux", cpu: 2, ram_mb: 4096, resolveCatalog: false, disk_gb: 50,
       billing_catalog: { sku_id: 1, sku_code: "STANDARD-2-8-50" },
     }),
     (err) => {
@@ -440,15 +440,15 @@ test("every VM write auto-fills a scoped key", async () => {
   const sku = { sku_id: 1, sku_code: "GPU-A100-1" };
   await c.gpuVms.create({
     workspaceId: WS, name: "trainer", site_id: "s1", plan_id: "p", template_id: "i", os_distro: "u",
-    os_type: "linux", cpu: 1, ram_mb: 1024, gpu_count: 1, gpu_model: "A100", resolveCatalog: false, billing_catalog: sku,
+    os_type: "linux", cpu: 1, ram_mb: 1024, gpu_count: 1, gpu_model: "A100", resolveCatalog: false, disk_gb: 50, billing_catalog: sku,
   });
   await c.gpuVms.delete({ ...vm, publicIpAction: "release" });
   await c.gpuVms.stop(vm);
-  await c.gpuVms.updateAccess({ ...vm, request: { password_auth_enabled: true } });
+  await c.gpuVms.updateAccess({ ...vm, request: { password_auth_enabled: true }, checkState: false });
   await c.gpuVms.resize({ ...vm, request: { cpu: 2 } });
   await c.gpuVms.resizePlan({ ...vm, request: { cpu: 2, ram_mb: 4096 } });
   await c.gpuVms.resizeRootDisk({ ...vm, request: { new_size_gb: 20 } });
-  await c.gpuVms.attachVolume({ ...vm, volume: { vm_type: "gpu", attachments: [] }, request: { volume_id: "64b0000000000000000000b1", billing_catalog: { sku_id: 2, sku_code: "BLOCK-STD" } } });
+  await c.gpuVms.attachVolume({ ...vm, checkState: false, volume: { vm_type: "gpu", attachments: [] }, request: { volume_id: "64b0000000000000000000b1", billing_catalog: { sku_id: 2, sku_code: "BLOCK-STD" } } });
   await c.gpuVms.detachVolume({ ...vm, request: { volume_id: "64b0000000000000000000b1", confirm_unmounted: true } });
   const scopes = calls
     .map((call) => call.headers.get("x-idempotency-key"))

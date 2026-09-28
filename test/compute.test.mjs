@@ -514,15 +514,47 @@ test("createSnapshot requires the snapshot SKU and the portal mode rules", async
 
 test("createSnapshot with wait polls until the snapshot is readable", async () => {
   let gets = 0;
-  const { client } = router([
+  let listStatus = "running";
+  const { calls, client } = router([
     ["POST", /\/snapshots$/, { snapshot_set_id: "ss-1", status: "queued" }],
     ["GET", /\/cloud-vm-snapshots\/ss-1$/, () => (++gets < 2 ? { status: 404, json: { detail: "Snapshot set not found" } } : { snapshot_set_id: "ss-1", status: "succeeded" })],
+    ["GET", /\/cloud-vm-snapshots\/ss-2$/, { status: 404, json: { detail: "Snapshot set not found" } }],
+    ["GET", /\/cloud-vms\/[^/]+\/snapshots$/, () => ({ snapshots: [{ snapshot_set_id: "ss-1", status: "running" }, { snapshot_set_id: "ss-2", status: listStatus, error_message: "disk busy" }], total: 2 })],
   ]);
   const res = await client.cloudVms.createSnapshot({
     workspaceId: WS, vmId: VM1, request: { name: "s", billing_catalog: SNAP_SKU }, wait: { pollIntervalMs: 1000, timeoutMs: 10_000 },
   });
   assert.equal(res.status, "succeeded");
   assert.equal(gets, 2);
+  // While GET is 404 the status comes from the VM's snapshot list.
+  assert.ok(calls.some((c) => c.method === "GET" && /\/snapshots$/.test(c.path) && c.query.get("limit") === "200"));
+  // A failed snapshot fails the wait instead of polling until the timeout.
+  listStatus = "failed";
+  await assert.rejects(
+    client.cloudVms.waitForSnapshot({ workspaceId: WS, vmId: VM1, snapshotSetId: "ss-2", pollIntervalMs: 1000, timeoutMs: 10_000 }),
+    (err) => err instanceof RecoveryFailedError && err.kind === "snapshot" && err.errorMessage === "disk busy",
+  );
+  // `available` counts as ready.
+  listStatus = "available";
+  const ready = await client.cloudVms.waitForSnapshot({ workspaceId: WS, vmId: VM1, snapshotSetId: "ss-2", pollIntervalMs: 1000 });
+  assert.equal(ready.status, "available");
+});
+
+test("deleteSnapshot with checkState refuses a running or restoring snapshot", async () => {
+  let status = "restoring";
+  const { calls, client } = router([
+    ["GET", /\/cloud-vm-snapshots\/ss-1$/, () => ({ snapshot_set_id: "ss-1", status })],
+    ["DELETE", /\/cloud-vm-snapshots\/ss-1$/, { status: "deleted" }],
+  ]);
+  const del = () => client.cloudVms.deleteSnapshot({ workspaceId: WS, snapshotSetId: "ss-1", checkState: true });
+  await assert.rejects(del(), isValidation("snapshot_busy"));
+  status = "running";
+  await assert.rejects(del(), isValidation("snapshot_busy"));
+  assert.equal(calls.filter((c) => c.method === "DELETE").length, 0);
+  status = "succeeded";
+  await del();
+  assert.equal(calls.at(-1).method, "DELETE");
+  await assert.rejects(client.cloudVms.deleteSnapshot({ workspaceId: WS, snapshotSetId: ".." }), isValidation("invalid_snapshot_set_id"));
 });
 
 const MANIFEST = [
@@ -531,10 +563,18 @@ const MANIFEST = [
 ];
 
 test("restoreSnapshot new_vm resolves the plan, default names and minimum disk", async () => {
-  const plans = [PLAN, { ...PLAN, plan_id: "tiny", disk_gb: 40 }];
+  const plans = [
+    PLAN,
+    { ...PLAN, plan_id: "tiny", disk_gb: 40 },
+    { ...PLAN, plan_id: "unpriced", pricing_status: "unpriced" },
+    { ...PLAN, plan_id: "hidden", selectable: false },
+  ];
   const { calls, client } = router([
     ["GET", /\/cloud-vm-snapshots\/ss-1$/, { snapshot_set_id: "ss-1", status: "succeeded", created_at: "2026-09-01T10:00:00Z", volume_manifest: MANIFEST }],
     ["GET", new RegExp(`^/compute/cloud-vms/${VM1}$`), { _id: VM1, name: "web", status: "running", plan_id: "plan-1", site_id: "site-1", data_volumes: [{ volume_id: "data-1" }] }],
+    ["GET", /^\/networking\/vpcs\/vpc-1$/, { vpc_id: "vpc-1", site_id: "site-1", status: "available", connectivity_type: "private" }],
+    ["GET", /^\/networking\/vpcs\/vpc-nat$/, { vpc_id: "vpc-nat", site_id: "site-1", status: "available", connectivity_type: "nat_gateway" }],
+    ["GET", /^\/networking\/vpcs\/[^/]+\/subnets\/sub-1$/, (c) => ({ subnet_id: "sub-1", vpc_id: c.path.split("/")[3] })],
     ...catalogRoutes(plans),
     ["POST", /\/actions\/restore$/, { restore_id: "r1", status: "queued" }],
     ["GET", /\/cloud-vm-snapshots\/restores\/r1$/, { restore_id: "r1", status: "failed", error_message: "no capacity" }],
@@ -551,7 +591,28 @@ test("restoreSnapshot new_vm resolves the plan, default names and minimum disk",
   assert.equal(body.target_billing_catalog.sku_code, "STANDARD-2-8-50");
   assert.equal(body.network_connectivity, "private");
   assert.equal(body.auto_start, true);
-  await assert.rejects(restore({ target_mode: "new_vm", target_plan_id: "tiny" }), isValidation("invalid_restore"));
+  await assert.rejects(restore({ target_mode: "new_vm", target_plan_id: "tiny" }), isValidation("restore_disk_too_small"));
+  // Restore plans must be selectable; pricing is not required (Python/portal rule).
+  const planBefore = calls.length;
+  await assert.rejects(restore({ target_mode: "new_vm", target_plan_id: "hidden" }), isValidation("invalid_restore_plan"));
+  await assert.rejects(restore({ target_mode: "new_vm", target_plan_id: "nope" }), isValidation("invalid_restore_plan"));
+  assert.equal(calls.slice(planBefore).some((c) => c.method === "POST"), false);
+  await restore({ target_mode: "new_vm", target_plan_id: "unpriced" });
+  assert.equal(calls.at(-1).body.target_plan_id, "unpriced");
+  // Shared NAT-mode VPC rule, checked before the POST.
+  const natBefore = calls.length;
+  await assert.rejects(
+    restore({ target_mode: "new_vm", vpc_id: "vpc-1", subnet_id: "sub-1", network_connectivity: "nat" }),
+    isValidation("invalid_network"),
+  );
+  await assert.rejects(
+    restore({ target_mode: "new_vm", vpc_id: "vpc-nat", subnet_id: "sub-1", network_connectivity: "public_ip" }),
+    isValidation("invalid_network"),
+  );
+  assert.equal(calls.slice(natBefore).some((c) => c.method === "POST"), false);
+  // A dedicated public IP on a private VPC needs no Reserved IP for a restore.
+  await restore({ target_mode: "new_vm", vpc_id: "vpc-1", subnet_id: "sub-1", network_connectivity: "public_ip" });
+  assert.equal(calls.at(-1).body.network_connectivity, "public_ip");
   await assert.rejects(restore({ target_mode: "new_vm", target_volume_names: { nope: "x" } }), isValidation("invalid_target_volume_names"));
   await assert.rejects(restore({ target_mode: "volume_only" }), isValidation("invalid_restore"));
   await assert.rejects(restore({ target_vm_name: "x" }), isValidation("invalid_restore"));
@@ -569,7 +630,9 @@ test("restoreSnapshot new_vm resolves the plan, default names and minimum disk",
 test("restoreBackup needs a succeeded recovery point and rejects snapshot-only fields", async () => {
   let status = "running";
   const { calls, client } = router([
-    ["GET", /\/cloud-vm-backups\/runs\/rp-1$/, () => ({ run_id: "rp-1", status, volume_manifest: MANIFEST, created_at: "2026-09-02T00:00:00Z" })],
+    ["GET", /\/cloud-vm-backups\/runs\/rp-1$/, () => ({ run_id: "rp-1", recovery_point_id: "rp-1", status, volume_manifest: MANIFEST, created_at: "2026-09-02T00:00:00Z" })],
+    ["GET", /\/cloud-vm-backups\/runs\/run-1$/, { run_id: "run-1", recovery_point_id: "rp-9", status: "succeeded" }],
+    ["GET", /\/cloud-vm-backups\/runs\/run-2$/, { run_id: "run-2", status: "succeeded" }],
     ["GET", new RegExp(`^/compute/cloud-vms/${VM1}$`), { _id: VM1, name: "db", plan_id: "plan-1", site_id: "site-1" }],
     ...catalogRoutes(),
     ["POST", /\/backups\/actions\/restore$/, { restore_id: "r2", status: "queued" }],
@@ -584,6 +647,15 @@ test("restoreBackup needs a succeeded recovery point and rejects snapshot-only f
   assert.deepEqual(body.target_volume_names, { "data-1": "logs-backup-restored-20260902" });
   assert.equal("auto_start" in body, false);
   await assert.rejects(client.cloudVms.restoreBackup({ workspaceId: WS, vmId: VM1, request: {} }), isValidation("invalid_recovery_point_id"));
+  // A run ID resolves to the run's recovery point ID for the restore body.
+  await client.cloudVms.restoreBackup({ workspaceId: WS, vmId: VM1, request: { recovery_point_id: "run-1" } });
+  assert.deepEqual(calls.at(-1).body, { recovery_point_id: "rp-9", target_mode: "replace" });
+  const before = calls.length;
+  await assert.rejects(
+    client.cloudVms.restoreBackup({ workspaceId: WS, vmId: VM1, request: { recovery_point_id: "run-2" } }),
+    isValidation("recovery_point_not_ready"),
+  );
+  assert.equal(calls.slice(before).some((c) => c.method === "POST"), false);
 });
 
 // --------------------------------------------------------------- backups
@@ -681,6 +753,12 @@ test("listAllBackupRuns and deleteBackupRun use the workspace backup paths", asy
   await assert.rejects(client.cloudVms.listAllBackupRuns({ workspaceId: WS, status: "done" }), isValidation("invalid_status"));
   await assert.rejects(client.cloudVms.listAllBackupRuns({ workspaceId: WS, limit: 201 }), isValidation("invalid_limit"));
   await assert.rejects(client.cloudVms.deleteBackupRun({ workspaceId: WS, runId: "run-1", checkState: true }), isValidation("backup_not_completed"));
+  for (const runId of ["..", "."]) {
+    const before = calls.length;
+    await assert.rejects(client.gpuVms.deleteBackupRun({ workspaceId: WS, runId }), isValidation("invalid_run_id"));
+    await assert.rejects(client.gpuVms.getBackupRestore({ workspaceId: WS, restoreId: runId }), isValidation("invalid_restore_id"));
+    assert.equal(calls.length, before);
+  }
   await client.gpuVms.deleteBackupRun({ workspaceId: WS, runId: "run/2" });
   assert.equal(calls.at(-1).method, "DELETE");
   assert.equal(calls.at(-1).path, "/compute/gpu-vm-backups/runs/run%2F2");

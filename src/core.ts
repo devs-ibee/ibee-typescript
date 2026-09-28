@@ -1,4 +1,4 @@
-import { apiErrorFromResponse } from "./errors.js";
+import { BILLING_ADMISSION_CODES, apiErrorFromResponse, parseErrorBody } from "./errors.js";
 import { isRetrySafe, retryDelayMs, shouldRetryStatus } from "./retry.js";
 import {
   assertBillableBodySize,
@@ -83,9 +83,9 @@ export class HttpClient {
   }
 
   async request<T>(args: RequestArgs): Promise<T> {
-    validateWorkspaceId(args.workspaceId, isSecretStorePath(args.path) ? "secret-store" : undefined);
+    const workspaceId = validateWorkspaceId(args.workspaceId, isSecretStorePath(args.path) ? "secret-store" : undefined);
     const url = new URL(this.baseUrl + args.path);
-    url.searchParams.set("workspace_id", args.workspaceId);
+    url.searchParams.set("workspace_id", workspaceId);
     if (args.query) {
       for (const [k, v] of Object.entries(args.query)) {
         if (v === undefined || k === "workspace_id") continue;
@@ -133,7 +133,13 @@ export class HttpClient {
       }
 
       if (res.ok) return parsed as T;
-      if (retrySafe && canRetry && shouldRetryStatus(res.status)) {
+      if (
+        retrySafe &&
+        canRetry &&
+        shouldRetryStatus(res.status) &&
+        // Billing admission failures are deterministic: never retried.
+        !BILLING_ADMISSION_CODES.has(parseErrorBody(res.status, parsed).code)
+      ) {
         await sleepMs(retryDelayMs(attempt, res.headers), args.signal);
         continue;
       }

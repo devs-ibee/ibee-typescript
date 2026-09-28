@@ -110,7 +110,7 @@ test("createVolume validates, fills site_name from the site catalog and sends th
     name: "data-1", size_gb: 20, site_id: "site-1", site_name: "Chennai", sku_code: "BLK-STD",
     vm_type: "gpu", delete_on_termination: true,
   });
-  assert.match(key, /^create-volume-data-1-/);
+  assert.match(key, /^block-volume-create-data-1-/);
   assert.equal(calls[1].headers.get("x-idempotency-key"), key);
 
   await assert.rejects(
@@ -210,7 +210,7 @@ test("deleteVolume refuses attached or busy volumes unless forced", async () => 
   assert.equal(res.status, "deleted");
   const del = calls.at(-1);
   assert.equal(del.method, "DELETE");
-  assert.match(del.query.get("idempotency_key"), new RegExp(`^delete-volume-${VOL}-`));
+  assert.match(del.query.get("idempotency_key"), new RegExp(`^block-volume-delete-${VOL}-`));
   const n = calls.length;
   await client.blockStorage.deleteVolume({ workspaceId: WS, volumeId: VOL, force: true });
   assert.deepEqual(sent(calls.slice(n)), [`DELETE /block-storage/volumes/${VOL}`]);
@@ -246,7 +246,7 @@ test("resizeVolume is grow-only and needs a stopped VM or allow_online when atta
   await assert.rejects(resize({ new_size_gb: 60 }), isValidation("volume_busy"));
   const posts = calls.filter((c) => c.method === "POST");
   assert.equal(posts.length, 2);
-  assert.match(posts[0].body.idempotency_key, new RegExp(`^resize-volume-${VOL}-`));
+  assert.match(posts[0].body.idempotency_key, new RegExp(`^block-volume-resize-${VOL}-`));
   assert.deepEqual({ ...posts[0].body, idempotency_key: undefined }, { new_size_gb: 60, vm_state: "stopped", idempotency_key: undefined });
 });
 
@@ -277,7 +277,7 @@ test("node-level attach/detach validate modes, safe detach and resolve the node"
   assert.deepEqual(sent(calls.slice(n)), [`GET /block-storage/volumes/${VOL}`, `POST /block-storage/volumes/${VOL}/detach`]);
   assert.equal(post.body.node_name, "node-a");
   assert.equal(post.body.vm_type, "gpu");
-  assert.match(post.body.idempotency_key, /^detach-volume-/);
+  assert.match(post.body.idempotency_key, /^block-volume-detach-/);
   vol = volume({ attachments: [] });
   await assert.rejects(
     client.blockStorage.detachVolume({ workspaceId: WS, volumeId: VOL, request: { force: true } }),
@@ -346,6 +346,7 @@ test("attachToVm reads the volume, dispatches by its VM type, and waits like the
 test("attachToVm without block-storage.read needs an explicit billing catalog", async () => {
   const { calls, client } = router([
     ["GET", /^\/block-storage\/volumes\//, { status: 403, json: { error: "insufficient_scope", required_scope: "block-storage.read" } }],
+    ["GET", /^\/compute\/(cloud|gpu)-vms\/[0-9a-f]{24}$/, { _id: VM1, status: "running", site_id: "site-1" }],
     ["POST", /\/actions\/attach-volume$/, ACCEPTED],
   ]);
   await assert.rejects(
@@ -356,11 +357,85 @@ test("attachToVm without block-storage.read needs an explicit billing catalog", 
     client.cloudVms.attachVolume({ workspaceId: WS, vmId: VM1, request: { volume_id: VOL } }),
     isValidation("invalid_billing_catalog", /grant block-storage.read/),
   );
+  const before = calls.length;
   const res = await client.blockStorage.attachToVm({
     workspaceId: WS, volumeId: VOL, vmId: VM1, vmType: "gpu", billingCatalog: { sku_id: 7, sku_code: "BLK-STD" },
   });
   assert.equal(res.operation_id, OP1);
   assert.equal(calls.at(-1).path, `/compute/gpu-vms/${VM1}/actions/attach-volume`);
+  // The volume is read once (403), not again by the VM attach.
+  assert.equal(calls.slice(before).filter((c) => c.path.startsWith("/block-storage/volumes/")).length, 1);
+});
+
+test("attachToVm and detachFromVm validate vmId before any request", async () => {
+  const { calls, client } = router([]);
+  await assert.rejects(client.blockStorage.attachToVm({ workspaceId: WS, volumeId: VOL, vmId: "vm-x" }), isValidation("invalid_vm_id"));
+  await assert.rejects(
+    client.blockStorage.detachFromVm({ workspaceId: WS, volumeId: VOL, vmId: "vm-x", confirmUnmounted: true }),
+    isValidation("invalid_vm_id"),
+  );
+  assert.equal(calls.length, 0);
+});
+
+test("attachVolume checks the VM state by default with an attach message", async () => {
+  let status = "starting";
+  const { calls, client } = router([
+    ["GET", /^\/block-storage\/volumes\//, volume({ site_id: "" })],
+    ["GET", new RegExp(`^/compute/cloud-vms/${VM1}$`), () => ({ _id: VM1, status, site_id: "site-1" })],
+    ["POST", /\/actions\/attach-volume$/, ACCEPTED],
+  ]);
+  const attach = (extra = {}) => client.cloudVms.attachVolume({ workspaceId: WS, vmId: VM1, request: { volume_id: VOL }, ...extra });
+  await assert.rejects(attach(), isValidation("vm_state_conflict", /Cannot attach a volume to this VM while its status is 'starting'/));
+  assert.equal(calls.filter((c) => c.method === "POST").length, 0);
+  await attach({ checkState: false });
+  status = "stopped";
+  await attach();
+  assert.equal(calls.filter((c) => c.method === "POST").length, 2);
+});
+
+test("detachFromVm without block-storage.read detaches from the given VM", async () => {
+  const { calls, client } = router([
+    ["GET", /^\/block-storage\/volumes\//, { status: 403, json: { error: "insufficient_scope", required_scope: "block-storage.read" } }],
+    ["POST", /\/actions\/detach-volume$/, ACCEPTED],
+  ]);
+  await assert.rejects(
+    client.blockStorage.detachFromVm({ workspaceId: WS, volumeId: VOL, confirmUnmounted: true }),
+    isValidation("volume_unreadable", /pass vmId and vmType/),
+  );
+  const res = await client.blockStorage.detachFromVm({ workspaceId: WS, volumeId: VOL, vmId: VM2, confirmUnmounted: true });
+  assert.equal(res.operation_id, OP1);
+  assert.equal(calls.at(-1).path, `/compute/cloud-vms/${VM2}/actions/detach-volume`);
+  await client.blockStorage.detachFromVm({ workspaceId: WS, volumeId: VOL, vmId: VM2, vmType: "gpu", force: true });
+  assert.equal(calls.at(-1).path, `/compute/gpu-vms/${VM2}/actions/detach-volume`);
+});
+
+test("volume attach/detach waits use the portal failure and timeout wording", async () => {
+  let op = { ...ACCEPTED, status: "failed", error_message: null };
+  const { client } = router([
+    ["GET", /^\/block-storage\/volumes\//, volume({ attachments: [{ node_name: "n", vm_id: VM1 }] })],
+    ["POST", /\/actions\/detach-volume$/, ACCEPTED],
+    ["GET", /^\/compute\/operations\//, () => op],
+  ]);
+  const detach = (wait) => client.blockStorage.detachFromVm({ workspaceId: WS, volumeId: VOL, confirmUnmounted: true, wait });
+  await assert.rejects(detach(true), (err) => err.name === "OperationFailedError" && err.message === `Volume operation failed (operation ${OP1})`);
+  op = { ...ACCEPTED, status: "failed", error_message: "node offline" };
+  await assert.rejects(detach(true), (err) => err.message === `node offline (operation ${OP1})`);
+  op = { ...ACCEPTED, status: "running" };
+  await assert.rejects(
+    detach({ timeoutMs: 1000, pollIntervalMs: 1000 }),
+    (err) => err.name === "OperationTimeoutError" &&
+      err.message === `Operation timed out. Please refresh to check the latest state. (operation ${OP1})`,
+  );
+});
+
+test("createVolume skips the optional site lookup on a 5xx", async () => {
+  const { calls, client } = router([
+    ["GET", /^\/compute\/sites$/, { status: 503, json: { detail: "down" } }],
+    ["POST", /^\/block-storage\/volumes$/, (c) => ({ volume: { id: VOL, ...c.body } })],
+  ]);
+  await client.blockStorage.createVolume({ workspaceId: WS, name: "data-1", size_gb: 20, site_id: "site-1" });
+  assert.equal(calls.at(-1).method, "POST");
+  assert.equal("site_name" in calls.at(-1).body, false);
 });
 
 test("detachFromVm requires unmount confirmation and resolves the VM from the attachment", async () => {

@@ -35,9 +35,12 @@ export const SECRET_STORE_WORKSPACE_ID_ERROR =
 /**
  * Validate a workspace ID (`^[1-9][0-9]*$`, string only) and return it.
  * With `service: "secret-store"` the Secret Store rule applies as well
- * (2..128 digits; single-digit workspace IDs are refused by that service).
+ * (2..128 digits; single-digit workspace IDs are refused by that service),
+ * and surrounding whitespace is trimmed first (the trimmed value is returned
+ * and sent), as the Python SDK does.
  */
 export function validateWorkspaceId(workspaceId: unknown, service?: "secret-store"): string {
+  if (service === "secret-store" && typeof workspaceId === "string") workspaceId = workspaceId.trim();
   if (typeof workspaceId !== "string" || !WORKSPACE_ID_PATTERN.test(workspaceId)) {
     throw new IbeeValidationError(WORKSPACE_ID_ERROR, "invalid_workspace_id", "workspace_id");
   }
@@ -267,8 +270,8 @@ export function normaliseEligibilityOperation(value: unknown): string | undefine
 
 // --------------------------------------------------------------- operations
 
-/** Compute operation IDs: `op_` followed by 24 lower-case hex characters. */
-export const OPERATION_ID_PATTERN = /^op_[0-9a-f]{24}$/;
+/** Compute operation IDs: `op_` followed by 24 hex characters (either case, as in the Python SDK). */
+export const OPERATION_ID_PATTERN = /^op_[0-9a-fA-F]{24}$/;
 
 /** Validate a compute operation ID (`op_<24 hex>`) and return it trimmed. */
 export function validateOperationId(operationId: unknown): string {
@@ -436,6 +439,18 @@ export function validateRequiredId(value: unknown, field: string): string {
   return id;
 }
 
+/**
+ * Require a non-blank ID that is safe as one URL path segment and return it
+ * trimmed. `.` and `..` are refused: percent-encoding leaves them unchanged
+ * and URL resolution would turn them into a different route. Other
+ * characters (including `/`) are percent-encoded by the caller.
+ */
+export function validatePathId(value: unknown, field: string): string {
+  const id = validateRequiredId(value, field);
+  if (id === "." || id === "..") vfail(`${field} is not a valid ID.`, `invalid_${field}`, field);
+  return id;
+}
+
 /** VM hostnames: letters, digits and hyphens. */
 export const VM_NAME_PATTERN = /^[A-Za-z0-9-]+$/;
 /** Largest batch the portal creates at once. */
@@ -593,6 +608,11 @@ export function validateVmNetworkPlacement(args: {
   subnetId: string;
   connectivity: "private" | "nat" | "public_ip";
   reservedIp?: Record<string, unknown> | null;
+  /**
+   * Require a Reserved IP for `public_ip` on a private VPC (default true).
+   * A snapshot restore has no Reserved IP field, so it passes false.
+   */
+  requireReservedIpForPublic?: boolean;
 }): void {
   const { vpc, siteId, connectivity } = args;
   const vpcSite = String(vpc.site_id ?? "").trim();
@@ -617,7 +637,7 @@ export function validateVmNetworkPlacement(args: {
     if (type === "nat_gateway") {
       vfail("Dedicated public IPs are not available for NAT Gateway VPCs.", "invalid_network", "network_connectivity");
     }
-    if (type === "private" && !args.reservedIp) {
+    if (type === "private" && !args.reservedIp && args.requireReservedIpForPublic !== false) {
       vfail(
         "Select an available Reserved IP (reserved_public_ip_id) for a public IP on a private VPC.",
         "invalid_network",
@@ -657,15 +677,25 @@ export type VmStateAction =
   | "access"
   | "resize"
   | "resize-plan"
-  | "resize-root-disk";
+  | "resize-root-disk"
+  | "attach-volume"
+  | "detach-volume";
 
 const RESIZE_STATES = new Set(["running", "stopped", "error"]);
+const ACTION_LABELS: Partial<Record<VmStateAction, string>> = {
+  "attach-volume": "attach a volume to",
+  "detach-volume": "detach a volume from",
+};
 
 /** Portal state matrix: throws `vm_state_conflict` when the action is not allowed now. */
 export function assertVmActionAllowed(vm: Record<string, unknown> | null | undefined, action: VmStateAction): void {
   const status = String(vm?.status ?? "").trim().toLowerCase();
   const block = (why: string) =>
-    vfail(`Cannot ${action.replace(/-/g, " ")} this VM while its status is '${status || "unknown"}'${why}.`, "vm_state_conflict", "status");
+    vfail(
+      `Cannot ${ACTION_LABELS[action] ?? action.replace(/-/g, " ")} this VM while its status is '${status || "unknown"}'${why}.`,
+      "vm_state_conflict",
+      "status",
+    );
   switch (action) {
     case "start":
       if (status !== "stopped") block(" (the VM must be stopped)");
@@ -1021,6 +1051,13 @@ export function isValidTimeZone(tz: string): boolean {
 export function validateBackupSchedule(
   schedule: Record<string, unknown> | undefined,
   base: Record<string, unknown> = {},
+  opts: {
+    /**
+     * Check only the fields given (shape and ranges), before the saved
+     * schedule is known: a weekly schedule may take `day_of_week` from it.
+     */
+    partial?: boolean;
+  } = {},
 ): Record<string, unknown> {
   if (schedule !== undefined && !isRec(schedule)) vfail("schedule must be an object.", "invalid_schedule", "schedule");
   const s = { ...base, ...(schedule ?? {}) } as Record<string, unknown>;
@@ -1041,13 +1078,19 @@ export function validateBackupSchedule(
   const out: Record<string, unknown> = { frequency, hour, minute, timezone, window_minutes: windowMinutes };
   if (frequency === "weekly") {
     const dow = s.day_of_week;
+    if ((dow === undefined || dow === null) && opts.partial) return out;
     if (dow === undefined || dow === null) {
       vfail("schedule.day_of_week (0 = Monday .. 6 = Sunday) is required for weekly backups.", "invalid_schedule", "schedule.day_of_week");
     }
     validateIntRange(dow, "day_of_week", 0, 6);
     out.day_of_week = dow;
   } else if (schedule && schedule.day_of_week !== undefined && schedule.day_of_week !== null) {
-    vfail("schedule.day_of_week is only used with weekly backups.", "invalid_schedule", "schedule.day_of_week");
+    if (opts.partial && (schedule.frequency === undefined || schedule.frequency === null)) {
+      // The saved frequency (maybe weekly) is not known yet: check the range only.
+      validateIntRange(schedule.day_of_week, "day_of_week", 0, 6);
+    } else {
+      vfail("schedule.day_of_week is only used with weekly backups.", "invalid_schedule", "schedule.day_of_week");
+    }
   }
   return out;
 }
@@ -1098,6 +1141,11 @@ export function validateDetachConfirmation(req: { confirm_unmounted?: boolean; f
 }
 
 export const VM_VOLUME_MODES = ["single-writer", "multi-writer"] as const;
+
+/** Portal message when a volume attach/detach operation fails without an error message. */
+export const VOLUME_OPERATION_FAILED_MESSAGE = "Volume operation failed";
+/** Portal message when waiting for a volume attach/detach operation times out. */
+export const VOLUME_OPERATION_TIMEOUT_MESSAGE = "Operation timed out. Please refresh to check the latest state.";
 
 // ======================================================================
 // Networking: VPCs, subnets, NAT, virtual IPs, Reserved IPs, firewalls
@@ -1288,13 +1336,13 @@ export function validateHostInSubnet(
   if (!c) vfail("The selected subnet has an invalid CIDR.", "invalid_private_ip", field);
   const { start, end } = c as ParsedIpv4Cidr;
   if ((n as number) < start || (n as number) > end) {
-    vfail(`Address must be inside ${subnetCidr}.`, "invalid_private_ip", field);
+    vfail(`Address must be inside ${subnetCidr}.`, "address_outside_subnet", field);
   }
   if (n === start || n === end) {
-    vfail("Choose a usable host address, not the network or broadcast address.", "invalid_private_ip", field);
+    vfail("Choose a usable host address, not the network or broadcast address.", "address_not_usable", field);
   }
   if (gateway && address === String(gateway).trim()) {
-    vfail("This address is reserved for the subnet gateway.", "invalid_private_ip", field);
+    vfail("This address is reserved for the subnet gateway.", "address_is_gateway", field);
   }
   return address;
 }
@@ -1496,7 +1544,7 @@ export function buildVpcCreateBody(args: VpcCreateInput): Record<string, unknown
   let cidr: string | undefined;
   let autoCidr = args.autoCidr;
   if (cidrRaw) {
-    if (autoCidr === true) vfail("cidr requires auto_cidr=false.", "invalid_cidr_mode", "auto_cidr");
+    if (autoCidr === true) vfail("cidr requires auto_cidr=false.", "invalid_auto_cidr", "auto_cidr");
     cidr = validateVpcCidr(cidrRaw, "cidr");
     autoCidr = false;
   } else if (autoCidr === false) {
@@ -1583,6 +1631,9 @@ export function buildSubnetCreateBody(
     if (args.prefixLength !== undefined && args.prefixLength !== null) {
       vfail("prefix_length is only valid with automatic CIDR allocation.", "invalid_cidr_mode", "prefix_length");
     }
+    // As for VPCs (and in the Python SDK): an explicit CIDR with
+    // autoCidr: true is contradictory and refused, not silently overridden.
+    if (autoCidr === true) vfail("cidr requires auto_cidr=false.", "invalid_auto_cidr", "auto_cidr");
     autoCidr = false;
   } else if (autoCidr === false) {
     vfail("cidr is required when auto_cidr is false.", "invalid_cidr_mode", "cidr");
@@ -1602,7 +1653,7 @@ export function buildSubnetCreateBody(
       if (!cidrContains(String(vpc.cidr), cidr)) {
         vfail(
           `Must be a sub-range of ${vpc.cidr} that does not overlap other subnets.`,
-          "invalid_cidr",
+          "subnet_outside_vpc",
           "cidr",
         );
       }
@@ -1610,7 +1661,7 @@ export function buildSubnetCreateBody(
         if (s.cidr && parseIpv4Cidr(s.cidr) && cidrOverlaps(s.cidr, cidr)) {
           vfail(
             `Must be a sub-range of ${vpc.cidr} that does not overlap other subnets (overlaps ${s.cidr}).`,
-            "invalid_cidr",
+            "subnet_overlap",
             "cidr",
           );
         }
@@ -1725,18 +1776,18 @@ export function validateReservedIpEligibleForService(
 ): void {
   const ripSite = trimStr(rip.site_id);
   if (siteId && ripSite && ripSite !== siteId) {
-    vfail("The Reserved IP is in a different site from the VPC.", "reserved_ip_not_eligible", field);
+    vfail("The Reserved IP is in a different site from the VPC.", "reserved_ip_site_mismatch", field);
   }
   if (trimStr(rip.attached_resource_id) || trimStr(rip.attached_resource_type)) {
-    vfail("That Reserved IP is not available; choose an unattached address.", "reserved_ip_not_eligible", field);
+    vfail("That Reserved IP is not available; choose an unattached address.", "reserved_ip_attached", field);
   }
   const status = trimStr(rip.status).toLowerCase();
   if (status && status !== "reserved") {
-    vfail(`The Reserved IP is ${status}; choose a reserved address.`, "reserved_ip_not_eligible", field);
+    vfail(`The Reserved IP is ${status}; choose a reserved address.`, "reserved_ip_unavailable", field);
   }
   const type = trimStr(rip.reservation_type).toLowerCase();
   if (type && type !== "user_reserved") {
-    vfail("Only customer Reserved IPs can be used here.", "reserved_ip_not_eligible", field);
+    vfail("Only customer Reserved IPs can be used here.", "reserved_ip_not_user_reserved", field);
   }
 }
 
@@ -2193,7 +2244,13 @@ function validateLbPolicy(policy: unknown): Record<string, unknown> {
         vfail(`policy.retries.${key} is not supported.`, "invalid_policy", `policy.retries.${key}`);
       }
     }
-    const retries: Record<string, unknown> = {};
+    // Portal (and Python SDK) defaults for fields the caller leaves out:
+    // 3 attempts, 5000 ms per retry, on 5xx/reset/connect-failure.
+    const retries: Record<string, unknown> = {
+      attempts: 3,
+      per_retry_timeout_ms: 5000,
+      on: [...LB_DEFAULT_RETRY_ON],
+    };
     if (r.attempts !== undefined && r.attempts !== null) retries.attempts = intIn(r.attempts, "policy.retries.attempts", 1, 10);
     if (r.per_retry_timeout_ms !== undefined && r.per_retry_timeout_ms !== null) {
       retries.per_retry_timeout_ms = intIn(r.per_retry_timeout_ms, "policy.retries.per_retry_timeout_ms", 100, 120_000);
@@ -3168,14 +3225,14 @@ export function normalizeSearchQuery(q: unknown): string | undefined {
  */
 export function normalizeStoreName(name: unknown, options: { creating: boolean }): string {
   const n = typeof name === "string" ? name.trim() : "";
-  if (!n) vfail("Store name is required.", "invalid_store_name", "name");
+  if (!n) vfail("Store name is required.", "invalid_name", "name");
   if (n.length > SECRET_STORE_NAME_MAX_LENGTH) {
-    vfail(`Store name must be at most ${SECRET_STORE_NAME_MAX_LENGTH} characters.`, "invalid_store_name", "name");
+    vfail(`Store name must be at most ${SECRET_STORE_NAME_MAX_LENGTH} characters.`, "invalid_name", "name");
   }
   if (options.creating && !/[A-Za-z0-9]/.test(n)) {
     vfail(
       "Store name must contain at least one letter or number to generate a store key.",
-      "invalid_store_name",
+      "invalid_name",
       "name",
     );
   }
@@ -3319,11 +3376,11 @@ export function validateIdentityCreate(input: {
     );
   }
   const name = typeof input.name === "string" ? input.name.trim() : "";
-  if (!name) vfail("Identity name is required.", "invalid_identity_name", "name");
+  if (!name) vfail("Identity name is required.", "invalid_name", "name");
   if (name.length > SECRET_IDENTITY_NAME_MAX_LENGTH) {
     vfail(
       `Identity name must be at most ${SECRET_IDENTITY_NAME_MAX_LENGTH} characters.`,
-      "invalid_identity_name",
+      "invalid_name",
       "name",
     );
   }
@@ -3384,8 +3441,8 @@ export function validateScopePermissions(input: {
   ) {
     vfail(
       "Read-only identities cannot be granted write, rollback, or destroy permissions.",
-      "invalid_scope_permissions",
-      mode === "read_write" ? "access_mode" : "allow_rollback",
+      "scope_permission_denied",
+      "access_mode",
     );
   }
 }
@@ -3419,12 +3476,12 @@ export interface SecretVersionsLike {
  */
 export function checkRollbackTarget(versions: SecretVersionsLike, version: number): void {
   if (versions?.current_version === version) {
-    vfail(`Version ${version} is already the current version.`, "invalid_rollback_target", "version");
+    vfail(`Version ${version} is already the current version.`, "rollback_to_current", "version");
   }
   const entry = versions?.versions?.[String(version)];
-  if (!entry) vfail(`Version ${version} does not exist for this secret.`, "invalid_rollback_target", "version");
+  if (!entry) vfail(`Version ${version} does not exist for this secret.`, "unknown_version", "version");
   if (entry?.destroyed) {
-    vfail(`Version ${version} was destroyed and cannot be restored.`, "invalid_rollback_target", "version");
+    vfail(`Version ${version} was destroyed and cannot be restored.`, "version_destroyed", "version");
   }
 }
 
@@ -3433,28 +3490,87 @@ export function assertRotateAllowed(identity: { auth_method?: unknown; status?: 
   if (String(identity?.auth_method ?? "") !== "approle") {
     vfail(
       "rotate-secret-id is only available for AppRole identities.",
-      "invalid_auth_method",
-      "auth_method",
+      "auth_method_mismatch",
+      "identity_id",
     );
   }
   if (String(identity?.status ?? "") !== "active") {
-    vfail("Identity is disabled; enable it before rotating its secret ID.", "identity_disabled", "status");
+    vfail("Identity is disabled; enable it before rotating its secret ID.", "identity_disabled", "identity_id");
   }
 }
 
 /**
  * Portal rule for granting a store to an identity: the store must be
- * active and not already granted to the identity.
+ * active and not already granted to the identity. When `knownStoreIds`
+ * (every store, archived included) is given, a store that is not listed at
+ * all is reported as `store_not_found` rather than `store_not_active`.
+ * Codes match the Python SDK.
  */
 export function checkScopeStoreEligibility(
   storeId: string,
   activeStoreIds: Iterable<string> | undefined,
   scopedStoreIds: Iterable<string> | undefined,
+  knownStoreIds?: Iterable<string>,
 ): void {
   if (scopedStoreIds && new Set(Array.from(scopedStoreIds, String)).has(storeId)) {
-    vfail(`Store '${storeId}' is already granted to this identity.`, "scope_store_already_granted", "store_id");
+    vfail(
+      `Store '${storeId}' is already granted to this identity; update its scope instead.`,
+      "scope_already_exists",
+      "store_id",
+    );
   }
   if (activeStoreIds && !new Set(Array.from(activeStoreIds, String)).has(storeId)) {
-    vfail(`Store '${storeId}' is not an active store in this workspace.`, "scope_store_not_active", "store_id");
+    if (knownStoreIds && !new Set(Array.from(knownStoreIds, String)).has(storeId)) {
+      vfail(`Store '${storeId}' was not found among the workspace's stores.`, "store_not_found", "store_id");
+    }
+    vfail(`Store '${storeId}' is not an active store in this workspace.`, "store_not_active", "store_id");
   }
+}
+
+/** Options of `chunkBatchSecrets`. */
+export interface ChunkBatchSecretsOptions {
+  /** Items per request (default 500, the API maximum). */
+  maxItems?: number;
+  /** Request body limit in bytes (default 65536). */
+  maxBytes?: number;
+}
+
+/**
+ * Split normalised batch items into consecutive `batchCreateSecrets`
+ * requests of at most `maxItems` items and `maxBytes` bytes of JSON body
+ * (`{"secrets": [...]}`). Throws `request_body_too_large` when a single item
+ * alone is too large. Same rules as the Python SDK's `chunk_batch_secrets`.
+ */
+export function chunkBatchSecrets<T extends Record<string, unknown>>(
+  items: readonly T[],
+  options: ChunkBatchSecretsOptions = {},
+): T[][] {
+  const maxItems = options.maxItems ?? MAX_SECRET_BATCH_SIZE;
+  const maxBytes = options.maxBytes ?? MAX_SECRET_STORE_BODY_BYTES;
+  if (!Array.isArray(items)) vfail("secrets must be an array of {secret_name, value} items.", "invalid_secrets", "secrets");
+  if (!isStrictInt(maxItems) || maxItems < 1) vfail("maxItems must be an integer >= 1.", "invalid_max_items", "max_items");
+  if (!isStrictInt(maxBytes) || maxBytes < 1) vfail("maxBytes must be an integer >= 1.", "invalid_max_bytes", "max_bytes");
+  const size = (secrets: unknown[]) => new TextEncoder().encode(JSON.stringify({ secrets })).length;
+  const tooLarge = (index: number): never =>
+    vfail(
+      `secrets[${index}] alone exceeds the ${maxBytes}-byte request limit.`,
+      "request_body_too_large",
+      `secrets[${index}]`,
+    );
+  const chunks: T[][] = [];
+  let current: T[] = [];
+  items.forEach((raw, index) => {
+    const item = { ...raw } as T;
+    const candidate = [...current, item];
+    if (candidate.length > maxItems || size(candidate) > maxBytes) {
+      if (current.length === 0) tooLarge(index);
+      chunks.push(current);
+      current = [item];
+      if (size(current) > maxBytes) tooLarge(index);
+    } else {
+      current = candidate;
+    }
+  });
+  if (current.length) chunks.push(current);
+  return chunks;
 }

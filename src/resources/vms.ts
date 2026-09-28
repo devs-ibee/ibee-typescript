@@ -5,10 +5,18 @@ import {
   buildVmCreateBillingCatalog,
   normaliseBillingTerm,
   validateBillingCatalog,
+  windowsLicenseAttachment,
   withAttachedBillingSkus,
 } from "../billingCatalog.js";
 import { estimateEligibilityCostMinor } from "../billingHelpers.js";
-import { ForbiddenError, NotFoundError, RecoveryFailedError, RecoveryRestoreFailedError } from "../errors.js";
+import {
+  ForbiddenError,
+  NotFoundError,
+  OperationFailedError,
+  OperationTimeoutError,
+  RecoveryFailedError,
+  RecoveryRestoreFailedError,
+} from "../errors.js";
 import { buildIdempotencyKey } from "../idempotency.js";
 import { collect, paginateOffset } from "../pagination.js";
 import { pollUntil } from "../polling.js";
@@ -25,6 +33,8 @@ import {
   BACKUP_RUN_STATUSES,
   IbeeValidationError,
   VM_VOLUME_MODES,
+  VOLUME_OPERATION_FAILED_MESSAGE,
+  VOLUME_OPERATION_TIMEOUT_MESSAGE,
   assertVmActionAllowed,
   assertVolumeAttachable,
   isWindowsVm,
@@ -49,6 +59,7 @@ import {
   validateNextRunAt,
   validateOperationId,
   validateRequestedBy,
+  validatePathId,
   validateRequiredId,
   validateResizePlanChange,
   validateResizeTarget,
@@ -168,7 +179,9 @@ export interface VmActionOptions {
   wait?: boolean | VmWaitOptions;
   /**
    * Read the VM first and apply the portal's state rules (e.g. start only a
-   * stopped VM). Default false.
+   * stopped VM). Default false for power, delete and resize actions;
+   * `updateAccess` and `attachVolume` check by default (as in the Python
+   * SDK) and `false` opts out.
    */
   checkState?: boolean;
 }
@@ -202,6 +215,8 @@ export interface RecoveryWaitOptions {
 /** Page size used when auto-paging lists. */
 const AUTO_PAGE_SIZE = 100;
 const RECOVERY_TERMINAL_SUCCESS: ReadonlySet<string> = new Set(["succeeded"]);
+/** A snapshot set is ready when `succeeded` (or the legacy `available`). */
+const SNAPSHOT_TERMINAL_SUCCESS: ReadonlySet<string> = new Set(["succeeded", "available"]);
 const RECOVERY_TERMINAL_FAILURE: ReadonlySet<string> = new Set(["failed", "cancelled"]);
 const SNAPSHOT_BLOCKED_STATES = new Set([
   "pending",
@@ -233,6 +248,21 @@ export function normalizeVmRecord<T>(vm: T): T {
 
 const waitOpts = (wait: boolean | VmWaitOptions | undefined): VmWaitOptions | undefined =>
   wait === true ? {} : wait ? wait : undefined;
+
+/**
+ * Reword a volume attach/detach wait failure the way the portal does:
+ * the operation's `error_message` (or "Volume operation failed"), and
+ * "Operation timed out. Please refresh to check the latest state." for the
+ * client-side timeout. The error classes are unchanged.
+ */
+function volumeOperationError(err: unknown): unknown {
+  if (err instanceof OperationFailedError) {
+    err.message = `${err.errorMessage || VOLUME_OPERATION_FAILED_MESSAGE} (operation ${err.operationId ?? "unknown"})`;
+  } else if (err instanceof OperationTimeoutError) {
+    err.message = `${VOLUME_OPERATION_TIMEOUT_MESSAGE} (operation ${err.operationId})`;
+  }
+  return err;
+}
 
 const RESIZE_BLOCK_MESSAGES: Record<string, string> = {
   migration_required: "This downgrade requires migration. In-place disk shrink is blocked.",
@@ -283,8 +313,9 @@ export class VmResource<
    * Resolve the idempotency key for a VM write: validate a caller-supplied
    * key, or build one the way the portal does.
    */
-  private key(action: KeyedAction, ident: string | undefined, supplied?: string): string {
-    if (supplied !== undefined) return validateIdempotencyKey(supplied);
+  private key(action: KeyedAction, ident: string | undefined, supplied?: string | null): string {
+    // null is treated like an omitted key (as in 0.3.0 and blockStorage).
+    if (supplied !== undefined && supplied !== null) return validateIdempotencyKey(supplied);
     return buildIdempotencyKey(`${this.vmType}-vm-${action}`, ident);
   }
 
@@ -323,15 +354,52 @@ export class VmResource<
     return vm;
   }
 
-  /** Find a selectable, priced plan of this VM type in a site. */
-  private async findPlan(workspaceId: string, siteId: string, planId: string, field = "plan_id"): Promise<ComputePlan> {
+  /** List the plans of this VM type in a site. */
+  private async listPlans(workspaceId: string, siteId: string): Promise<ComputePlan[]> {
     const list = await this.http.request<ComputePlanList>({
       method: "GET",
       path: "/compute/plans",
       workspaceId,
       query: { vm_type: this.vmType, site_id: siteId },
     });
-    const plans = Array.isArray(list?.plans) ? list.plans : [];
+    return Array.isArray(list?.plans) ? list.plans : [];
+  }
+
+  /**
+   * Restore target plan (portal restore dialog): listed, selectable and with
+   * a disk of at least the captured root disk. Pricing is not required.
+   */
+  private async findRestorePlan(
+    workspaceId: string,
+    siteId: string,
+    planId: string,
+    minRootGb: number,
+  ): Promise<ComputePlan> {
+    const plans = await this.listPlans(workspaceId, siteId);
+    const eligible = plans
+      .filter((p) => p.selectable === true && (minRootGb <= 0 || Number(p.disk_gb ?? 0) >= minRootGb))
+      .map((p) => String(p.plan_id));
+    const plan = plans.find((p) => String(p.plan_id) === planId);
+    if (!plan || plan.selectable !== true) {
+      fail("Select a valid compute plan for the restored VM", "invalid_restore_plan", "target_plan_id", {
+        eligible_plan_ids: eligible,
+      });
+    }
+    const p = plan as ComputePlan;
+    if (minRootGb > 0 && Number(p.disk_gb ?? 0) < minRootGb) {
+      fail(
+        `Root disk must be at least ${minRootGb} GB. Eligible plans: ${eligible.join(", ") || "none"}.`,
+        "restore_disk_too_small",
+        "target_plan_id",
+        { eligible_plan_ids: eligible },
+      );
+    }
+    return p;
+  }
+
+  /** Find a selectable, priced plan of this VM type in a site. */
+  private async findPlan(workspaceId: string, siteId: string, planId: string, field = "plan_id"): Promise<ComputePlan> {
+    const plans = await this.listPlans(workspaceId, siteId);
     const plan = plans.find((p) => String(p.plan_id) === planId);
     if (!plan) {
       fail(`Plan '${planId}' is not available for ${this.vmType} VMs in site '${siteId}'.`, "invalid_plan", field);
@@ -451,6 +519,7 @@ export class VmResource<
     const tags = input.tags === undefined ? undefined : normaliseIdList(input.tags, "tags");
     const net = validateNetworkFields(input);
     validateRequestedBy(input.requested_by);
+    const key = this.key("create", name, idempotencyKey);
     let osType = input.os_type === undefined || input.os_type === null ? undefined : String(input.os_type).trim().toLowerCase();
     if (osType !== undefined && osType !== "linux" && osType !== "windows") {
       fail("os_type must be 'linux' or 'windows'.", "invalid_os_type", "os_type");
@@ -510,12 +579,16 @@ export class VmResource<
         }
       }
     } else {
+      // Single-request mode: the whole shape is required so the server never
+      // projects a default disk size (as in the Python SDK).
       for (const [field, value] of [
         ["cpu", cpu],
         ["ram_mb", ramMb],
+        ["disk_gb", diskGb],
         ["os_type", osType],
         ["os_distro", osDistro],
         ["billing_catalog", input.billing_catalog],
+        ...(isGpu ? ([["gpu_count", gpuCount]] as const) : []),
       ] as const) {
         if (value === undefined || value === null || value === "") {
           fail(`${field} is required when resolveCatalog is false.`, "missing_field", field);
@@ -651,7 +724,7 @@ export class VmResource<
       method: "POST",
       path: this.base(),
       workspaceId,
-      idempotencyKey: this.key("create", name, idempotencyKey),
+      idempotencyKey: key,
       body,
     });
     return this.finish(workspaceId, accepted, wait);
@@ -669,6 +742,10 @@ export class VmResource<
    * `reserve` (keeps the address as a billed Reserved IP; needs
    * `reservedIpBillingCatalog`). When `publicIpAction` is omitted the SDK
    * reads the VM to decide, and refuses VMs that are already deleting.
+   * When the token lacks `vm.read` (403 on that read) and neither
+   * `checkState` nor `reserve` is requested, the portal default
+   * `public_ip_action: "release"` is sent without the read (the API accepts
+   * `release` for every VM).
    */
   async delete(args: {
     workspaceId: string;
@@ -689,6 +766,7 @@ export class VmResource<
     validateWorkspaceId(args.workspaceId);
     const vmId = validateVmId(args.vmId);
     validateRequestedBy(args.requestedBy);
+    const key = this.key("delete", vmId, args.idempotencyKey);
     let body: Record<string, unknown> | undefined;
     if (args.publicIpAction === "release" && !args.checkState) {
       body = { public_ip_action: "release" };
@@ -696,9 +774,18 @@ export class VmResource<
       if (args.publicIpAction !== undefined && args.publicIpAction !== "reserve" && args.publicIpAction !== "release") {
         fail("publicIpAction must be 'reserve' or 'release'.", "invalid_public_ip_action", "public_ip_action");
       }
-      const vm = await this.fetchVm(args.workspaceId, vmId);
-      assertVmActionAllowed(vm, "delete");
-      body = resolveDeletePublicIpAction(vm, args);
+      let vm: TVm | undefined;
+      try {
+        vm = await this.fetchVm(args.workspaceId, vmId);
+      } catch (err) {
+        if (!(err instanceof ForbiddenError) || args.checkState || args.publicIpAction === "reserve") throw err;
+      }
+      if (vm === undefined) {
+        body = { public_ip_action: "release" };
+      } else {
+        assertVmActionAllowed(vm, "delete");
+        body = resolveDeletePublicIpAction(vm, args);
+      }
       if (body?.public_ip_action === "reserve") {
         const catalog = validateBillingCatalog(args.reservedIpBillingCatalog, {
           context: "reservedIpBillingCatalog",
@@ -719,7 +806,7 @@ export class VmResource<
       method: "DELETE",
       path: this.base(vmId),
       workspaceId: args.workspaceId,
-      idempotencyKey: this.key("delete", vmId, args.idempotencyKey),
+      idempotencyKey: key,
       body,
     });
     return this.finish(args.workspaceId, accepted, args.wait);
@@ -734,12 +821,13 @@ export class VmResource<
     if (args.force !== undefined && typeof args.force !== "boolean") {
       fail("force must be a boolean.", "invalid_force", "force");
     }
+    const key = this.key(action, vmId, args.idempotencyKey);
     if (args.checkState) await this.checkVm(args.workspaceId, vmId, action);
     const accepted = await this.http.request<OperationAccepted>({
       method: "POST",
       path: `${this.base(vmId)}/actions/${action}`,
       workspaceId: args.workspaceId,
-      idempotencyKey: this.key(action, vmId, args.idempotencyKey),
+      idempotencyKey: key,
       body: args.force === undefined ? undefined : { force: args.force },
     });
     return this.finish(args.workspaceId, accepted, args.wait);
@@ -787,9 +875,11 @@ export class VmResource<
   /**
    * Update SSH keys, reset the password or toggle SSH password login.
    * `ssh_key_mode` is required with keys; `new_password` needs 8+ characters
-   * without line breaks. With `checkState` the VM must be a running Linux VM
-   * and the last-key / password-login rules are checked; `admin_username`
-   * defaults to the VM's admin user on a password reset.
+   * without line breaks. Like the portal (and the Python SDK), the VM is
+   * read first by default: it must be a running Linux VM, password login can
+   * be disabled only while a key remains, removing the last key needs
+   * `confirm_remove_last_ssh_key`, and `admin_username` defaults to the VM's
+   * admin user on a password reset. Pass `checkState: false` to skip the read.
    */
   async updateAccess(args: {
     workspaceId: string;
@@ -801,7 +891,8 @@ export class VmResource<
     const vmId = validateVmId(args.vmId);
     const body = validateAccessUpdate(args.request as Record<string, unknown>);
     validateRequestedBy(body.requested_by);
-    if (args.checkState) {
+    const key = this.key("access", vmId, args.idempotencyKey);
+    if (args.checkState !== false) {
       const vm = await this.fetchVm(args.workspaceId, vmId);
       validateAccessUpdateAgainstVm(vm, body);
       if (body.new_password && !body.admin_username && vm.admin_username) body.admin_username = vm.admin_username;
@@ -810,22 +901,31 @@ export class VmResource<
       method: "PATCH",
       path: `${this.base(vmId)}/actions/access`,
       workspaceId: args.workspaceId,
-      idempotencyKey: this.key("access", vmId, args.idempotencyKey),
+      idempotencyKey: key,
       body,
     });
     return this.finish(args.workspaceId, accepted, args.wait);
   }
 
-  /** Resolve `plan_id` to a target shape (and SKU) for this VM's site. */
+  /** Resolve `plan_id` to a plan of this VM's site (shape only). */
+  private async planShape(workspaceId: string, vm: TVm, planId: string): Promise<ComputePlan> {
+    const siteId = String(vm.site_id ?? "").trim();
+    if (!siteId) fail("The VM has no site, so its plans cannot be listed.", "invalid_plan", "plan_id");
+    return this.findPlan(workspaceId, siteId, planId);
+  }
+
+  /**
+   * Resolve `plan_id` to a target shape and SKU for this VM's site. A
+   * Windows VM carries its licence over (or uses `windowsLicense`).
+   */
   private async planTarget(
     workspaceId: string,
     vm: TVm,
     planId: string,
     term: BillingTerm | undefined,
+    windowsLicense?: BillingCatalogSelection | null,
   ): Promise<{ plan: ComputePlan; billingCatalog: BillingCatalogSelection }> {
-    const siteId = String(vm.site_id ?? "").trim();
-    if (!siteId) fail("The VM has no site, so its plans cannot be listed.", "invalid_plan", "plan_id");
-    const plan = await this.findPlan(workspaceId, siteId, planId);
+    const plan = await this.planShape(workspaceId, vm, planId);
     if (!plan.billing_catalog) fail("Selected plan is missing Billing catalog data", "invalid_plan", "plan_id");
     const base = validateBillingCatalog(plan.billing_catalog, { context: "Selected plan" });
     const priced =
@@ -833,8 +933,14 @@ export class VmResource<
         ? base
         : applyBillingTerm(base, term ?? "HOURLY").catalog;
     let license: unknown;
+    const hasExplicitLicense = windowsLicense !== undefined && windowsLicense !== null;
+    if (hasExplicitLicense && !isWindowsVm(vm)) {
+      fail("windows_license is only allowed for Windows VMs.", "invalid_billing_catalog", "windows_license");
+    }
     if (isWindowsVm(vm)) {
-      license = (vm.billing_catalog as BillingCatalogSelection | null | undefined)?.attached_skus?.windows_license;
+      license = hasExplicitLicense
+        ? windowsLicenseAttachment(windowsLicense, term ?? "HOURLY", Number(plan.cpu))
+        : (vm.billing_catalog as BillingCatalogSelection | null | undefined)?.attached_skus?.windows_license;
       if (!license) {
         fail(
           "This Windows VM has no Windows licence SKU on record, so it cannot be resized to a plan through the API.",
@@ -851,6 +957,7 @@ export class VmResource<
     workspaceId: string,
     vmId: string,
     request: VmResizeRequest,
+    opts: { shapeOnly?: boolean } = {},
   ): Promise<{ body: Record<string, unknown>; vm?: TVm }> {
     if (!isRecord(request)) fail("request must be an object.", "invalid_resize_target", "request");
     validateRequestedBy(request.requested_by);
@@ -861,7 +968,15 @@ export class VmResource<
         fail("Pass plan_id or cpu/ram_mb/disk_gb, not both.", "invalid_resize_target", "plan_id");
       }
       const vm = await this.fetchVm(workspaceId, vmId);
-      const { plan, billingCatalog } = await this.planTarget(workspaceId, vm, planId, term);
+      if (opts.shapeOnly) {
+        // A precheck sends no SKU: resolve only the plan's shape.
+        const plan = await this.planShape(workspaceId, vm, planId);
+        const body: Record<string, unknown> = { cpu: plan.cpu, ram_mb: plan.ram_mb, disk_gb: plan.disk_gb };
+        validateResizeTarget(body);
+        if (request.requested_by !== undefined) body.requested_by = request.requested_by;
+        return { body, vm };
+      }
+      const { plan, billingCatalog } = await this.planTarget(workspaceId, vm, planId, term, request.windows_license);
       const body: Record<string, unknown> = {
         cpu: plan.cpu,
         ram_mb: plan.ram_mb,
@@ -889,7 +1004,8 @@ export class VmResource<
 
   /**
    * Check whether a resize can run in place. Pass `plan_id` (resolved from
-   * the VM's site) or an explicit cpu/ram_mb/disk_gb target.
+   * the VM's site; only its cpu/ram_mb/disk_gb are used, no SKU is built) or
+   * an explicit cpu/ram_mb/disk_gb target.
    */
   async precheckResize(args: {
     workspaceId: string;
@@ -898,7 +1014,7 @@ export class VmResource<
   }): Promise<VmResizePrecheck> {
     validateWorkspaceId(args.workspaceId);
     const vmId = validateVmId(args.vmId);
-    const { body } = await this.resizeTarget(args.workspaceId, vmId, args.request);
+    const { body } = await this.resizeTarget(args.workspaceId, vmId, args.request, { shapeOnly: true });
     return this.postPrecheck(args.workspaceId, vmId, body);
   }
 
@@ -932,6 +1048,7 @@ export class VmResource<
   } & VmActionOptions): Promise<OperationAcceptedResult> {
     validateWorkspaceId(args.workspaceId);
     const vmId = validateVmId(args.vmId);
+    const key = this.key("resize", vmId, args.idempotencyKey);
     const { body, vm } = await this.resizeTarget(args.workspaceId, vmId, args.request);
     if (args.checkState) assertVmActionAllowed(vm ?? (await this.fetchVm(args.workspaceId, vmId)), "resize");
     if (!args.skipPrecheck) {
@@ -951,7 +1068,7 @@ export class VmResource<
       method: "POST",
       path: `${this.base(vmId)}/actions/resize`,
       workspaceId: args.workspaceId,
-      idempotencyKey: this.key("resize", vmId, args.idempotencyKey),
+      idempotencyKey: key,
       body,
     });
     return this.finish(args.workspaceId, accepted, args.wait);
@@ -960,6 +1077,11 @@ export class VmResource<
   /**
    * Change CPU/RAM only. The SDK reads the VM first: an identical shape is
    * rejected, and a downgrade needs `confirm_downgrade: true`.
+   *
+   * Pass `plan_id` (instead of cpu/ram_mb) to take cpu/ram_mb from that plan
+   * in the VM's site and build the target `billing_catalog` for
+   * `billing_term` (default HOURLY), carrying a Windows licence over (or
+   * using `windows_license`), as the Python SDK and CLI do.
    */
   async resizePlan(args: {
     workspaceId: string;
@@ -971,21 +1093,53 @@ export class VmResource<
     const vmId = validateVmId(args.vmId);
     const req = args.request;
     if (!isRecord(req)) fail("request must be an object.", "invalid_resize_target", "request");
-    if (req.cpu === undefined || req.ram_mb === undefined) {
-      fail("cpu and ram_mb are required.", "invalid_resize_target", "request");
+    const planId = req.plan_id === undefined || req.plan_id === null ? undefined : String(req.plan_id).trim();
+    const term = req.billing_term === undefined || req.billing_term === null ? undefined : normaliseBillingTerm(req.billing_term);
+    if (planId) {
+      const given = (["cpu", "ram_mb"] as const).filter((k) => req[k] !== undefined && req[k] !== null);
+      if (given.length) {
+        fail(`Pass either plan_id or explicit ${given.join(", ")}, not both.`, "invalid_resize_target", given[0]);
+      }
+    } else {
+      if (req.cpu === undefined || req.ram_mb === undefined) {
+        fail("cpu and ram_mb are required (or pass plan_id).", "invalid_resize_target", "request");
+      }
+      validateResizeTarget({ cpu: req.cpu, ram_mb: req.ram_mb });
+      if (term !== undefined && !req.billing_catalog) {
+        fail("billing_term needs plan_id (or an explicit billing_catalog).", "invalid_resize_target", "billing_term");
+      }
+      if (req.windows_license !== undefined && req.windows_license !== null) {
+        fail("windows_license needs plan_id.", "invalid_resize_target", "windows_license");
+      }
     }
-    validateResizeTarget({ cpu: req.cpu, ram_mb: req.ram_mb });
     validateRequestedBy(req.requested_by);
+    const key = this.key("resize-plan", vmId, args.idempotencyKey);
     const vm = await this.fetchVm(args.workspaceId, vmId);
     if (args.checkState) assertVmActionAllowed(vm, "resize-plan");
-    validateResizePlanChange(vm, req);
-    const body: Record<string, unknown> = { ...req };
-    if (req.billing_catalog) body.billing_catalog = validateBillingCatalog(req.billing_catalog);
+    const { plan_id: _planId, billing_term: _term, windows_license: _license, ...rest } = req;
+    const body: Record<string, unknown> = { ...rest };
+    if (planId) {
+      const { plan, billingCatalog } = await this.planTarget(
+        args.workspaceId,
+        vm,
+        planId,
+        term,
+        req.windows_license as BillingCatalogSelection | undefined,
+      );
+      body.cpu = plan.cpu;
+      body.ram_mb = plan.ram_mb;
+      validateResizeTarget({ cpu: body.cpu, ram_mb: body.ram_mb });
+      body.billing_catalog = req.billing_catalog ? validateBillingCatalog(req.billing_catalog) : billingCatalog;
+    } else if (req.billing_catalog) {
+      const cat = validateBillingCatalog(req.billing_catalog);
+      body.billing_catalog = term === undefined ? cat : applyBillingTerm(cat, term).catalog;
+    }
+    validateResizePlanChange(vm, body as { cpu: number; ram_mb: number; confirm_downgrade?: boolean });
     const accepted = await this.http.request<OperationAccepted>({
       method: "PATCH",
       path: `${this.base(vmId)}/actions/resize-plan`,
       workspaceId: args.workspaceId,
-      idempotencyKey: this.key("resize-plan", vmId, args.idempotencyKey),
+      idempotencyKey: key,
       body,
     });
     return this.finish(args.workspaceId, accepted, args.wait);
@@ -1004,6 +1158,7 @@ export class VmResource<
     if (!isRecord(req)) fail("request must be an object.", "invalid_resize_target", "request");
     validateRootDiskGrow(req.new_size_gb);
     validateRequestedBy(req.requested_by);
+    const key = this.key("resize-root-disk", vmId, args.idempotencyKey);
     const vm = await this.fetchVm(args.workspaceId, vmId);
     if (args.checkState) assertVmActionAllowed(vm, "resize-root-disk");
     validateRootDiskGrow(req.new_size_gb, vm.disk_gb);
@@ -1013,7 +1168,7 @@ export class VmResource<
       method: "PATCH",
       path: `${this.base(vmId)}/actions/resize-root-disk`,
       workspaceId: args.workspaceId,
-      idempotencyKey: this.key("resize-root-disk", vmId, args.idempotencyKey),
+      idempotencyKey: key,
       body,
     });
     return this.finish(args.workspaceId, accepted, args.wait);
@@ -1039,6 +1194,11 @@ export class VmResource<
     idempotencyKey?: string;
     /** The volume, when you already read it (skips the volume GET). */
     volume?: BlockVolume;
+    /**
+     * Do not read the volume (used by `blockStorage.attachToVm` after that
+     * read already returned 403). `billing_catalog` is then required.
+     */
+    skipVolumeRead?: boolean;
   } & VmActionOptions): Promise<OperationAcceptedResult> {
     validateWorkspaceId(args.workspaceId);
     const vmId = validateVmId(args.vmId);
@@ -1050,8 +1210,17 @@ export class VmResource<
       fail("mode must be 'single-writer' or 'multi-writer'.", "invalid_attach", "mode");
     }
     validateRequestedBy(req.requested_by);
+    const key = this.key("attach-volume", `${volumeId}-${vmId}`, args.idempotencyKey);
+    const unreadable = () =>
+      fail(
+        "billing_catalog is required; grant block-storage.read or pass billing_catalog",
+        "invalid_billing_catalog",
+        "billing_catalog",
+      );
     let volume: BlockVolume | undefined = args.volume;
-    if (!volume) {
+    // With a caller SKU and checkState: false nothing needs to be read.
+    const needVolume = !req.billing_catalog || args.checkState !== false;
+    if (!volume && needVolume && !args.skipVolumeRead) {
       try {
         volume = await this.http.request<BlockVolume>({
           method: "GET",
@@ -1060,15 +1229,10 @@ export class VmResource<
         });
       } catch (err) {
         if (!(err instanceof ForbiddenError)) throw err;
-        if (!req.billing_catalog) {
-          fail(
-            "billing_catalog is required; grant block-storage.read or pass billing_catalog",
-            "invalid_billing_catalog",
-            "billing_catalog",
-          );
-        }
+        if (!req.billing_catalog) unreadable();
       }
     }
+    if (!volume && !req.billing_catalog) unreadable();
     if (volume) {
       const state = String(volume?.state ?? "").toLowerCase();
       if (Array.isArray(volume?.attachments) && volume.attachments.length > 0) {
@@ -1077,17 +1241,19 @@ export class VmResource<
       if (VOLUME_BUSY_STATES.has(state)) {
         fail(`Volume is currently ${state}. Retry attach once workflow completes.`, "volume_busy", "volume_id");
       }
-      let vm: TVm | undefined;
-      if (String(volume?.site_id ?? "").trim() || args.checkState) {
-        try {
-          vm = await this.fetchVm(args.workspaceId, vmId);
-        } catch (err) {
-          if (!(err instanceof ForbiddenError) || args.checkState) throw err;
-        }
-      }
-      assertVolumeAttachable({ ...volume, attachments: [] }, this.vmType, vm);
-      if (vm && args.checkState) assertVmActionAllowed(vm, "resize");
     }
+    // Portal state rule (running, stopped or error), checked by default like
+    // the Python SDK; skipped with checkState: false or without vm.read.
+    let vm: TVm | undefined;
+    if (args.checkState !== false) {
+      try {
+        vm = await this.fetchVm(args.workspaceId, vmId);
+      } catch (err) {
+        if (!(err instanceof ForbiddenError) || args.checkState === true) throw err;
+      }
+      if (vm) assertVmActionAllowed(vm, "attach-volume");
+    }
+    if (volume) assertVolumeAttachable({ ...volume, attachments: [] }, this.vmType, vm);
     const rawCatalog = req.billing_catalog ?? volume?.billing_catalog ?? volume?.metadata?.billing_catalog;
     if (!rawCatalog) {
       fail(
@@ -1106,10 +1272,26 @@ export class VmResource<
       method: "POST",
       path: `${this.base(vmId)}/actions/attach-volume`,
       workspaceId: args.workspaceId,
-      idempotencyKey: this.key("attach-volume", `${volumeId}-${vmId}`, args.idempotencyKey),
+      idempotencyKey: key,
       body,
     });
-    return this.finish(args.workspaceId, accepted, args.wait, { timeoutMs: 120_000, pollIntervalMs: 2_000 });
+    return this.finishVolume(args.workspaceId, accepted, args.wait);
+  }
+
+  /**
+   * Wait for a volume attach/detach operation with the portal defaults
+   * (every 2 s, up to 2 min) and the portal's failure wording.
+   */
+  private async finishVolume(
+    workspaceId: string,
+    accepted: OperationAccepted,
+    wait: boolean | VmWaitOptions | undefined,
+  ): Promise<OperationAcceptedResult> {
+    try {
+      return await this.finish(workspaceId, accepted, wait, { timeoutMs: 120_000, pollIntervalMs: 2_000 });
+    } catch (err) {
+      throw volumeOperationError(err);
+    }
   }
 
   /**
@@ -1130,6 +1312,7 @@ export class VmResource<
     const volumeId = validateBlockVolumeId(req.volume_id);
     validateDetachConfirmation(req);
     validateRequestedBy(req.requested_by);
+    const key = this.key("detach-volume", `${volumeId}-${vmId}`, args.idempotencyKey);
     if (args.checkState) {
       const volume = await this.http.request<BlockVolume>({
         method: "GET",
@@ -1143,10 +1326,10 @@ export class VmResource<
       method: "POST",
       path: `${this.base(vmId)}/actions/detach-volume`,
       workspaceId: args.workspaceId,
-      idempotencyKey: this.key("detach-volume", `${volumeId}-${vmId}`, args.idempotencyKey),
+      idempotencyKey: key,
       body: { ...req, volume_id: volumeId },
     });
-    return this.finish(args.workspaceId, accepted, args.wait, { timeoutMs: 120_000, pollIntervalMs: 2_000 });
+    return this.finishVolume(args.workspaceId, accepted, args.wait);
   }
 
   async acknowledgeMountGuidance(args: {
@@ -1236,7 +1419,7 @@ export class VmResource<
     preflightBilling?: boolean;
     /** Read the VM: refuse busy states and unattached selected volumes. */
     checkState?: boolean;
-    /** Wait until the snapshot is ready (failure shows as a timeout). */
+    /** Wait until the snapshot is ready (RecoveryFailedError on failure). */
     wait?: boolean | RecoveryWaitOptions;
   }): Promise<SnapshotSet> {
     validateWorkspaceId(args.workspaceId);
@@ -1285,23 +1468,49 @@ export class VmResource<
     const opts = args.wait === true ? {} : args.wait || undefined;
     if (!opts) return snapshot;
     const status = String(snapshot?.status ?? "").toLowerCase();
-    if (RECOVERY_TERMINAL_SUCCESS.has(status)) return snapshot;
+    if (SNAPSHOT_TERMINAL_SUCCESS.has(status)) return snapshot;
     if (RECOVERY_TERMINAL_FAILURE.has(status)) {
       throw new RecoveryFailedError("snapshot", snapshot as unknown as Record<string, unknown>, snapshot.snapshot_set_id);
     }
-    // The snapshot is readable only once it has succeeded; until then GET is 404.
+    return this.waitForSnapshot({
+      workspaceId: args.workspaceId,
+      vmId,
+      snapshotSetId: snapshot.snapshot_set_id,
+      ...opts,
+    });
+  }
+
+  /**
+   * Poll a snapshot set every 5 s (default timeout 30 min) until it is
+   * `succeeded` (or `available`); throws RecoveryFailedError on
+   * failed/cancelled. A snapshot is readable by ID only once it has
+   * succeeded, so while that GET is 404 its status is read from the VM's
+   * snapshot list.
+   */
+  waitForSnapshot(
+    args: { workspaceId: string; vmId: string; snapshotSetId: string } & RecoveryWaitOptions,
+  ): Promise<SnapshotSet> {
+    validateWorkspaceId(args.workspaceId);
+    const vmId = validateVmId(args.vmId);
+    const snapshotSetId = validatePathId(args.snapshotSetId, "snapshot_set_id");
     return this.pollRecovery<SnapshotSet>(
       "snapshot",
-      snapshot.snapshot_set_id,
+      snapshotSetId,
       async () => {
         try {
-          return await this.getSnapshot({ workspaceId: args.workspaceId, snapshotSetId: snapshot.snapshot_set_id });
+          return await this.getSnapshot({ workspaceId: args.workspaceId, snapshotSetId });
         } catch (err) {
-          if (err instanceof NotFoundError) return { ...snapshot, status: "running" as BackupStatus };
-          throw err;
+          if (!(err instanceof NotFoundError)) throw err;
+          const list = await this.listSnapshots({ workspaceId: args.workspaceId, vmId, limit: 200 });
+          const item = (Array.isArray(list?.snapshots) ? list.snapshots : []).find(
+            (s) => String(s?.snapshot_set_id ?? "") === snapshotSetId,
+          );
+          if (!item) throw err;
+          return item;
         }
       },
-      opts,
+      args,
+      SNAPSHOT_TERMINAL_SUCCESS,
     );
   }
 
@@ -1341,7 +1550,7 @@ export class VmResource<
   }): Promise<RecoveryRestore> {
     validateWorkspaceId(args.workspaceId);
     const vmId = validateVmId(args.vmId);
-    const snapshotSetId = validateRequiredId(args.snapshotSetId, "snapshot_set_id");
+    const snapshotSetId = validatePathId(args.snapshotSetId, "snapshot_set_id");
     const body = validateRestoreRequest({ ...(args.request ?? {}) }, "snapshot");
     validateRequestedBy(body.requested_by);
     const snapshot = await this.getSnapshot({ workspaceId: args.workspaceId, snapshotSetId });
@@ -1408,14 +1617,37 @@ export class VmResource<
     }
     if (mode !== "new_vm") return;
     const minRoot = recoveryMinRootDiskGb(manifest);
+    if (kind === "snapshot" && body.vpc_id) {
+      // Shared VPC placement rules (NAT only in NAT Gateway VPCs, no
+      // dedicated public IP in a NAT Gateway VPC), checked before sending.
+      const vpcId = String(body.vpc_id);
+      const subnetId = String(body.subnet_id ?? "");
+      const vpc = await this.http.request<Record<string, unknown>>({
+        method: "GET",
+        path: `/networking/vpcs/${encodeURIComponent(vpcId)}`,
+        workspaceId,
+      });
+      const subnet = await this.http.request<Record<string, unknown>>({
+        method: "GET",
+        path: `/networking/vpcs/${encodeURIComponent(vpcId)}/subnets/${encodeURIComponent(subnetId)}`,
+        workspaceId,
+      });
+      validateVmNetworkPlacement({
+        siteId: String(body.target_site_id ?? vm.site_id ?? ""),
+        vpc: isRecord(vpc) ? vpc : {},
+        subnet: isRecord(subnet) ? subnet : null,
+        subnetId,
+        connectivity: (body.network_connectivity as "private" | "nat" | "public_ip" | undefined) ?? "private",
+        requireReservedIpForPublic: false,
+      });
+    }
     const planId = String(body.target_plan_id ?? vm.plan_id ?? "").trim();
     if (planId && (body.target_cpu === undefined || !body.target_billing_catalog)) {
       const siteId = String(body.target_site_id ?? vm.site_id ?? "").trim();
       if (!siteId) fail("Select a valid compute plan for the restored VM", "invalid_restore", "target_plan_id");
-      const plan = await this.findPlan(workspaceId, siteId, planId, "target_plan_id");
-      if (minRoot > 0 && Number(plan.disk_gb) < minRoot) {
-        fail(`Plan '${planId}' has a ${plan.disk_gb} GB disk; this ${kind} needs at least ${minRoot} GB. Choose a larger plan.`, "invalid_restore", "target_plan_id");
-      }
+      // Restore plans need to be selectable and big enough; pricing is not
+      // required (portal restore dialog and Python SDK rule).
+      const plan = await this.findRestorePlan(workspaceId, siteId, planId, minRoot);
       const mapped = restoreTargetFromPlan(plan, vm);
       for (const [k, v] of Object.entries(mapped)) if (body[k] === undefined || body[k] === null) body[k] = v;
     }
@@ -1444,18 +1676,32 @@ export class VmResource<
   }): Promise<SnapshotSet> {
     return this.http.request({
       method: "GET",
-      path: this.snapshotBase(validateRequiredId(args.snapshotSetId, "snapshot_set_id")),
+      path: this.snapshotBase(validatePathId(args.snapshotSetId, "snapshot_set_id")),
       workspaceId: args.workspaceId,
     });
   }
 
+  /**
+   * Delete a snapshot set. With `checkState` the snapshot is read first and
+   * refused while it is running or restoring ("Cannot delete a snapshot
+   * while restore is in progress."), as in the portal.
+   */
   async deleteSnapshot(args: {
     workspaceId: string;
     snapshotSetId: string;
+    checkState?: boolean;
   }): Promise<SnapshotDeleteResult> {
+    const snapshotSetId = validatePathId(args.snapshotSetId, "snapshot_set_id");
+    if (args.checkState) {
+      const snapshot = await this.getSnapshot({ workspaceId: args.workspaceId, snapshotSetId });
+      const status = String(snapshot?.status ?? "").trim().toLowerCase();
+      if (status === "running" || status === "restoring") {
+        fail("Cannot delete a snapshot while restore is in progress.", "snapshot_busy", "snapshot_set_id");
+      }
+    }
     return this.http.request({
       method: "DELETE",
-      path: this.snapshotBase(validateRequiredId(args.snapshotSetId, "snapshot_set_id")),
+      path: this.snapshotBase(snapshotSetId),
       workspaceId: args.workspaceId,
     });
   }
@@ -1464,7 +1710,7 @@ export class VmResource<
     workspaceId: string;
     restoreId: string;
   }): Promise<RecoveryRestore> {
-    const restoreId = validateRequiredId(args.restoreId, "restore_id");
+    const restoreId = validatePathId(args.restoreId, "restore_id");
     return this.http.request({
       method: "GET",
       path: `${this.snapshotBase()}/restores/${encodeURIComponent(restoreId)}`,
@@ -1477,13 +1723,14 @@ export class VmResource<
     id: string,
     fetchFn: () => Promise<T>,
     opts: RecoveryWaitOptions,
+    success: ReadonlySet<string> = RECOVERY_TERMINAL_SUCCESS,
   ): Promise<T> {
     const { timeoutMs, pollIntervalMs } = validateWaitOptions(opts.timeoutMs ?? 1_800_000, opts.pollIntervalMs ?? 5_000);
     const result = await pollUntil<T>(fetchFn, (v) => (v as { status?: unknown })?.status, {
       operationId: id,
       timeoutMs,
       pollIntervalMs,
-      success: RECOVERY_TERMINAL_SUCCESS,
+      success,
       failure: RECOVERY_TERMINAL_FAILURE,
       raiseOnFailure: false,
       signal: opts.signal,
@@ -1503,7 +1750,7 @@ export class VmResource<
    */
   waitForSnapshotRestore(args: { workspaceId: string; restoreId: string } & RecoveryWaitOptions): Promise<RecoveryRestore> {
     validateWorkspaceId(args.workspaceId);
-    const restoreId = validateRequiredId(args.restoreId, "restore_id");
+    const restoreId = validatePathId(args.restoreId, "restore_id");
     return this.pollRecovery("restore", restoreId, () => this.getSnapshotRestore({ workspaceId: args.workspaceId, restoreId }), args);
   }
 
@@ -1556,6 +1803,12 @@ export class VmResource<
         context: "Backup billing_catalog",
         expectedProduct: "backup_storage",
       });
+    }
+    // Shape/range check of the schedule before any request; it is merged
+    // with the saved schedule and checked again below.
+    if (req.schedule !== undefined && req.schedule !== null) {
+      if (!isRecord(req.schedule)) fail("schedule must be an object.", "invalid_schedule", "schedule");
+      validateBackupSchedule(req.schedule as Record<string, unknown>, {}, { partial: true });
     }
     const policy = await this.getBackupPolicyOrNull({ workspaceId: args.workspaceId, vmId });
     if (!policy || policy.enabled === false) {
@@ -1787,7 +2040,7 @@ export class VmResource<
     workspaceId: string;
     runId: string;
   }): Promise<BackupRun> {
-    const runId = validateRequiredId(args.runId, "run_id");
+    const runId = validatePathId(args.runId, "run_id");
     return this.http.request({
       method: "GET",
       path: `${this.backupBase()}/runs/${encodeURIComponent(runId)}`,
@@ -1806,7 +2059,7 @@ export class VmResource<
     checkState?: boolean;
   }): Promise<BackupRunDeleteResult> {
     validateWorkspaceId(args.workspaceId);
-    const runId = validateRequiredId(args.runId, "run_id");
+    const runId = validatePathId(args.runId, "run_id");
     if (args.checkState) {
       const run = await this.getBackupRun({ workspaceId: args.workspaceId, runId });
       if (String(run?.status ?? "").toLowerCase() !== "succeeded") {
@@ -1835,15 +2088,24 @@ export class VmResource<
   }): Promise<RecoveryRestore> {
     validateWorkspaceId(args.workspaceId);
     const vmId = validateVmId(args.vmId);
-    const recoveryPointId = validateRequiredId(args.request?.recovery_point_id, "recovery_point_id");
+    const recoveryPointId = validatePathId(args.request?.recovery_point_id, "recovery_point_id");
     const body = validateRestoreRequest({ ...(args.request as unknown as Record<string, unknown>) }, "backup");
     body.recovery_point_id = recoveryPointId;
     delete body.auto_start;
     validateRequestedBy(body.requested_by);
+    // The run lookup accepts a run ID or a recovery point ID; the restore
+    // needs the recovery point ID, so send the one the run reports.
     const run = await this.getBackupRun({ workspaceId: args.workspaceId, runId: recoveryPointId });
     if (String(run?.status ?? "").toLowerCase() !== "succeeded") {
       fail("Only successful backups can be restored.", "recovery_point_not_ready", "recovery_point_id");
     }
+    const runRecord = run as unknown as Record<string, unknown>;
+    const metadata = isRecord(runRecord?.metadata) ? runRecord.metadata : undefined;
+    const resolvedPointId = String(runRecord?.recovery_point_id ?? metadata?.recovery_point_id ?? "").trim();
+    if (!resolvedPointId) {
+      fail("Selected backup is missing recovery point id", "recovery_point_not_ready", "recovery_point_id");
+    }
+    body.recovery_point_id = resolvedPointId;
     await this.prepareRestore(
       args.workspaceId,
       vmId,
@@ -1866,7 +2128,7 @@ export class VmResource<
     workspaceId: string;
     restoreId: string;
   }): Promise<RecoveryRestore> {
-    const restoreId = validateRequiredId(args.restoreId, "restore_id");
+    const restoreId = validatePathId(args.restoreId, "restore_id");
     return this.http.request({
       method: "GET",
       path: `${this.backupBase()}/restores/${encodeURIComponent(restoreId)}`,
@@ -1877,7 +2139,7 @@ export class VmResource<
   /** Poll a backup restore until it finishes (see `waitForSnapshotRestore`). */
   waitForBackupRestore(args: { workspaceId: string; restoreId: string } & RecoveryWaitOptions): Promise<RecoveryRestore> {
     validateWorkspaceId(args.workspaceId);
-    const restoreId = validateRequiredId(args.restoreId, "restore_id");
+    const restoreId = validatePathId(args.restoreId, "restore_id");
     return this.pollRecovery("restore", restoreId, () => this.getBackupRestore({ workspaceId: args.workspaceId, restoreId }), args);
   }
 }
