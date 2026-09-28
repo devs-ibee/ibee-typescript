@@ -17,7 +17,8 @@ export type BillingCreateType =
   | "secret"
   | "snapshot"
   | "backup"
-  | "reserved_ip";
+  | "reserved_ip"
+  | "nat_gateway";
 
 /** Human labels used in billing messages. Unknown types read "resource". */
 export const CREATE_TYPE_LABELS: Readonly<Record<BillingCreateType, string>> = Object.freeze({
@@ -33,6 +34,7 @@ export const CREATE_TYPE_LABELS: Readonly<Record<BillingCreateType, string>> = O
   snapshot: "snapshot",
   backup: "backup policy",
   reserved_ip: "Reserved IP",
+  nat_gateway: "NAT gateway",
   container_registry: "container registry",
 });
 

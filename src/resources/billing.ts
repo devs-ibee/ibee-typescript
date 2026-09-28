@@ -34,6 +34,13 @@ export interface RequireResourceEligibilityArgs extends CheckResourceEligibility
   resourceType?: BillingCreateType | (string & {});
 }
 
+/** SKU the edge admits NAT gateway creates against. */
+export const NAT_GATEWAY_SKU_CODE = "NAT-GATEWAY";
+/** SKU for Reserved IPs (reserve, convert, reserve-on-NAT-delete). */
+export const RESERVED_IP_SKU_CODE = "RESERVED-IP";
+/** SKU the edge admits L4/L7 load-balancer creates against. */
+export const LOAD_BALANCER_SKU_CODE = "LOADBALA-STD";
+
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   Boolean(v) && typeof v === "object" && !Array.isArray(v);
 

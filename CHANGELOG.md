@@ -90,6 +90,65 @@
     `recoveryMinRootDiskGb`, `restoreTargetFromPlan`;
   - the VM and recovery validators in `validation`.
 
+- **Networking, portal parity.** New methods:
+  - `vpcs.replaceNatGatewayPublicIp`, `vpcs.waitForNatGatewayAbsent` (and
+    `waitForNatGatewayAbsent`);
+  - `vpcs.listVirtualIps`, `getVirtualIp`, `createVirtualIp` and
+    `deleteVirtualIp`;
+  - `reservedIps.convert` and `reservedIps.attachVirtualIp`;
+  - `firewalls.listGroupSummaries`, `iterateGroupSummaries` and
+    `listAllGroups`.
+
+  Of these, the NAT public-IP swap, the virtual-IP methods, convert,
+  attach-virtual-IP and group summaries are not yet part of the published
+  API contract.
+- New request fields (not yet in the published contract):
+  - VPC create: `natBillingCatalog`, `connectivityType: "private"`,
+    `checkSite`;
+  - NAT create: `billingCatalog`, `validateVpc`, `preflightBilling`;
+  - NAT delete: `publicIpAction`, `billingCatalog`, `checkDependencies`,
+    `wait`;
+  - port forwarding: `targetType`, `targetVmIds`;
+  - node attach: `requestedPrivateIp`, `checkVpc`;
+  - VPC delete: `checkDependencies`, `deleteNatGateway`, `natIpAction`;
+  - `listSites({ availableOnly })`;
+  - Reserved IP reserve: `billingCatalog`, `checkBilling`;
+  - Reserved IP attach: `detachFromService`;
+  - load-balancer create/update: `policy`, `healthCheck`, `observability`;
+  - load-balancer create: `checkBilling`;
+  - load-balancer list/get: `includeDeleted`.
+- `ReservedIpTargetUnsupportedError` (an `IbeeValidationError`, status
+  404): a Reserved IP attach or move targets a VM without a VPC attachment.
+- Constants `NAT_GATEWAY_SKU_CODE`, `RESERVED_IP_SKU_CODE` and
+  `LOAD_BALANCER_SKU_CODE`. A `nat_gateway` billing label is added, so NAT
+  gateway billing denials read "NAT gateway".
+- Networking helpers:
+  - IP and CIDR parsing: `parseIpv4`, `parseIpv4Cidr`, `validateVpcCidr`,
+    `validatePrivateCidr`, `cidrContains`, `cidrOverlaps`,
+    `validateHostInSubnet`, `isPrivateIpv4`;
+  - portal defaults: `resolveNodeConnectivity`, `defaultNatDeleteIpAction`,
+    `networkBillingCatalog`, `validateNetworkBillingCatalog`;
+  - Reserved IPs and firewalls: `reservedIpAttachmentKind`,
+    `validateReverseDns`, `normaliseRemoteTargets`, `parsePortRange`;
+  - request bodies: `buildFirewallRuleBody`, `buildLoadBalancerBody`,
+    `buildVpcCreateBody`, `buildSubnetCreateBody`,
+    `buildPortForwardingCreateBody` and the rest of the networking
+    validators.
+- Types:
+  - new: `VpcVirtualIp`, `VpcAttachedNode`, `FirewallGroupSummary`,
+    `LoadBalancerPolicy`, `LoadBalancerHealthCheck`,
+    `LoadBalancerObservability`;
+  - `NatGateway` gains `public_ip_source`, `billing_catalog`, `billing_*_at`
+    and `deleted_at`;
+  - `NatPortForwardingRule` gains `port_forward_rule_id`, `target_type`,
+    `target_vm_ids`, `network_allocation_id` and `vm_id`;
+  - `NetworkAllocation` gains `prefix_length`, `subnet_mask`, `gateway`,
+    `dns` and the NAT/public-IP fields;
+  - `ReservedIp` gains `allocation_method`, `attached_allocation_id`,
+    `attached_network_id` and related fields;
+  - `LoadBalancer` gains `custom_domain`, `activated_at`, `deleted_at` and
+    `deleted_by`.
+
 ### Changed
 
 - **Lists auto-page.** `cloudVms.list`, `gpuVms.list` and
@@ -176,11 +235,71 @@
 - **Console:** `vmConsole.createSession` rejects GPU VMs and sends `vm_type:
   "cloud"`, `console_type: "graphical"` and `requested_by: "api"` by default.
 
+- **Networking requests are validated like the portal:**
+  - names: VPC and subnet 1..80, NAT gateway 1..80, firewall group 1..120,
+    load balancer 1..128, Reserved IP label <= 120;
+  - VPC CIDRs: RFC1918, aligned, /22../28. An explicit `cidr` now sends
+    `auto_cidr: false`;
+  - subnet CIDRs: RFC1918, aligned, /29 or larger; `cidr` and
+    `prefixLength` together are rejected;
+  - DNS lists: IPv4 addresses;
+  - ports: single integers 1..65535;
+  - private IPs: must be private IPv4 addresses;
+  - reverse DNS: must be a valid hostname;
+  - PATCH calls need at least one field.
+- **Subnet create reads the VPC first** (`checkVpc`, default true). It
+  enforces containment in the VPC CIDR, no overlap with other subnets and the
+  limit of 10 subnets.
+- **NAT gateway create reads the VPC first** (`validateVpc`, default true).
+  It refuses non-`nat_gateway` VPCs and ineligible Reserved IPs, and warns
+  (`IbeeBillingWarning`) when no `billingCatalog` is sent.
+- **Port-forwarding create/update run the portal checks** (`checkState`,
+  default true): an available gateway, no duplicate protocol/external port,
+  and a valid VM or VIP target. VIP announcers are filled in automatically.
+  Setting `targetType: "vm"` on update sends `target_vm_ids: []`.
+- **Reserved IP writes read the IP first** (`checkAttached` / `checkState`,
+  default true):
+  - release refuses an attached IP;
+  - attach refuses an IP already on a VM (use move);
+  - move refuses NAT, VIP, converted and provider-network IPs;
+  - detach returns an already-detached IP without a request and refuses a
+    converted IP that is still the VM's active address.
+- **Firewall groups:** `createGroup` checks for case-insensitive duplicate
+  names first (`checkDuplicateName`, default true). It rejects
+  `isDefault: true` and never sends `is_default`, because such groups were
+  hidden from lists.
+- **Firewall rules:**
+  - create sends the portal defaults (tcp, ingress, allow, `0.0.0.0/0`);
+  - TCP/UDP rules need `portStart`;
+  - remote targets are normalised and IPv6 is rejected;
+  - update/delete refuse system-managed rules (`checkSystemManaged`, default
+    true);
+  - attach turns the server's "Only OVS/OVN-backed" 400 into
+    `IbeeValidationError` (`firewall_attach_unsupported`).
+- **Load balancers:**
+  - `https` and `tls_passthrough` creates get managed TLS automatically;
+    0.3.0 creates without `tls` failed with 422;
+  - custom certificates (`certificate_source` other than `managed`,
+    `cert_pem`/`key_pem`) are rejected;
+  - sticky sessions are L7-only;
+  - `customDomain` is L7 https-only;
+  - backends are validated; at least one is required;
+  - `list` rejects unknown statuses and layer/protocol mismatches, and
+    `status: "deleted"` implies `include_deleted`.
+- `Vpc.connectivity_type` includes `private`. `NatPricing` now describes
+  `price_per_hour`, `data_price_per_gb` and `billing_enforced`, the fields
+  the API returns; the old `hourly`/`monthly` fields are deprecated.
+  `VpcDetail.attached_nodes` is typed `VpcAttachedNode[]`.
+
 ### Fixed
 
 - VM, GPU VM and firewall-group lists no longer silently stop at 10 items.
 - VM create, snapshot create, backup enable, manual backup run and VM volume
   attach no longer always fail with 422 for a missing `billing_catalog`.
+- Firewall groups created with `isDefault: true` no longer disappear from
+  lists (the flag is refused).
+- HTTPS / TLS-passthrough load balancers can be created without passing
+  `tls`.
 
 ### Notes
 
@@ -199,3 +318,16 @@
   - ISO sources;
   - the workspace-wide snapshot list;
   - backup-to-snapshot conversion.
+- Not available through the public API yet, so not in the SDK (networking):
+  - NAT-GATEWAY / RESERVED-IP catalog discovery; pass the catalog yourself;
+  - the VM-side VPC attach/detach the portal uses (`attachNode` only
+    allocates the address);
+  - network allocation get/delete by ID;
+  - attaching a held Reserved IP to a non-VPC VM, or converting a VPC VM's
+    address;
+  - the load-balancer custom-domain CNAME target before create;
+  - firewall attach eligibility checks;
+  - custom TLS certificates.
+- VPC create with `nat_gateway` is not billing-admitted at the edge, so NAT
+  gateways created that way are only metered when `natBillingCatalog` is
+  sent.

@@ -453,7 +453,8 @@ export function createTypeForPath(path: string | undefined): BillingCreateType |
   if (/^\/block-storage\/volumes\/?$/.test(p)) return "block_storage";
   if (/^\/object-storage\/buckets\/?$/.test(p)) return "object_storage";
   if (/^\/networking\/load-balancers\//.test(p)) return "load_balancer";
-  if (/^\/networking\/reserved-ips\/?$/.test(p)) return "reserved_ip";
+  if (/^\/networking\/reserved-ips(\/convert)?\/?$/.test(p)) return "reserved_ip";
+  if (/^\/networking\/vpcs\/[^/]+\/nat-gateways\/?$/.test(p)) return "nat_gateway";
   if (/^\/cdn\/distributions\/[^/]+\/custom-domains\/?$/.test(p)) return "custom_domain";
   if (/^\/cdn\/distributions\/?$/.test(p)) return "cdn";
   if (/^\/secret-store\/stores\/[^/]+\/secrets\/?$/.test(p)) return "secret";
