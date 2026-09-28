@@ -173,8 +173,13 @@ test("billable create bodies over 64 KiB are rejected before sending", async () 
     (err) => err instanceof IbeeValidationError && err.code === "request_body_too_large",
   );
   assert.equal(calls.length, 0);
-  // Non-billable writes are not limited client-side.
-  await c.secretStore.updateSecretStore({ workspaceId: WS, storeId: "s", description: "é".repeat(40_000) });
+  // Every Secret Store body is limited (the gateway buffers at most 64 KiB).
+  await assert.rejects(
+    c.secretStore.updateSecretStore({ workspaceId: WS, storeId: "s", description: "é".repeat(40_000) }),
+    (err) => err instanceof IbeeValidationError && err.code === "request_body_too_large",
+  );
+  assert.equal(calls.length, 0);
+  await c.secretStore.updateSecretStore({ workspaceId: WS, storeId: "s", description: "é".repeat(30_000) });
   assert.equal(calls.length, 1);
 });
 

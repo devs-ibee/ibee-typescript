@@ -68,7 +68,7 @@ test("rejects invalid workspace IDs before transport", async () => {
 test("DEVELOPMENT environment targets .co.in", async () => {
   const { calls, fetchImpl } = stub();
   const client = new Ibee({ token: "t", environment: IbeeEnvironment.DEVELOPMENT, fetch: fetchImpl });
-  await client.secretStore.listSecretStores({ workspaceId: "1" });
+  await client.secretStore.listSecretStores({ workspaceId: "12" });
   assert.match(calls[0].url, /^https:\/\/api\.ibee\.co\.in\/v1\/secret-store\/stores/);
 });
 
@@ -79,7 +79,7 @@ test("sends bearer auth header", async () => {
     environment: IbeeEnvironment.DEVELOPMENT,
     fetch: fetchImpl,
   });
-  await client.secretStore.listSecretStores({ workspaceId: "1" });
+  await client.secretStore.listSecretStores({ workspaceId: "12" });
   assert.equal(calls[0].headers.get("authorization"), "Bearer ibee_dev_key_abc");
 });
 
@@ -92,7 +92,7 @@ test("createBucket requires a storage region and never sends a compute site", as
   const { calls, fetchImpl } = stub({ json: { name: "b" } });
   const client = new Ibee({ token: "t", fetch: fetchImpl });
   await client.objectStorage.createBucket({
-    workspaceId: "1",
+    workspaceId: "12",
     name: "bkt",
     region: "in-south-1",
     objectLockEnabled: true,
@@ -111,7 +111,7 @@ test("createSecret sends secret_name and value (spec field names)", async () => 
   const { calls, fetchImpl } = stub({ json: { id: "s1" } });
   const client = new Ibee({ token: "t", fetch: fetchImpl });
   await client.secretStore.createSecret({
-    workspaceId: "1",
+    workspaceId: "12",
     storeId: "st1",
     name: "db-url",
     value: { url: "postgres://x" },
@@ -128,7 +128,7 @@ test("updateSecretValue sends value and optional cas", async () => {
   const { calls, fetchImpl } = stub({ json: {} });
   const client = new Ibee({ token: "t", fetch: fetchImpl });
   await client.secretStore.updateSecretValue({
-    workspaceId: "1",
+    workspaceId: "12",
     secretId: "sec1",
     value: { k: "v" },
     cas: 3,
@@ -187,7 +187,7 @@ test("Secret Store exposes all 35 control-plane operations", async () => {
   await client.secretStore.permanentlyDeleteSecret({ workspaceId, secretId });
   await client.secretStore.listSecretVersions({ workspaceId, secretId });
   await client.secretStore.getSecretVersion({ workspaceId, secretId, version: 1 });
-  await client.secretStore.rollbackSecret({ workspaceId, secretId, version: 1 });
+  await client.secretStore.rollbackSecret({ workspaceId, secretId, version: 1, checkTarget: false });
   const identityId = "identity-789";
   const scopeId = "scope-123";
   await client.secretStore.listSecretIdentities({ workspaceId, storeId });
@@ -303,7 +303,10 @@ test("Secret Store exposes all 35 control-plane operations", async () => {
   assert.deepEqual(JSON.parse(secretCalls[31].body), {
     store_id: storeId,
     access_mode: "read_write",
+    // Portal defaults are sent explicitly (0.4.0).
+    allow_version_read: true,
     allow_rollback: true,
+    allow_destroy: false,
   });
   assert.deepEqual(JSON.parse(secretCalls[32].body), { access_mode: "read_only" });
 });
@@ -1018,13 +1021,13 @@ const billableCreates = [
   {
     name: "secret store",
     productPath: "/secret-store/stores?",
-    run: (client) => client.secretStore.createSecretStore({ workspaceId: "1", name: "app" }),
+    run: (client) => client.secretStore.createSecretStore({ workspaceId: "12", name: "app" }),
   },
   {
     name: "secret",
     productPath: "/secret-store/stores/st1/secrets?",
     run: (client) => client.secretStore.createSecret({
-      workspaceId: "1", storeId: "st1", name: "token", value: { token: "x" },
+      workspaceId: "12", storeId: "st1", name: "token", value: { token: "x" },
     }),
   },
   {
@@ -1125,7 +1128,7 @@ test("throws ApiError on non-2xx with parsed body", async () => {
   const { fetchImpl } = stub({ status: 401, json: { error: "invalid_api_key" } });
   const client = new Ibee({ token: "bad", fetch: fetchImpl });
   await assert.rejects(
-    () => client.secretStore.listSecretStores({ workspaceId: "1" }),
+    () => client.secretStore.listSecretStores({ workspaceId: "12" }),
     (err) => {
       assert.ok(err instanceof ApiError);
       assert.equal(err.statusCode, 401);

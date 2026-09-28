@@ -4,6 +4,7 @@ import {
   assertBillableBodySize,
   checkTokenEnvironment,
   isBillableCreate,
+  isSecretStorePath,
   resolveBaseUrl,
   validateToken,
   validateWorkspaceId,
@@ -82,7 +83,7 @@ export class HttpClient {
   }
 
   async request<T>(args: RequestArgs): Promise<T> {
-    validateWorkspaceId(args.workspaceId);
+    validateWorkspaceId(args.workspaceId, isSecretStorePath(args.path) ? "secret-store" : undefined);
     const url = new URL(this.baseUrl + args.path);
     url.searchParams.set("workspace_id", args.workspaceId);
     if (args.query) {

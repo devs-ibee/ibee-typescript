@@ -207,6 +207,44 @@
     `CdnDistribution` gains `bucket_name`, `project_id`, `deleted_at`;
     `CdnCustomDomain` gains `cf_custom_hostname_id` and `validation`.
 
+- **Secret Store portal parity** (`client.secretStore`):
+  - `listAllSecretStores` / `iterateSecretStores` and `listAllSecrets` /
+    `iterateSecrets` page through every store or secret (200 per page).
+  - `createSecretStore` and `createSecret` accept `billingPreflight`
+    (SECRETMA-STD, as the portal checks before both); skipped with an
+    `IbeeBillingWarning` when the token lacks `billing.read`.
+  - `createSecretStore({ ifExists: "return" })` returns the existing store
+    with that name or store key (archived included) instead of throwing
+    `ConflictError`, as the portal does.
+  - `rollbackSecret({ checkTarget })` (default true) refuses the current,
+    destroyed or missing version after reading the versions.
+  - `createSecretIdentityScope({ checkStore })` refuses stores that are not
+    active or already granted, and write access for a read-only identity.
+  - `rotateSecretIdentitySecretId({ checkAuthMethod })` refuses Kubernetes
+    and disabled identities.
+  - `undeleteSecret` without `versions` restores the current version.
+  - Every method accepts `signal`.
+  - Errors: `ResourceNotFoundError`, `OrganizationLifecycleError`,
+    `StoreNotActiveError`, `IdentityDisabledError`,
+    `AuthMethodMismatchError`, `ScopePermissionError` (all `ForbiddenError`),
+    `StoreArchivedError`, `StoreDeletingError` (`ConflictError`),
+    `CasConflictError` (`BadGatewayError`) and `DeletionIncompleteError`
+    (`ServiceUnavailableError`, with `failedSteps`).
+  - Validation helpers: `normalizeSecretName`, `normalizeSecretValue`,
+    `normalizeStoreName`, `normalizeStoreDescription`,
+    `normalizeSearchQuery`, `validateResourceId`, `validatePagination`,
+    `validateVersion`, `validateVersions`, `validateCas`,
+    `validateIdentityCreate`, `validatePolicyMode`,
+    `validateScopePermissions`, `validateOptionalBoolean`, `assertBodySize`,
+    `checkRollbackTarget`, `checkScopeStoreEligibility`,
+    `assertRotateAllowed`, `isSecretStorePath` and the constants
+    `SECRET_NAME_PATTERN`, `SECRET_STORE_WORKSPACE_ID_PATTERN`,
+    `MAX_SECRET_BATCH_SIZE`, `MAX_SECRET_VERSIONS_PER_REQUEST`,
+    `MAX_SECRET_STORE_BODY_BYTES`, `SECRET_STORE_MAX_PAGE_LIMIT`,
+    `SECRET_IDENTITY_AUTH_METHODS`, `SECRET_POLICY_MODES` and
+    `SECRET_MANAGER_SKU_CODE`. `validateWorkspaceId` accepts
+    `"secret-store"` as a second argument.
+
 ### Changed
 
 - **Lists auto-page.** `cloudVms.list`, `gpuVms.list` and
@@ -412,6 +450,37 @@
   - `deleteDistribution` / `deleteCustomDomain` return the API's JSON
     result instead of `void`.
 
+- **Secret Store input is checked before sending** (portal rules):
+  - secret names are trimmed and lower-cased, then must match
+    `^[a-z0-9][a-z0-9-]{1,63}$` (an upper-case name used to fail with 422);
+  - secret values need at least one entry, with trimmed non-blank unique keys
+    and non-blank string values (`patchSecretValue` allows `null`);
+  - store names are trimmed (1..128, with a letter or digit on create);
+    identity names are trimmed (1..128); descriptions are trimmed;
+  - `workspaceId` must have 2..128 digits for Secret Store calls (single-digit
+    workspace IDs were already refused by the service);
+  - `page` >= 1, `limit` 1..200, `q` trimmed (omitted when blank, max 128);
+    versions >= 1 and lists of 1..100 (de-duplicated); `cas` >= 0;
+  - every Secret Store body is limited to 64 KiB (previously only store and
+    secret creates);
+  - `updateSecretStore` and `updateSecretIdentityScope` need at least one
+    field; `updateSecretIdentity` requires `tokenPolicyMode`;
+  - `createSecretIdentity` always sends `token_policy_mode` (default
+    `read_only`), trims the Kubernetes fields, requires them for
+    `kubernetes` and refuses them for `approle` (no more `null` fields);
+  - `createSecretIdentityScope` sends the portal defaults explicitly
+    (`read_only`, version reads allowed, no rollback or destroy) and refuses
+    rollback or destroy on a `read_only` scope.
+- Secret Store 403 answers "<Store|Secret|Identity|Scope> '…' does not belong
+  to workspace '…'" now raise `ResourceNotFoundError` instead of
+  `WorkspaceNotAllowedError` (the service answers 403 for missing resources).
+- `OrganizationRestrictedError` also recognises lower-case lifecycle states
+  (`… while organization is suspended`).
+- `getSecretIdentityAccess` is never retried automatically: every call mints
+  a new AppRole secret ID.
+- Secret Store methods now return rejected promises for invalid input
+  instead of sending the request.
+
 ### Fixed
 
 - VM, GPU VM and firewall-group lists no longer silently stop at 10 items.
@@ -432,8 +501,20 @@
 - `Bucket` and `S3Credential` types now match the fields the API returns;
   the 0.3.0 field names are kept as deprecated optional fields.
 
+- Secret names with upper-case letters or surrounding spaces no longer fail
+  with 422; they are normalised as in the portal.
+- Secret Store lifecycle, archived-store, disabled-identity and
+  missing-resource errors are no longer untyped `ForbiddenError` /
+  `ConflictError` / `WorkspaceNotAllowedError`.
+
 ### Notes
 
+- Not available through the public API yet, so not in the SDK (Secret
+  Store): the workload runtime (AppRole/Kubernetes login, runtime secret
+  reads, batch get, whoami); machine-readable lifecycle codes (the SDK
+  matches the service's message); billing admission for
+  `batchCreateSecrets` (no preflight is offered for it); a non-minting
+  identity access read; distinct CAS-conflict and not-found status codes.
 - 408, 409 and 500 responses and writes without an idempotency key are never
   retried.
 - Retries for networking, snapshot, backup and S3-credential creates are not
