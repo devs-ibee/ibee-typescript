@@ -1,9 +1,50 @@
 import type { HttpClient } from "../core.js";
-import { ApiError } from "../errors.js";
+import { BillingAdmissionError, BillingDeniedError } from "../errors.js";
+import { billingBlockMessage, type BillingCreateType } from "../billingHelpers.js";
+import {
+  normaliseEligibilityOperation,
+  normaliseEstimatedCostMinor,
+  normaliseSkuCode,
+  validateWorkspaceId,
+} from "../validation.js";
 import type {
   BillingEligibility,
   BillingEligibilityRequest,
+  EnforcementOperation,
 } from "../types.js";
+
+export interface CheckResourceEligibilityArgs {
+  workspaceId: string;
+  /** Plan SKU (the plan's `billing_catalog.sku_code`). Trimmed; blank is omitted; max 64. */
+  skuCode?: string;
+  /**
+   * Estimated cost in minor units (>= 0). Non-integers are rounded. Compute
+   * it with `estimateEligibilityCostMinor`.
+   */
+  estimatedCostMinor?: number;
+  /**
+   * Billing operation to evaluate (default CREATE_RESOURCE; case-insensitive).
+   * Not yet part of the published API contract; behaviour may change.
+   */
+  operation?: EnforcementOperation | (string & {});
+}
+
+export interface RequireResourceEligibilityArgs extends CheckResourceEligibilityArgs {
+  /** Resource kind used to word the denial message (not sent). */
+  resourceType?: BillingCreateType | (string & {});
+}
+
+/** SKU the edge admits NAT gateway creates against. */
+export const NAT_GATEWAY_SKU_CODE = "NAT-GATEWAY";
+/** SKU for Reserved IPs (reserve, convert, reserve-on-NAT-delete). */
+export const RESERVED_IP_SKU_CODE = "RESERVED-IP";
+/** SKU the edge admits L4/L7 load-balancer creates against. */
+export const LOAD_BALANCER_SKU_CODE = "LOADBALA-STD";
+/** SKU the edge admits Secret Store store and secret creates against. */
+export const SECRET_MANAGER_SKU_CODE = "SECRETMA-STD";
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  Boolean(v) && typeof v === "object" && !Array.isArray(v);
 
 /** Optional billing-admission preview for applications that need it. */
 export class BillingResource {
@@ -12,20 +53,19 @@ export class BillingResource {
   /**
    * Check whether the workspace may create a billable resource.
    *
-   * Call this directly when an application needs to display admission state.
-   * Product creates make one request. The public edge performs authoritative
-   * billing admission before it forwards that request to the product service.
+   * Returns the decision without throwing when `allowed` is false. Product
+   * creates still make one request; the public edge performs the
+   * authoritative billing admission before forwarding a create.
    */
-  checkResourceEligibility(args: {
-    workspaceId: string;
-    skuCode?: string;
-    estimatedCostMinor?: number;
-  }): Promise<BillingEligibility> {
+  async checkResourceEligibility(args: CheckResourceEligibilityArgs): Promise<BillingEligibility> {
+    validateWorkspaceId(args.workspaceId);
+    const skuCode = normaliseSkuCode(args.skuCode);
+    const estimatedCostMinor = normaliseEstimatedCostMinor(args.estimatedCostMinor);
+    const operation = normaliseEligibilityOperation(args.operation);
     const body: BillingEligibilityRequest = {
-      ...(args.skuCode === undefined ? {} : { sku_code: args.skuCode }),
-      ...(args.estimatedCostMinor === undefined
-        ? {}
-        : { estimated_cost_minor: args.estimatedCostMinor }),
+      ...(skuCode === undefined ? {} : { sku_code: skuCode }),
+      ...(estimatedCostMinor === undefined ? {} : { estimated_cost_minor: estimatedCostMinor }),
+      ...(operation === undefined ? {} : { operation: operation as EnforcementOperation }),
     };
     return this.http.request({
       method: "POST",
@@ -36,43 +76,58 @@ export class BillingResource {
   }
 
   /**
-   * Require a positive, well-formed billing decision before provisioning.
+   * Require an affirmative billing decision before a billable create (the
+   * portal's preflight). Continues only when `allowed` is exactly `true`.
    *
-   * This opt-in helper is useful for form previews. It does not reserve funds
-   * or replace the authoritative edge admission performed during create.
+   * @throws BillingDeniedError (402, code `billing_denied`) with the portal's
+   *   message and `topupAllowed` when billing does not approve.
+   * @throws BillingAdmissionError (502, code `invalid_billing_decision`) when
+   *   the decision is malformed or does not confirm the requested SKU.
+   *
+   * The preflight does not reserve funds; the edge repeats admission on the
+   * real create and is authoritative.
    */
-  async requireResourceEligibility(args: {
-    workspaceId: string;
-    skuCode?: string;
-    estimatedCostMinor?: number;
-  }): Promise<BillingEligibility> {
-    const decision = await this.checkResourceEligibility(args);
-    if (!decision || typeof decision !== "object" || typeof decision.allowed !== "boolean") {
-      throw new ApiError(502, decision, "Billing eligibility returned an invalid response");
-    }
-    if (!decision.allowed) {
-      throw new ApiError(
-        402,
-        {
-          error: {
-            code: "BILLING_CREATE_BLOCKED",
-            message: decision.reason || "Billing eligibility denied resource creation",
-            details: decision,
-          },
-        },
-        decision.reason || "Billing eligibility denied resource creation",
-      );
-    }
+  async requireResourceEligibility(
+    args: RequireResourceEligibilityArgs,
+  ): Promise<BillingEligibility> {
+    const { resourceType, ...checkArgs } = args;
+    const decision = await this.checkResourceEligibility(checkArgs);
+    const invalid = (message: string) =>
+      new BillingAdmissionError(502, decision, message, { code: "invalid_billing_decision" });
+
     if (
-      !decision.organization_id ||
+      !isRecord(decision) ||
+      typeof decision.allowed !== "boolean" ||
       typeof decision.organization_id !== "string" ||
-      !decision.reason ||
-      typeof decision.reason !== "string"
+      !decision.organization_id ||
+      typeof decision.reason !== "string" ||
+      !decision.reason
     ) {
-      throw new ApiError(502, decision, "Billing eligibility response is incomplete");
+      throw invalid("Billing eligibility returned an invalid response");
     }
-    if (args.skuCode !== undefined && decision.sku_code !== args.skuCode) {
-      throw new ApiError(502, decision, "Billing eligibility did not confirm the requested SKU");
+    // A decision that does not confirm the requested SKU is malformed,
+    // whether allowed or denied (checked first, as at the edge and in the
+    // Python SDK).
+    const requested = normaliseSkuCode(args.skuCode);
+    if (
+      requested !== undefined &&
+      String(decision.sku_code ?? "").trim().toUpperCase() !== requested.toUpperCase()
+    ) {
+      throw invalid("Billing eligibility did not confirm the requested SKU");
+    }
+    if (decision.allowed !== true) {
+      throw new BillingDeniedError(
+        402,
+        decision,
+        billingBlockMessage(decision, resourceType ?? "resource"),
+        {
+          code: "billing_denied",
+          reason: decision.reason,
+          skuCode: decision.sku_code ?? undefined,
+          decision,
+          resourceType: resourceType ?? "resource",
+        },
+      );
     }
     return decision;
   }

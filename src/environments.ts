@@ -1,12 +1,14 @@
 /**
  * Base URLs for the IBEE Solutions public API.
  *
- * DEFAULT targets production; DEVELOPMENT targets the development gateway.
- * Mirrors the Python SDK's IbeeEnvironment.
+ * DEFAULT (alias PRODUCTION) targets production; DEVELOPMENT targets the
+ * development gateway. Mirrors the Python SDK's IbeeEnvironment.
  */
 export const IbeeEnvironment = {
   /** Production gateway. */
   DEFAULT: "https://api.ibee.ai/v1",
+  /** Production gateway (same value as DEFAULT). */
+  PRODUCTION: "https://api.ibee.ai/v1",
   /** Development gateway. */
   DEVELOPMENT: "https://api.ibee.co.in/v1",
 } as const;
