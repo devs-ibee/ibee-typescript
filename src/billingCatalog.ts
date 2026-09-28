@@ -241,7 +241,7 @@ export function windowsLicenseAttachment(
   for (const key of ["os_type", "os_family"] as const) {
     const v = (sku as Record<string, unknown>)[key];
     if (v !== undefined && v !== null && String(v).trim() !== "" && String(v).trim().toLowerCase() !== "windows") {
-      fail(`windows_license.${key} must be 'windows'.`, "windows_license");
+      fail(`windows_license.${key} must be 'windows'.`, "windows_license", "invalid_windows_license");
     }
   }
   let priced: BillingCatalogSelection = sku;
@@ -252,7 +252,7 @@ export function windowsLicenseAttachment(
     sku.billing_interval !== undefined &&
     String(sku.billing_interval).toUpperCase() !== term
   ) {
-    fail(`Windows licence does not support ${term.toLowerCase()} billing`, "windows_license");
+    fail(`Windows licence does not support ${term.toLowerCase()} billing`, "windows_license", "unsupported_billing_term");
   }
   return {
     ...priced,
@@ -308,7 +308,7 @@ export function buildVmCreateBillingCatalog(args: BuildVmBillingCatalogArgs): {
     (args.windowsLicense !== undefined && args.windowsLicense !== null) ||
     existingLicense
   ) {
-    fail("windows_license is only allowed for Windows VMs.", "windows_license");
+    fail("windows_license is only allowed for Windows VMs.", "windows_license", "windows_license_not_allowed");
   }
   return {
     catalog: withAttachedBillingSkus(

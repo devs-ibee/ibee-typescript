@@ -200,13 +200,22 @@ export class VpcsResource {
   /**
    * Delete a VPC (its subnets go with it).
    *
-   * Like the portal (and the Python SDK) the VPC is read first by default:
-   * attached nodes block the delete, and a NAT gateway blocks it unless
-   * `deleteNatGateway: true`, in which case the gateway is deleted first
-   * (with `natIpAction` and, to reserve a platform NAT IP,
-   * `natBillingCatalog` = the RESERVED-IP SKU) and the SDK waits until it is
-   * gone. `checkDependencies: true` also refuses while virtual IPs exist;
-   * `checkDependencies: false` skips the read (unless `deleteNatGateway`).
+   * The dependency checks the API also enforces (it refuses each with 409)
+   * run together, by default and whenever `deleteNatGateway` is set, in the
+   * same order as the Python SDK: the VPC is read; attached nodes block the
+   * delete (`vpc_has_nodes`); a NAT gateway blocks it (`vpc_has_nat_gateway`)
+   * unless `deleteNatGateway: true`; the VPC's virtual IPs are listed and
+   * any block it (`vpc_has_virtual_ips`). Only then, with
+   * `deleteNatGateway: true`, is each NAT gateway deleted (with
+   * `natIpAction` and, to reserve a platform NAT IP, `natBillingCatalog` =
+   * the RESERVED-IP SKU) and the SDK waits until it is gone; if it is still
+   * listed, `IbeeError` with code `nat_gateway_deleting` is thrown and the
+   * VPC is not deleted (retry shortly).
+   *
+   * `checkDependencies` works like `checkState` elsewhere (Python
+   * `check_state`): `false` without `deleteNatGateway` sends a plain DELETE;
+   * without the read scope (403) the default checks are skipped, while
+   * `true` re-throws the 403.
    */
   async delete(args: {
     workspaceId: string;
@@ -225,32 +234,54 @@ export class VpcsResource {
       }
       validateNetworkBillingCatalog(args.natBillingCatalog, "nat_billing_catalog");
     }
-    if (args.checkDependencies !== false || args.deleteNatGateway) {
-      const vpc = await this.get(args);
-      const nodes = Math.max(Number(vpc.node_count ?? 0) || 0, (vpc.attached_nodes ?? []).length);
-      if (nodes > 0) {
-        fail(`Detach ${nodes} attached node(s) before deleting this VPC.`, "vpc_has_nodes", "vpc_id");
-      }
-      if (args.checkDependencies) {
-        const vips = await this.listVirtualIps(args);
+    const check = args.checkDependencies;
+    if (check !== false || args.deleteNatGateway) {
+      // Without network.read the default checks are skipped (the API still
+      // enforces them); deleting the NAT gateway needs the read.
+      const optional = async <T>(read: () => Promise<T>): Promise<T | undefined> => {
+        try {
+          return await read();
+        } catch (err) {
+          if (err instanceof ForbiddenError && check !== true) return undefined;
+          throw err;
+        }
+      };
+      const vpc = args.deleteNatGateway ? await this.get(args) : await optional(() => this.get(args));
+      if (vpc) {
+        const nodes = Math.max(Number(vpc.node_count ?? 0) || 0, (vpc.attached_nodes ?? []).length);
+        if (nodes > 0) {
+          fail(`Detach ${nodes} attached node(s) before deleting this VPC.`, "vpc_has_nodes", "vpc_id");
+        }
+        if ((vpc.nat_gateways ?? []).length > 0 && !args.deleteNatGateway) {
+          fail("Delete the NAT gateway first (or pass deleteNatGateway: true).", "vpc_has_nat_gateway", "vpc_id");
+        }
+        // Checked before any NAT gateway is deleted, so a VPC the API would
+        // still refuse is left intact.
+        const vips = await optional(() => this.listVirtualIps(args));
         if (Array.isArray(vips) && vips.length > 0) {
           fail("Delete all virtual IP reservations before deleting the VPC.", "vpc_has_virtual_ips", "vpc_id");
         }
       }
-      const gateways = vpc.nat_gateways ?? [];
-      if (gateways.length > 0) {
-        if (!args.deleteNatGateway) {
-          fail("Delete the NAT gateway first (or pass deleteNatGateway: true).", "vpc_has_nat_gateway", "vpc_id");
-        }
-        for (const gw of gateways) {
-          await this.deleteNatGateway({
-            workspaceId: args.workspaceId,
-            vpcId: args.vpcId,
-            natGatewayId: gw.nat_gateway_id,
-            publicIpAction: args.natIpAction,
-            billingCatalog: args.natBillingCatalog,
-            wait: true,
-          });
+      const gateways = args.deleteNatGateway ? (vpc?.nat_gateways ?? []) : [];
+      for (const gw of gateways) {
+        await this.deleteNatGateway({
+          workspaceId: args.workspaceId,
+          vpcId: args.vpcId,
+          natGatewayId: gw.nat_gateway_id,
+          publicIpAction: args.natIpAction,
+          billingCatalog: args.natBillingCatalog,
+        });
+        const gone = await this.waitForNatGatewayAbsent({
+          workspaceId: args.workspaceId,
+          vpcId: args.vpcId,
+          natGatewayId: gw.nat_gateway_id,
+        });
+        if (!gone) {
+          // Server state, not an input error: the gateway DELETE was accepted.
+          throw new IbeeError(
+            "The NAT gateway deletion is still reconciling; retry deleting the VPC shortly.",
+            "nat_gateway_deleting",
+          );
         }
       }
     }
@@ -367,12 +398,12 @@ export class VpcsResource {
     if (args.reservedPublicIpId !== undefined && args.reservedPublicIpId !== null) {
       reservedPublicIpId = validateRequiredId(args.reservedPublicIpId, "reserved_public_ip_id");
       if (connectivity !== "public_ip") {
-        fail("reserved_public_ip_id is only valid with public_ip connectivity.", "invalid_network", "reserved_public_ip_id");
+        fail("reserved_public_ip_id is only valid with public_ip connectivity.", "invalid_reserved_public_ip_id", "reserved_public_ip_id");
       }
     }
     const requested = String(args.requestedPrivateIp ?? "").trim() || undefined;
     if (requested && parseIpv4(requested) === null) {
-      fail("Enter a valid IPv4 address.", "invalid_private_ip", "requested_private_ip");
+      fail("Enter a valid IPv4 address.", "invalid_requested_private_ip", "requested_private_ip");
     }
     if (args.checkVpc) {
       const vpc = await this.get(args);
@@ -421,9 +452,9 @@ export class VpcsResource {
     const gateways = await this.listNatGateways({ workspaceId, vpcId });
     const gw = (Array.isArray(gateways) ? gateways : []).find((g) => g.nat_gateway_id === natGatewayId);
     if (!gw) {
-      throw new NotFoundError(404, { detail: `NAT gateway ${natGatewayId} was not found` });
+      fail(`NAT gateway ${natGatewayId} was not found in this VPC.`, "nat_gateway_not_found", "nat_gateway_id");
     }
-    return gw;
+    return gw as NatGateway;
   }
 
   /**
@@ -1348,31 +1379,49 @@ export class FirewallsResource {
   }
 
   /**
-   * One page of firewall group summaries (the portal list view: rule and VM
-   * counts, no rules). The server default page size is 10.
+   * Firewall group summaries (the portal list view: rule and VM counts, no
+   * rules). Like `listGroups` and the Python SDK's
+   * `list_firewall_group_summaries`: with no `limit`/`offset` every page is
+   * fetched (100 per request) and de-duplicated; otherwise exactly one page
+   * is returned (`limit` 1..100, default 10 when only `offset` is given).
    * Not yet part of the published API contract; behaviour may change.
    */
   async listGroupSummaries(args: { workspaceId: string; limit?: number; offset?: number }): Promise<FirewallGroupSummary[]> {
     validateWorkspaceId(args.workspaceId);
     validateLimitOffset(args, 100);
-    return this.http.request({
-      method: "GET",
-      path: "/networking/firewall-groups",
-      workspaceId: args.workspaceId,
-      query: { summary: true, limit: args.limit, offset: args.offset },
-    });
+    if (args.limit === undefined && args.offset === undefined) {
+      return collect(this.iterateGroupSummaries({ workspaceId: args.workspaceId }));
+    }
+    return this.fetchGroupSummaryPage(args.workspaceId, args.limit ?? 10, args.offset ?? 0);
+  }
+
+  /** Every firewall group summary (all pages of `pageSize`, 1..100, default 100). */
+  listAllGroupSummaries(args: { workspaceId: string; pageSize?: number }): Promise<FirewallGroupSummary[]> {
+    return collect(this.iterateGroupSummaries(args));
   }
 
   /**
-   * Iterate every firewall group summary (pages of 100).
+   * Iterate every firewall group summary, fetching pages of `pageSize`
+   * (1..100, default 100) on demand (Python `iter_firewall_group_summaries`).
    * Not yet part of the published API contract; behaviour may change.
    */
-  iterateGroupSummaries(args: { workspaceId: string }): AsyncIterable<FirewallGroupSummary> {
+  iterateGroupSummaries(args: { workspaceId: string; pageSize?: number }): AsyncIterable<FirewallGroupSummary> {
     validateWorkspaceId(args.workspaceId);
+    const pageSize = args.pageSize ?? 100;
+    validateLimitOffset({ limit: pageSize }, 100);
     return paginateOffset<FirewallGroupSummary>(
-      (limit, offset) => this.listGroupSummaries({ workspaceId: args.workspaceId, limit, offset }),
-      { pageSize: 100, idKeys: ["firewall_group_id"] },
+      (limit, offset) => this.fetchGroupSummaryPage(args.workspaceId, limit, offset),
+      { pageSize, idKeys: ["firewall_group_id", "id"] },
     );
+  }
+
+  private fetchGroupSummaryPage(workspaceId: string, limit: number, offset: number): Promise<FirewallGroupSummary[]> {
+    return this.http.request({
+      method: "GET",
+      path: "/networking/firewall-groups",
+      workspaceId,
+      query: { summary: true, limit, offset },
+    });
   }
 
   /**

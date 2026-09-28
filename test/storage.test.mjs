@@ -115,7 +115,7 @@ test("createVolume validates, fills site_name from the site catalog and sends th
 
   await assert.rejects(
     client.blockStorage.createVolume({ workspaceId: WS, name: "data-1", size_gb: 20, site_id: "site-9" }),
-    isValidation("invalid_site_id", /Unknown site_id/),
+    isValidation("unknown_site_id", /Unknown site_id/),
   );
   const before = calls.length;
   const bad = [
@@ -233,13 +233,13 @@ test("resizeVolume is grow-only and needs a stopped VM or allow_online when atta
     ["POST", /\/resize$/, { volume: {}, operation: {} }],
   ]);
   const resize = (request, extra = {}) => client.blockStorage.resizeVolume({ workspaceId: WS, volumeId: VOL, request, ...extra });
-  await assert.rejects(resize({ new_size_gb: 40 }), isValidation("resize_shrink", /increase-only/));
+  await assert.rejects(resize({ new_size_gb: 40 }), isValidation("resize_shrink_not_supported", /increase-only/));
   await assert.rejects(resize({ new_size_gb: 10_001 }), isValidation("invalid_new_size_gb"));
   await assert.rejects(resize({ new_size_gb: 60.5 }), isValidation("invalid_new_size_gb"));
   await assert.rejects(resize({ new_size_gb: 60, vm_state: "paused" }), isValidation("invalid_vm_state"));
   await assert.rejects(resize({ new_size_gb: 60, billing_catalog: BLOCK_SKU }), isValidation("forbidden_field"));
   vol = volume({ size_gb: 50, attachments: [{ node_name: "n1" }] });
-  await assert.rejects(resize({ new_size_gb: 60 }), isValidation("resize_attached", /allow_online=true/));
+  await assert.rejects(resize({ new_size_gb: 60 }), isValidation("resize_requires_offline", /allow_online=true/));
   await resize({ new_size_gb: 60, vm_state: "stopped" });
   await resize({ new_size_gb: 60, allow_online: true });
   vol = volume({ state: "attaching" });
@@ -269,7 +269,7 @@ test("node-level attach/detach validate modes, safe detach and resolve the node"
   );
   await assert.rejects(
     client.blockStorage.detachVolume({ workspaceId: WS, volumeId: VOL, request: { node_name: "node-a" } }),
-    isValidation("detach_not_confirmed", /Safe detach requires/),
+    isValidation("confirmation_required", /Safe detach requires/),
   );
   const n = calls.length;
   await client.blockStorage.detachVolume({ workspaceId: WS, volumeId: VOL, request: { vm_state: "stopped" } });
@@ -385,7 +385,7 @@ test("attachVolume checks the VM state by default with an attach message", async
     ["POST", /\/actions\/attach-volume$/, ACCEPTED],
   ]);
   const attach = (extra = {}) => client.cloudVms.attachVolume({ workspaceId: WS, vmId: VM1, request: { volume_id: VOL }, ...extra });
-  await assert.rejects(attach(), isValidation("vm_state_conflict", /Cannot attach a volume to this VM while its status is 'starting'/));
+  await assert.rejects(attach(), isValidation("invalid_vm_state", /Cannot attach a volume to this VM while its status is 'starting'/));
   assert.equal(calls.filter((c) => c.method === "POST").length, 0);
   await attach({ checkState: false });
   status = "stopped";
@@ -447,7 +447,7 @@ test("detachFromVm requires unmount confirmation and resolves the VM from the at
   ]);
   await assert.rejects(
     client.blockStorage.detachFromVm({ workspaceId: WS, volumeId: VOL }),
-    isValidation("detach_not_confirmed", /Unmount the volume inside the server/),
+    isValidation("confirmation_required", /Unmount the volume inside the server/),
   );
   assert.equal(calls.length, 0);
   const res = await client.blockStorage.detachFromVm({ workspaceId: WS, volumeId: VOL, confirmUnmounted: true, wait: true });
@@ -497,7 +497,7 @@ test("bucket name, region and retention rules follow the portal", () => {
   assert.equal(resolveObjectStorageRegion(undefined, IbeeEnvironment.PRODUCTION), "in-south-1");
   assert.equal(resolveObjectStorageRegion(undefined, IbeeEnvironment.DEVELOPMENT), "in-south-2");
   assert.equal(resolveObjectStorageRegion(" eu-1 ", "http://localhost:8080/v1"), "eu-1");
-  assert.throws(() => resolveObjectStorageRegion(undefined, "http://localhost:8080/v1"), isValidation("region_required"));
+  assert.throws(() => resolveObjectStorageRegion(undefined, "http://localhost:8080/v1"), isValidation("invalid_region"));
 
   assert.deepEqual(
     buildBucketCreateBody({ name: "logs", region: "r", defaultRetention: { mode: "COMPLIANCE", years: 2 } }),
@@ -655,18 +655,20 @@ test("purge bodies follow the portal and backend rules", () => {
   assert.deepEqual(buildCdnPurgeBody({ mode: "hostname", hostnames: [" CDN.Example.com "] }), { mode: "hostname", hostnames: ["cdn.example.com"] });
   assert.deepEqual(buildCdnPurgeBody({ mode: "tag", tags: ["a", " "] }), { mode: "tag", tags: ["a"] });
   const bad = [
-    { mode: "everything" },
-    { mode: "all", paths: ["/a"] },
-    { mode: "url" },
-    { mode: "url", tags: ["x"], paths: ["/a"] },
-    { mode: "url", paths: Array.from({ length: 31 }, (_, i) => `/p${i}`) },
-    { mode: "url", paths: ["http://cdn.example.com/a"] },
-    { mode: "url", paths: ["https://cdn.example.com/a#x"] },
-    { mode: "url", paths: ["https://user:pw@cdn.example.com/a"] },
-    { mode: "prefix", prefixes: ["/a?x=1"] },
-    { mode: "tag", tags: Array.from({ length: 101 }, (_, i) => `t${i}`) },
+    [{ mode: "everything" }, "invalid_mode"],
+    [{ mode: "all", paths: ["/a"] }, "invalid_purge_selector"],
+    [{ mode: "url" }, "invalid_paths"],
+    [{ mode: "url", tags: ["x"], paths: ["/a"] }, "invalid_purge_selector"],
+    [{ mode: "url", paths: Array.from({ length: 31 }, (_, i) => `/p${i}`) }, "invalid_paths"],
+    [{ mode: "url", paths: ["http://cdn.example.com/a"] }, "invalid_paths"],
+    [{ mode: "url", paths: ["https://cdn.example.com/a#x"] }, "invalid_paths"],
+    [{ mode: "url", paths: ["https://user:pw@cdn.example.com/a"] }, "invalid_paths"],
+    [{ mode: "url", paths: 42 }, "invalid_paths"],
+    [{ mode: "prefix", prefixes: ["/a?x=1"] }, "invalid_prefixes"],
+    [{ mode: "tag", tags: Array.from({ length: 101 }, (_, i) => `t${i}`) }, "invalid_tags"],
+    ["all", "invalid_request"],
   ];
-  for (const req of bad) assert.throws(() => buildCdnPurgeBody(req), isValidation("invalid_purge_request"), JSON.stringify(req).slice(0, 80));
+  for (const [req, code] of bad) assert.throws(() => buildCdnPurgeBody(req), isValidation(code), JSON.stringify(req).slice(0, 80));
 });
 
 test("purgeCache raises IbeeCdnPurgeError when the CDN reports success false", async () => {

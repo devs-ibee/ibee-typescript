@@ -1,5 +1,5 @@
 import type { HttpClient } from "../core.js";
-import { CdnDomainVerificationTimeoutError, IbeeCdnPurgeError, NotFoundError } from "../errors.js";
+import { CdnDomainVerificationTimeoutError, ForbiddenError, IbeeCdnPurgeError, NotFoundError } from "../errors.js";
 import { sleepMs } from "../polling.js";
 import {
   IbeeValidationError,
@@ -104,7 +104,8 @@ export class CdnResource {
    * `cache_policy` one of static-assets (default), media, short, no-cache.
    * Only public buckets can be origins; with `checkOriginPublic` the SDK
    * reads the bucket first and refuses a private one (skipped when the
-   * bucket is not found by that name, since `origin_id` may be a bucket ID).
+   * bucket is not found by that name, since `origin_id` may be a bucket ID,
+   * or when the read is forbidden, 403).
    * Creating again for the same bucket returns the existing distribution.
    */
   async createDistribution(
@@ -127,7 +128,9 @@ export class CdnResource {
           workspaceId,
         });
       } catch (err) {
-        if (!(err instanceof NotFoundError)) throw err;
+        // The bucket may not be readable by that name (origin_id can be a
+        // bucket ID) or by this token: skip the check, as the Python SDK does.
+        if (!(err instanceof NotFoundError) && !(err instanceof ForbiddenError)) throw err;
       }
       const isPublic = bucket?.is_public ?? bucket?.public;
       if (bucket && isPublic === false) {
@@ -371,8 +374,11 @@ export class CdnResource {
     const domain = normalizeCdnDomain(args.domain);
     const timeoutMs = args.timeoutMs ?? 600_000;
     const pollIntervalMs = args.pollIntervalMs ?? 15_000;
-    if (!(Number.isFinite(timeoutMs) && timeoutMs > 0) || !(Number.isFinite(pollIntervalMs) && pollIntervalMs > 0)) {
-      throw new IbeeValidationError("timeoutMs and pollIntervalMs must be positive numbers.", "invalid_wait", "timeout");
+    if (!(Number.isFinite(timeoutMs) && timeoutMs > 0)) {
+      throw new IbeeValidationError("timeoutMs must be a positive number.", "invalid_timeout", "timeout");
+    }
+    if (!(Number.isFinite(pollIntervalMs) && pollIntervalMs > 0)) {
+      throw new IbeeValidationError("pollIntervalMs must be a positive number.", "invalid_poll_interval", "poll_interval");
     }
     const deadline = Date.now() + timeoutMs;
     for (;;) {

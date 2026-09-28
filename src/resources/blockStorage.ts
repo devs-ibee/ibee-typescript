@@ -243,7 +243,7 @@ export class BlockStorageResource {
       }
       if (sites && Array.isArray(sites.sites)) {
         const site = sites.sites.find((s) => String(s?.site_id ?? "") === body.site_id);
-        if (!site) throw new IbeeValidationError("Unknown site_id", "invalid_site_id", "site_id");
+        if (!site) throw new IbeeValidationError("Unknown site_id", "unknown_site_id", "site_id");
         if (site.name) body.site_name = site.name;
       }
     }
@@ -340,7 +340,7 @@ export class BlockStorageResource {
     validateWorkspaceId(args.workspaceId);
     const volumeId = validateBlockVolumeId(args.volumeId);
     const req = args.request;
-    if (!isRecord(req)) throw new IbeeValidationError("request must be an object.", "invalid_attach", "request");
+    if (!isRecord(req)) throw new IbeeValidationError("request must be an object.", "invalid_request", "request");
     const body: Record<string, unknown> = { ...req, node_name: validateBoundedId(req.node_name, "node_name", 255) };
     body.mode = validateAttachMode(req.mode);
     if (req.vm_state !== undefined && req.vm_state !== null) body.vm_state = validateVolumeVmState(req.vm_state);
@@ -376,7 +376,7 @@ export class BlockStorageResource {
     validateWorkspaceId(args.workspaceId);
     const volumeId = validateBlockVolumeId(args.volumeId);
     const req: DetachBlockVolumeRequest = args.request ?? {};
-    if (!isRecord(req as unknown)) throw new IbeeValidationError("request must be an object.", "invalid_detach", "request");
+    if (!isRecord(req as unknown)) throw new IbeeValidationError("request must be an object.", "invalid_request", "request");
     validateNodeSafeDetach(req);
     if (req.vm_state !== undefined && req.vm_state !== null) validateVolumeVmState(req.vm_state);
     let vmType = req.vm_type === undefined || req.vm_type === null ? undefined : validateVolumeVmType(req.vm_type);
@@ -416,7 +416,7 @@ export class BlockStorageResource {
     validateWorkspaceId(args.workspaceId);
     const volumeId = validateBlockVolumeId(args.volumeId);
     const req = args.request;
-    if (!isRecord(req)) throw new IbeeValidationError("request must be an object.", "invalid_resize", "request");
+    if (!isRecord(req)) throw new IbeeValidationError("request must be an object.", "invalid_request", "request");
     if ("billing_catalog" in req) {
       throw new IbeeValidationError(
         "billing_catalog cannot be sent on a volume resize.",
@@ -512,7 +512,7 @@ export class BlockStorageResource {
     if (args.confirmUnmounted !== true && args.force !== true) {
       throw new IbeeValidationError(
         "Unmount the volume inside the server, then pass confirmUnmounted: true (or force: true)",
-        "detach_not_confirmed",
+        "confirmation_required",
         "confirm_unmounted",
       );
     }

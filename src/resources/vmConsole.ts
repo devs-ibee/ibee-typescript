@@ -55,7 +55,7 @@ export class VmConsoleResource {
       if (String(vm?.status ?? "").toLowerCase() !== "running") {
         throw new IbeeValidationError(
           "The console is available only while the VM is running.",
-          "console_not_ready",
+          "invalid_vm_state",
           "status",
         );
       }

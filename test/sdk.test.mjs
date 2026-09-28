@@ -326,7 +326,7 @@ test("cloudVms.create attaches an idempotency key and never omits site_id", asyn
       workspaceId: "1", name: "web", plan_id: "plan-1", template_id: "image-1",
       os_distro: "ubuntu", os_type: "linux", cpu: 2, ram_mb: 4096,
     }),
-    (err) => err.code === "site_required",
+    (err) => err.code === "invalid_site_id",
   );
   assert.equal(calls.length, 0);
   await client.cloudVms.create({

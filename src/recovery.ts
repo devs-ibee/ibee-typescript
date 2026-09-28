@@ -108,13 +108,49 @@ export function recoveryMinRootDiskGb(manifest: RecoveryVolumeManifestItem[] | n
   return c > 1 && c % 10 === 1 ? c - 1 : x;
 }
 
+const RECOVERY_POINT_PATH = /\/recovery-points\/([^/]+)/i;
+const RECOVERY_POINT_TOKEN = /\b(rp-[^/\s]+)/i;
+
+function recoveryPointFromPath(value: unknown): string {
+  const path = typeof value === "string" ? value.trim() : "";
+  if (!path) return "";
+  const match = RECOVERY_POINT_PATH.exec(path) ?? RECOVERY_POINT_TOKEN.exec(path);
+  return match ? match[1].trim() : "";
+}
+
+/**
+ * The recovery point ID of a backup run, resolved exactly like the portal's
+ * restore dialog (and the Python SDK). Order: `recovery_point_id`;
+ * `metadata.recovery_point_id` / `metadata.recoveryPointId`; the
+ * `/recovery-points/<id>` segment (or an `rp-...` token) of `r2_prefix`, then
+ * of `metadata.r2_manifest_key`, then of `metadata.r2_prefix`. Throws
+ * `recovery_point_not_ready` ("Selected backup is missing recovery point id")
+ * when none is found.
+ */
+export function resolveBackupRecoveryPointId(run: Record<string, unknown> | null | undefined): string {
+  const text = (v: unknown) => (v === undefined || v === null ? "" : String(v).trim());
+  const direct = text(run?.recovery_point_id);
+  if (direct) return direct;
+  const metadata =
+    run && typeof run.metadata === "object" && run.metadata !== null && !Array.isArray(run.metadata)
+      ? (run.metadata as Record<string, unknown>)
+      : {};
+  const fromMetadata = text(metadata.recovery_point_id) || text(metadata.recoveryPointId);
+  if (fromMetadata) return fromMetadata;
+  for (const candidate of [run?.r2_prefix, metadata.r2_manifest_key, metadata.r2_prefix]) {
+    const found = recoveryPointFromPath(candidate);
+    if (found) return found;
+  }
+  return fail("Selected backup is missing recovery point id", "recovery_point_not_ready", "recovery_point_id");
+}
+
 /** Map a compute plan to the `target_*` fields of a new-VM restore. */
 export function restoreTargetFromPlan(
   plan: ComputePlan,
   vm: { site_id?: string | null } = {},
 ): Record<string, unknown> {
   if (!plan.billing_catalog) {
-    fail("Selected plan is missing Billing catalog data", "invalid_target_plan", "target_plan_id");
+    fail("Selected plan is missing Billing catalog data", "invalid_billing_catalog", "target_plan_id");
   }
   const out: Record<string, unknown> = {
     target_plan_id: plan.plan_id,
@@ -165,33 +201,33 @@ export function validateRestoreRequest(
   const body: Record<string, unknown> = { ...req };
   const mode = String(body.target_mode ?? "replace");
   if (!["replace", "new_vm", "volume_only"].includes(mode)) {
-    fail("target_mode must be replace, new_vm or volume_only.", "invalid_restore", "target_mode");
+    fail("target_mode must be replace, new_vm or volume_only.", "invalid_target_mode", "target_mode");
   }
   body.target_mode = mode;
   if (kind === "backup") {
     for (const f of NETWORK_FIELDS) {
-      if (present(body[f])) fail(`${f} is not supported when restoring a backup.`, "invalid_restore", f);
+      if (present(body[f])) fail(`${f} is not supported when restoring a backup.`, "invalid_restore_request", f);
       delete body[f];
     }
   }
   const selected = String(body.selected_volume_id ?? "").trim();
   if (mode === "volume_only") {
-    if (!selected) fail("selected_volume_id is required for a volume_only restore.", "invalid_restore", "selected_volume_id");
+    if (!selected) fail("selected_volume_id is required for a volume_only restore.", "invalid_selected_volume_id", "selected_volume_id");
     body.selected_volume_id = selected;
   } else if (present(body.selected_volume_id)) {
-    fail("selected_volume_id is only used with target_mode 'volume_only'.", "invalid_restore", "selected_volume_id");
+    fail("selected_volume_id is only used with target_mode 'volume_only'.", "invalid_restore_request", "selected_volume_id");
   }
   if (mode !== "new_vm") {
     for (const f of [...TARGET_FIELDS, ...(kind === "snapshot" ? NETWORK_FIELDS : [])]) {
-      if (present(body[f])) fail(`${f} is only used with target_mode 'new_vm'.`, "invalid_restore", f);
+      if (present(body[f])) fail(`${f} is only used with target_mode 'new_vm'.`, "invalid_restore_request", f);
       delete body[f];
     }
     return body;
   }
   if (body.target_vm_name !== undefined && body.target_vm_name !== null) {
     const name = String(body.target_vm_name).trim();
-    if (!name) fail("Enter a name for the restored VM", "invalid_restore", "target_vm_name");
-    if (name.length > 255) fail("target_vm_name must be at most 255 characters.", "invalid_restore", "target_vm_name");
+    if (!name) fail("Enter a name for the restored VM", "invalid_target_vm_name", "target_vm_name");
+    if (name.length > 255) fail("target_vm_name must be at most 255 characters.", "invalid_target_vm_name", "target_vm_name");
     body.target_vm_name = name;
   }
   if (kind === "snapshot") {
@@ -219,19 +255,21 @@ export function validateNewVmTarget(body: Record<string, unknown>, minRootGb: nu
     const v = body[f];
     if (v === undefined || v === null) return;
     if (typeof v !== "number" || !Number.isInteger(v) || v < min || v > max) {
-      fail(`${f} must be an integer between ${min} and ${max}.`, "invalid_restore", f);
+      // Shape fields come from the plan (Python SDK: invalid_restore_plan);
+      // target_gpu_count is a plain range check.
+      fail(`${f} must be an integer between ${min} and ${max}.`, f === "target_gpu_count" ? `invalid_${f}` : "invalid_restore_plan", f);
     }
   };
-  if (!String(body.target_vm_name ?? "").trim()) fail("Enter a name for the restored VM", "invalid_restore", "target_vm_name");
+  if (!String(body.target_vm_name ?? "").trim()) fail("Enter a name for the restored VM", "invalid_target_vm_name", "target_vm_name");
   if (body.target_cpu === undefined || body.target_ram_mb === undefined || body.target_disk_gb === undefined) {
-    fail("Select a valid compute plan for the restored VM", "invalid_restore", "target_plan_id");
+    fail("Select a valid compute plan for the restored VM", "invalid_restore_plan", "target_plan_id");
   }
   range("target_cpu", 1, 256);
   range("target_ram_mb", 512, 2_097_152);
   range("target_disk_gb", 10, 10_000);
   range("target_gpu_count", 0, 16);
-  if (!body.target_billing_catalog) fail("Selected plan is missing Billing catalog data", "invalid_restore", "target_billing_catalog");
+  if (!body.target_billing_catalog) fail("Selected plan is missing Billing catalog data", "invalid_billing_catalog", "target_billing_catalog");
   if (minRootGb > 0 && Number(body.target_disk_gb) < minRootGb) {
-    fail(`Root disk must be at least ${minRootGb} GB.`, "invalid_restore", "target_disk_gb");
+    fail(`Root disk must be at least ${minRootGb} GB.`, "restore_disk_too_small", "target_disk_gb");
   }
 }

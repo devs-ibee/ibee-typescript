@@ -24,6 +24,7 @@ import {
   recoveryDefaultVmName,
   recoveryMinRootDiskGb,
   recoveryTargetVolumeNames,
+  resolveBackupRecoveryPointId,
   restoreTargetFromPlan,
   validateNewVmTarget,
   validateRestoreRequest,
@@ -402,11 +403,11 @@ export class VmResource<
     const plans = await this.listPlans(workspaceId, siteId);
     const plan = plans.find((p) => String(p.plan_id) === planId);
     if (!plan) {
-      fail(`Plan '${planId}' is not available for ${this.vmType} VMs in site '${siteId}'.`, "invalid_plan", field);
+      fail(`Plan '${planId}' is not available for ${this.vmType} VMs in site '${siteId}'.`, "plan_not_found", field);
     }
     const p = plan as ComputePlan;
     if (p.selectable !== true || p.pricing_status !== "priced") {
-      fail(`Plan '${planId}' is not currently available (not selectable or not priced).`, "invalid_plan", field);
+      fail(`Plan '${planId}' is not currently available (not selectable or not priced).`, "plan_not_selectable", field);
     }
     return p;
   }
@@ -421,14 +422,14 @@ export class VmResource<
     const images = Array.isArray(list?.images) ? list.images : [];
     const image = images.find((i) => String(i.template_id) === templateId);
     if (!image) {
-      fail(`Image '${templateId}' is not available for ${this.vmType} VMs in site '${siteId}'.`, "invalid_template", "template_id");
+      fail(`Image '${templateId}' is not available for ${this.vmType} VMs in site '${siteId}'.`, "image_not_found", "template_id");
     }
     const img = image as ComputeImage;
     if (Array.isArray(img.compatible_vm_types) && img.compatible_vm_types.length > 0 && !img.compatible_vm_types.includes(this.vmType)) {
-      fail(`Image '${templateId}' cannot be used for ${this.vmType} VMs.`, "invalid_template", "template_id");
+      fail(`Image '${templateId}' cannot be used for ${this.vmType} VMs.`, "image_not_compatible", "template_id");
     }
     if (Array.isArray(img.site_ids) && img.site_ids.length > 0 && !img.site_ids.includes(siteId)) {
-      fail(`Image '${templateId}' is not available in site '${siteId}'.`, "invalid_template", "template_id");
+      fail(`Image '${templateId}' is not available in site '${siteId}'.`, "image_not_compatible", "template_id");
     }
     return img;
   }
@@ -508,7 +509,7 @@ export class VmResource<
     const name = validateVmName(input.name);
     const siteId = String(input.site_id ?? "").trim();
     if (!siteId) {
-      fail("site_id is required: pick a site from computeCatalog.listSites and use it for the plan and image too.", "site_required", "site_id");
+      fail("site_id is required: pick a site from computeCatalog.listSites and use it for the plan and image too.", "invalid_site_id", "site_id");
     }
     const planId = validateRequiredId(input.plan_id, "plan_id");
     const templateId = validateRequiredId(input.template_id, "template_id");
@@ -535,7 +536,7 @@ export class VmResource<
       );
     }
     if (osType === "linux" && input.windows_license) {
-      fail("windows_license is only allowed for Windows VMs.", "invalid_billing_catalog", "windows_license");
+      fail("windows_license is only allowed for Windows VMs.", "windows_license_not_allowed", "windows_license");
     }
 
     let cpu = input.cpu;
@@ -547,7 +548,7 @@ export class VmResource<
     let plan: ComputePlan | undefined;
 
     const mismatch = (field: string, given: unknown, expected: unknown, source: string) =>
-      fail(`${field} ${String(given)} does not match the selected ${source} (${String(expected)}).`, "catalog_mismatch", field);
+      fail(`${field} ${String(given)} does not match the selected ${source} (${String(expected)}).`, "shape_mismatch", field);
 
     if (resolveCatalog !== false) {
       plan = await this.findPlan(workspaceId, siteId, planId);
@@ -591,7 +592,7 @@ export class VmResource<
         ...(isGpu ? ([["gpu_count", gpuCount]] as const) : []),
       ] as const) {
         if (value === undefined || value === null || value === "") {
-          fail(`${field} is required when resolveCatalog is false.`, "missing_field", field);
+          fail(`${field} is required when resolveCatalog is false.`, `invalid_${field}`, field);
         }
       }
     }
@@ -600,7 +601,7 @@ export class VmResource<
     if (diskGb !== undefined && diskGb !== null && (!Number.isInteger(diskGb) || diskGb < 10)) {
       fail("disk_gb must be an integer >= 10.", "invalid_disk_gb", "disk_gb");
     }
-    if (!osDistro) fail("os_distro is required.", "missing_field", "os_distro");
+    if (!osDistro) fail("os_distro is required.", "invalid_os_distro", "os_distro");
     if (isGpu) {
       if (gpuCount === undefined || gpuCount === null) gpuCount = 1;
       if (!Number.isInteger(gpuCount) || gpuCount < 1) fail("gpu_count must be an integer >= 1.", "invalid_gpu_count", "gpu_count");
@@ -627,7 +628,7 @@ export class VmResource<
           workspaceId,
         });
         if (!isRecord(reservedIp?.billing_catalog)) {
-          fail("The selected Reserved IP has no billing catalog, so it cannot be attached at launch.", "invalid_network", "reserved_public_ip_id");
+          fail("The selected Reserved IP has no billing catalog, so it cannot be attached at launch.", "invalid_billing_catalog", "reserved_public_ip_id");
         }
         reservedIpCatalog = reservedIp?.billing_catalog;
       }
@@ -935,7 +936,7 @@ export class VmResource<
     let license: unknown;
     const hasExplicitLicense = windowsLicense !== undefined && windowsLicense !== null;
     if (hasExplicitLicense && !isWindowsVm(vm)) {
-      fail("windows_license is only allowed for Windows VMs.", "invalid_billing_catalog", "windows_license");
+      fail("windows_license is only allowed for Windows VMs.", "windows_license_not_allowed", "windows_license");
     }
     if (isWindowsVm(vm)) {
       license = hasExplicitLicense
@@ -959,7 +960,7 @@ export class VmResource<
     request: VmResizeRequest,
     opts: { shapeOnly?: boolean } = {},
   ): Promise<{ body: Record<string, unknown>; vm?: TVm }> {
-    if (!isRecord(request)) fail("request must be an object.", "invalid_resize_target", "request");
+    if (!isRecord(request)) fail("request must be an object.", "invalid_request", "request");
     validateRequestedBy(request.requested_by);
     const planId = request.plan_id === undefined || request.plan_id === null ? undefined : String(request.plan_id).trim();
     const term = request.billing_term === undefined || request.billing_term === null ? undefined : normaliseBillingTerm(request.billing_term);
@@ -988,7 +989,7 @@ export class VmResource<
       return { body, vm };
     }
     if (term !== undefined && !request.billing_catalog) {
-      fail("billing_term needs plan_id (or an explicit billing_catalog).", "invalid_resize_target", "billing_term");
+      fail("billing_term needs plan_id (or an explicit billing_catalog).", "invalid_billing_term", "billing_term");
     }
     validateResizeTarget(request);
     const body: Record<string, unknown> = {};
@@ -1092,7 +1093,7 @@ export class VmResource<
     validateWorkspaceId(args.workspaceId);
     const vmId = validateVmId(args.vmId);
     const req = args.request;
-    if (!isRecord(req)) fail("request must be an object.", "invalid_resize_target", "request");
+    if (!isRecord(req)) fail("request must be an object.", "invalid_request", "request");
     const planId = req.plan_id === undefined || req.plan_id === null ? undefined : String(req.plan_id).trim();
     const term = req.billing_term === undefined || req.billing_term === null ? undefined : normaliseBillingTerm(req.billing_term);
     if (planId) {
@@ -1106,10 +1107,10 @@ export class VmResource<
       }
       validateResizeTarget({ cpu: req.cpu, ram_mb: req.ram_mb });
       if (term !== undefined && !req.billing_catalog) {
-        fail("billing_term needs plan_id (or an explicit billing_catalog).", "invalid_resize_target", "billing_term");
+        fail("billing_term needs plan_id (or an explicit billing_catalog).", "invalid_billing_term", "billing_term");
       }
       if (req.windows_license !== undefined && req.windows_license !== null) {
-        fail("windows_license needs plan_id.", "invalid_resize_target", "windows_license");
+        fail("windows_license needs plan_id.", "invalid_windows_license", "windows_license");
       }
     }
     validateRequestedBy(req.requested_by);
@@ -1155,7 +1156,7 @@ export class VmResource<
     validateWorkspaceId(args.workspaceId);
     const vmId = validateVmId(args.vmId);
     const req = args.request;
-    if (!isRecord(req)) fail("request must be an object.", "invalid_resize_target", "request");
+    if (!isRecord(req)) fail("request must be an object.", "invalid_request", "request");
     validateRootDiskGrow(req.new_size_gb);
     validateRequestedBy(req.requested_by);
     const key = this.key("resize-root-disk", vmId, args.idempotencyKey);
@@ -1203,11 +1204,11 @@ export class VmResource<
     validateWorkspaceId(args.workspaceId);
     const vmId = validateVmId(args.vmId);
     const req = args.request;
-    if (!isRecord(req)) fail("request must be an object.", "invalid_attach", "request");
+    if (!isRecord(req)) fail("request must be an object.", "invalid_request", "request");
     const volumeId = validateBlockVolumeId(req.volume_id);
     const mode = req.mode ?? "single-writer";
     if (!(VM_VOLUME_MODES as readonly string[]).includes(mode)) {
-      fail("mode must be 'single-writer' or 'multi-writer'.", "invalid_attach", "mode");
+      fail("mode must be 'single-writer' or 'multi-writer'.", "invalid_attach_mode", "mode");
     }
     validateRequestedBy(req.requested_by);
     const key = this.key("attach-volume", `${volumeId}-${vmId}`, args.idempotencyKey);
@@ -1308,7 +1309,7 @@ export class VmResource<
     validateWorkspaceId(args.workspaceId);
     const vmId = validateVmId(args.vmId);
     const req = args.request;
-    if (!isRecord(req)) fail("request must be an object.", "invalid_detach", "request");
+    if (!isRecord(req)) fail("request must be an object.", "invalid_request", "request");
     const volumeId = validateBlockVolumeId(req.volume_id);
     validateDetachConfirmation(req);
     validateRequestedBy(req.requested_by);
@@ -1441,14 +1442,14 @@ export class VmResource<
       const vm = await this.fetchVm(args.workspaceId, vmId);
       const status = String(vm.status ?? "").toLowerCase();
       if (SNAPSHOT_BLOCKED_STATES.has(status)) {
-        fail(`Snapshots are unavailable while the VM is ${status}.`, "vm_state_conflict", "status");
+        fail(`Snapshots are unavailable while the VM is ${status}.`, "invalid_vm_state", "status");
       }
       const selected = body.selected_data_volume_ids as string[];
       if (selected.length && Array.isArray(vm.data_volumes)) {
         const attached = new Set(vm.data_volumes.map((d) => String(d?.volume_id ?? "")));
         const missing = selected.filter((id) => !attached.has(id));
         if (missing.length) {
-          fail(`Selected data volume(s) are not attached to this VM: ${missing.join(", ")}.`, "invalid_snapshot_volumes", "selected_data_volume_ids");
+          fail(`Selected data volume(s) are not attached to this VM: ${missing.join(", ")}.`, "volume_not_attached", "selected_data_volume_ids");
         }
       }
     }
@@ -1587,14 +1588,14 @@ export class VmResource<
     if (checkState) {
       const s = String(vm.status ?? "").toLowerCase();
       if (s !== "running" && s !== "stopped") {
-        fail(`${kind === "snapshot" ? "Snapshot" : "Backup"} restore is unavailable while the VM is ${s || "unknown"}.`, "vm_state_conflict", "status");
+        fail(`${kind === "snapshot" ? "Snapshot" : "Backup"} restore is unavailable while the VM is ${s || "unknown"}.`, "invalid_vm_state", "status");
       }
     }
     if (mode === "volume_only") {
       const selected = String(body.selected_volume_id);
       const item = manifest.find((m) => String(m.source_volume_id) === selected);
       if (manifest.length && !item) {
-        fail(`selected_volume_id '${selected}' is not part of this ${kind}.`, "invalid_restore", "selected_volume_id");
+        fail(`selected_volume_id '${selected}' is not part of this ${kind}.`, "volume_not_in_recovery_point", "selected_volume_id");
       }
       if (kind === "snapshot" && item) {
         const role = String(item.role ?? "").toLowerCase();
@@ -1608,7 +1609,7 @@ export class VmResource<
         if (known && !attached) {
           fail(
             "The selected snapshot disk is no longer attached to this VM. Use Create New VM to restore the captured topology, or select a currently attached disk.",
-            "invalid_restore",
+            "volume_not_attached",
             "selected_volume_id",
           );
         }
@@ -1644,7 +1645,7 @@ export class VmResource<
     const planId = String(body.target_plan_id ?? vm.plan_id ?? "").trim();
     if (planId && (body.target_cpu === undefined || !body.target_billing_catalog)) {
       const siteId = String(body.target_site_id ?? vm.site_id ?? "").trim();
-      if (!siteId) fail("Select a valid compute plan for the restored VM", "invalid_restore", "target_plan_id");
+      if (!siteId) fail("Select a valid compute plan for the restored VM", "invalid_restore_plan", "target_plan_id");
       // Restore plans need to be selectable and big enough; pricing is not
       // required (portal restore dialog and Python SDK rule).
       const plan = await this.findRestorePlan(workspaceId, siteId, planId, minRoot);
@@ -2005,8 +2006,12 @@ export class VmResource<
 
   /**
    * Backup runs across the workspace (the portal Backups page); defaults to
-   * succeeded runs. Not yet part of the published API contract; behaviour
-   * may change.
+   * succeeded runs.
+   *
+   * Needs the backend release that provides this operation: currently
+   * available on the development environment; production returns 404/405
+   * until then. Not yet part of the published API contract; behaviour may
+   * change.
    */
   async listAllBackupRuns(args: {
     workspaceId: string;
@@ -2050,8 +2055,12 @@ export class VmResource<
 
   /**
    * Delete a completed backup (recovery point). With `checkState` the run
-   * must have succeeded. Not yet part of the published API contract;
-   * behaviour may change.
+   * must have succeeded.
+   *
+   * Needs the backend release that provides this operation: currently
+   * available on the development environment; production returns 404/405
+   * until then. Not yet part of the published API contract; behaviour may
+   * change.
    */
   async deleteBackupRun(args: {
     workspaceId: string;
@@ -2075,8 +2084,11 @@ export class VmResource<
 
   /**
    * Restore a backup recovery point (`replace`, `new_vm` or `volume_only`).
-   * The recovery point must have succeeded; `new_vm` resolves the target plan
-   * and default names like `restoreSnapshot`. VPC/SSH fields and
+   * `request.recovery_point_id` may be a backup run ID or a recovery point
+   * ID: the run is always read (also with `checkState: false`), must have
+   * succeeded, and the recovery point ID is resolved like the portal (see
+   * `resolveBackupRecoveryPointId`) and sent. `new_vm` resolves the target
+   * plan and default names like `restoreSnapshot`. VPC/SSH fields and
    * `auto_start` are not sent for backups.
    */
   async restoreBackup(args: {
@@ -2099,13 +2111,8 @@ export class VmResource<
     if (String(run?.status ?? "").toLowerCase() !== "succeeded") {
       fail("Only successful backups can be restored.", "recovery_point_not_ready", "recovery_point_id");
     }
-    const runRecord = run as unknown as Record<string, unknown>;
-    const metadata = isRecord(runRecord?.metadata) ? runRecord.metadata : undefined;
-    const resolvedPointId = String(runRecord?.recovery_point_id ?? metadata?.recovery_point_id ?? "").trim();
-    if (!resolvedPointId) {
-      fail("Selected backup is missing recovery point id", "recovery_point_not_ready", "recovery_point_id");
-    }
-    body.recovery_point_id = resolvedPointId;
+    // Portal resolution order, including the storage-prefix fallbacks.
+    body.recovery_point_id = resolveBackupRecoveryPointId(run as unknown as Record<string, unknown>);
     await this.prepareRestore(
       args.workspaceId,
       vmId,

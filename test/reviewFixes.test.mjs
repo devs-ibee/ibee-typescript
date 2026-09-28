@@ -191,8 +191,8 @@ test("create in single-request mode requires disk_gb (and gpu_count for GPU)", a
     workspaceId: WS, name: "web", site_id: "s1", plan_id: "p", template_id: "t", os_type: "linux", os_distro: "ubuntu",
     cpu: 2, ram_mb: 4096, resolveCatalog: false, billing_catalog: SKU,
   };
-  await assert.rejects(client.cloudVms.create(base), isValidation("missing_field", /disk_gb/));
-  await assert.rejects(client.gpuVms.create({ ...base, disk_gb: 100 }), isValidation("missing_field", /gpu_count/));
+  await assert.rejects(client.cloudVms.create(base), isValidation("invalid_disk_gb", /disk_gb/));
+  await assert.rejects(client.gpuVms.create({ ...base, disk_gb: 100 }), isValidation("invalid_gpu_count", /gpu_count/));
   assert.equal(calls.length, 0);
   await client.cloudVms.create({ ...base, disk_gb: 50 });
   assert.equal(calls[0].body.disk_gb, 50);
@@ -226,9 +226,9 @@ test("updateAccess reads the VM by default like the Python SDK", async () => {
     ["PATCH", /\/actions\/access$/, ACCEPTED],
   ]);
   const update = (request, extra = {}) => client.cloudVms.updateAccess({ workspaceId: WS, vmId: VM1, request, ...extra });
-  await assert.rejects(update({ new_password: "S3cure-pass!" }), isValidation("vm_state_conflict"));
+  await assert.rejects(update({ new_password: "S3cure-pass!" }), isValidation("invalid_vm_state"));
   vm = { ...vm, status: "running" };
-  await assert.rejects(update({ password_auth_enabled: false }), isValidation("invalid_access_update"));
+  await assert.rejects(update({ password_auth_enabled: false }), isValidation("ssh_key_required"));
   assert.equal(calls.filter((c) => c.method === "PATCH").length, 0);
   await update({ new_password: "S3cure-pass!" });
   assert.equal(calls.at(-1).body.admin_username, "ubuntu");
@@ -256,7 +256,7 @@ test("resizePlan accepts plan_id and billing_term and carries the Windows licenc
   ]);
   const rp = (request) => client.cloudVms.resizePlan({ workspaceId: WS, vmId: VM1, request });
   await assert.rejects(rp({ plan_id: "plan-4", cpu: 4 }), isValidation("invalid_resize_target", /not both/));
-  await assert.rejects(rp({ cpu: 4, ram_mb: 16384, billing_term: "MONTHLY" }), isValidation("invalid_resize_target", /billing_term/));
+  await assert.rejects(rp({ cpu: 4, ram_mb: 16384, billing_term: "MONTHLY" }), isValidation("invalid_billing_term", /billing_term/));
   assert.equal(calls.length, 0);
   await rp({ plan_id: "plan-4", billing_term: "MONTHLY", allow_online: true });
   const body = calls.at(-1).body;
@@ -295,8 +295,8 @@ test("updateBackupPolicy rejects a bad schedule before any request", async () =>
   const { calls, client } = router([]);
   const update = (schedule) => client.cloudVms.updateBackupPolicy({ workspaceId: WS, vmId: VM1, request: { schedule } });
   await assert.rejects(update({ hour: 25 }), isValidation("invalid_hour"));
-  await assert.rejects(update({ frequency: "hourly" }), isValidation("invalid_schedule"));
-  await assert.rejects(update({ timezone: "Mars/Olympus" }), isValidation("invalid_schedule"));
+  await assert.rejects(update({ frequency: "hourly" }), isValidation("invalid_frequency"));
+  await assert.rejects(update({ timezone: "Mars/Olympus" }), isValidation("invalid_timezone"));
   await assert.rejects(update({ day_of_week: 9 }), isValidation("invalid_day_of_week"));
   await assert.rejects(update("daily"), isValidation("invalid_schedule"));
   assert.equal(calls.length, 0);
@@ -313,6 +313,8 @@ test("VPC delete reads the VPC by default and forwards natBillingCatalog", async
       nat_gateways: natGone ? [] : [{ nat_gateway_id: "nat-1", status: "available", public_ip_source: "platform" }],
     })],
     ["GET", /^\/networking\/vpcs\/vpc-1\/nat-gateways$/, [{ nat_gateway_id: "nat-1", status: "available", public_ip_source: "platform" }]],
+    ["GET", /^\/networking\/vpcs\/vpc-1\/virtual-ips$/, []],
+    ["GET", /^\/networking\/vpcs\/vpc-1\/virtual-ips$/, []],
     ["DELETE", /^\/networking\/vpcs\/vpc-1\/nat-gateways\/nat-1$/, () => { natGone = true; return { status: 204, json: null }; }],
     ["DELETE", /^\/networking\/vpcs\/vpc-1$/, { status: 204, json: null }],
   ]);

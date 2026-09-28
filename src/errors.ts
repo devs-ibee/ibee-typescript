@@ -760,32 +760,72 @@ export function apiErrorFromResponse(
 }
 
 /**
- * True when an error means the create was blocked for payment reasons
- * (billing denial, insufficient balance, no payment method).
+ * Structured codes (error `code`, operation `errorCode`) and billing reasons
+ * that mean a payment wall.
+ */
+export const PAYMENT_BLOCK_CODES: ReadonlySet<string> = new Set([
+  "billing_denied",
+  "payment_required",
+  "insufficient_balance",
+  "insufficient_funds",
+  ...BILLING_DENIED_REASONS,
+]);
+
+/**
+ * Conservative text fallback, used only when an error carries no structured
+ * code: whole phrases, never a bare "insufficient" (`insufficient_scope`,
+ * "insufficient capacity") or "balance" ("load balancer").
+ */
+export const PAYMENT_BLOCK_PHRASES: readonly string[] = [
+  "insufficient balance",
+  "insufficient wallet balance",
+  "insufficient funds",
+  "insufficient credit",
+  "payment required",
+  "add a payment method",
+  "top up",
+  "top-up",
+];
+
+const lowerText = (value: unknown): string =>
+  value === undefined || value === null ? "" : String(value).trim().toLowerCase();
+
+/**
+ * Whether an error is a billing/payment wall rather than an ordinary failure.
+ * Checked in order (the Python SDK applies the same rules):
+ *
+ * 1. `null` or a non-object -> false.
+ * 2. `BillingDeniedError` / `BillingForbiddenError` -> true.
+ * 3. A missing scope (`InsufficientScopeError` or code `insufficient_scope`) -> false.
+ * 4. HTTP status 402 -> true.
+ * 5. A structured code (`code`, or an operation's `errorCode`/`error_code`) or
+ *    billing reason (`reason`/`billing_reason`) in `PAYMENT_BLOCK_CODES` -> true.
+ * 6. An `ApiError` whose body carried its own code -> false (the code is authoritative).
+ * 7. Otherwise only the server's (or the error's own) message is checked,
+ *    for whole phrases in `PAYMENT_BLOCK_PHRASES`.
  */
 export function isPaymentBlockError(err: unknown): boolean {
-  if (err instanceof BillingDeniedError || err instanceof BillingForbiddenError) return true;
   if (!err || typeof err !== "object") return false;
-  const e = err as { statusCode?: unknown; status?: unknown; code?: unknown; message?: unknown };
+  if (err instanceof BillingDeniedError || err instanceof BillingForbiddenError) return true;
+  const e = err as Record<string, unknown>;
+  const code = lowerText(e.code);
+  if (err instanceof InsufficientScopeError || code === "insufficient_scope") return false;
   if (e.statusCode === 402 || e.status === 402) return true;
-  const code = String(e.code ?? "").trim().toLowerCase();
-  if (code === "billing_denied" || code === "insufficient_balance" || code === "insufficient_funds") {
+  const errorCode = lowerText(e.errorCode ?? e.error_code);
+  const reason = lowerText(e.reason ?? e.billing_reason);
+  if (PAYMENT_BLOCK_CODES.has(code) || PAYMENT_BLOCK_CODES.has(errorCode) || PAYMENT_BLOCK_CODES.has(reason)) {
     return true;
   }
-  // A missing scope is a permission problem, never a payment wall (its
-  // SDK-built message mentions "insufficient_scope").
-  if (err instanceof InsufficientScopeError || code === "insufficient_scope") return false;
-  // For API errors only the server's own message is inspected, not the
-  // SDK's fallback text built from the status and code.
-  const msg = (
-    err instanceof ApiError ? parseErrorBody(err.statusCode, err.body).message ?? "" : String(e.message ?? "")
-  ).toLowerCase();
-  return (
-    msg.includes("insufficient") ||
-    msg.includes("payment required") ||
-    msg.includes("add a payment method") ||
-    msg.includes("top up")
-  );
+  let message: unknown;
+  if (err instanceof ApiError) {
+    if (err.rawCode) return false;
+    // Only the server's own message, never the SDK's fallback text.
+    message = parseErrorBody(err.statusCode, err.body).message;
+  } else {
+    message = e.message;
+  }
+  const lowered = lowerText(message).split(/\s+/).join(" ");
+  return PAYMENT_BLOCK_PHRASES.some((phrase) => lowered.includes(phrase));
 }
 
 /** Metadata about an async compute operation carried by wait errors. */
@@ -837,10 +877,10 @@ export class OperationTimeoutError extends IbeeError {
   readonly timeoutMs: number;
   readonly operation?: OperationLike;
 
-  constructor(operationId: string, timeoutMs: number, operation?: OperationLike) {
+  constructor(operationId: string, timeoutMs: number, operation?: OperationLike, message?: string) {
     const lastStatus = operation?.status !== undefined ? String(operation.status) : undefined;
     super(
-      `Operation ${operationId} still ${lastStatus ?? "pending"} after ${Math.round(timeoutMs / 1000)}s`,
+      message ?? `Operation ${operationId} still ${lastStatus ?? "pending"} after ${Math.round(timeoutMs / 1000)}s`,
       "operation_wait_timeout",
     );
     this.name = "OperationTimeoutError";
@@ -862,14 +902,14 @@ export class RecoveryFailedError extends IbeeError {
   /** Last value returned by the API. */
   readonly resource: Record<string, unknown>;
 
-  constructor(kind: string, resource: Record<string, unknown>, resourceId?: string) {
+  constructor(kind: string, resource: Record<string, unknown>, resourceId?: string, code = "recovery_failed") {
     const status = String(resource?.status ?? "failed");
     const detail = typeof resource?.error_message === "string" ? resource.error_message : undefined;
     super(
       `${kind.replace(/_/g, " ")} ${resourceId ?? ""} ended with status ${status}${detail ? `: ${detail}` : ""}`
         .replace(/\s+/g, " ")
         .trim(),
-      "recovery_failed",
+      code,
     );
     this.name = "RecoveryFailedError";
     this.kind = kind;
@@ -880,10 +920,13 @@ export class RecoveryFailedError extends IbeeError {
   }
 }
 
-/** A snapshot or backup restore finished as `failed` or `cancelled`. */
+/**
+ * A snapshot or backup restore finished as `failed` or `cancelled`
+ * (code `recovery_restore_failed`; still an instance of RecoveryFailedError).
+ */
 export class RecoveryRestoreFailedError extends RecoveryFailedError {
   constructor(resource: Record<string, unknown>, restoreId?: string) {
-    super("restore", resource, restoreId);
+    super("restore", resource, restoreId, "recovery_restore_failed");
     this.name = "RecoveryRestoreFailedError";
   }
 }
@@ -907,24 +950,26 @@ export const CdnPurgeFailedError = IbeeCdnPurgeError;
 /** Python SDK name for `IbeeCdnPurgeError` (type). */
 export type CdnPurgeFailedError = IbeeCdnPurgeError;
 
-/** A CDN custom domain was still pending when the client-side wait ended. */
-export class CdnDomainVerificationTimeoutError extends IbeeError {
+/**
+ * A CDN custom domain was still pending when the client-side wait ended.
+ * Code `operation_wait_timeout`, like every other wait; it extends
+ * OperationTimeoutError (`operationId` holds the domain).
+ */
+export class CdnDomainVerificationTimeoutError extends OperationTimeoutError {
   readonly domain: string;
-  readonly lastStatus?: string;
-  readonly timeoutMs: number;
   /** Last verification result. */
   readonly result?: Record<string, unknown>;
   constructor(domain: string, timeoutMs: number, result?: Record<string, unknown>) {
     const lastStatus = typeof result?.status === "string" ? result.status : undefined;
     const detail = typeof result?.message === "string" && result.message ? ` ${result.message}` : "";
     super(
+      domain,
+      timeoutMs,
+      lastStatus !== undefined ? { status: lastStatus } : undefined,
       `Custom domain ${domain} is still ${lastStatus ?? "pending"} after ${Math.round(timeoutMs / 1000)}s.${detail}`,
-      "cdn_domain_wait_timeout",
     );
     this.name = "CdnDomainVerificationTimeoutError";
     this.domain = domain;
-    this.lastStatus = lastStatus;
-    this.timeoutMs = timeoutMs;
     this.result = result;
   }
 }
