@@ -182,7 +182,7 @@ test("VPC create rejects bad CIDR modes and NAT catalog misuse before any reques
   const base = { workspaceId: WS, name: "prod", siteId: "site-1" };
   await assert.rejects(client.vpcs.create({ ...base, name: " " }), isValidation("invalid_vpc", /Name and location/));
   await assert.rejects(client.vpcs.create({ ...base, name: "x".repeat(81) }), isValidation("invalid_name"));
-  await assert.rejects(client.vpcs.create({ ...base, cidr: "10.0.0.0/24", autoCidr: true }), isValidation("invalid_cidr_mode"));
+  await assert.rejects(client.vpcs.create({ ...base, cidr: "10.0.0.0/24", autoCidr: true }), isValidation("invalid_auto_cidr"));
   await assert.rejects(client.vpcs.create({ ...base, autoCidr: false }), isValidation("invalid_cidr_mode"));
   await assert.rejects(client.vpcs.create({ ...base, cidr: "10.0.1.0/22" }), isValidation("invalid_cidr", /aligned/));
   await assert.rejects(
@@ -289,11 +289,11 @@ test("subnet create checks the VPC range, overlap and quota like the portal", as
   ]);
   await assert.rejects(
     client.vpcs.createSubnet({ workspaceId: WS, vpcId: "v", name: "a", cidr: "10.0.8.0/24" }),
-    isValidation("invalid_cidr", /sub-range of 10\.0\.0\.0\/22/),
+    isValidation("subnet_outside_vpc", /sub-range of 10\.0\.0\.0\/22/),
   );
   await assert.rejects(
     client.vpcs.createSubnet({ workspaceId: WS, vpcId: "v", name: "a", cidr: "10.0.0.128/25" }),
-    isValidation("invalid_cidr", /overlaps/),
+    isValidation("subnet_overlap", /overlaps/),
   );
   await assert.rejects(
     client.vpcs.createSubnet({ workspaceId: WS, vpcId: "v", name: "a", cidr: "10.0.1.0/24", prefixLength: 24 }),
@@ -356,7 +356,7 @@ test("NAT create requires a nat_gateway VPC and an eligible Reserved IP", async 
   );
   await assert.rejects(
     client.vpcs.createNatGateway({ workspaceId: WS, vpcId: "natv", reservedPublicIpId: "rip-other", billingCatalog: NAT_CATALOG }),
-    isValidation("reserved_ip_not_eligible", /different site/),
+    isValidation("reserved_ip_site_mismatch", /different site/),
   );
   await assert.rejects(
     client.vpcs.createNatGateway({ workspaceId: WS, vpcId: "natv", billingCatalog: { code: "" } }),
@@ -444,7 +444,7 @@ test("replaceNatGatewayPublicIp PUTs the Reserved IP (with optional state checks
   assert.deepEqual(calls[0].body, { reserved_public_ip_id: "r1" });
   await assert.rejects(
     client.vpcs.replaceNatGatewayPublicIp({ workspaceId: WS, vpcId: "v", natGatewayId: "n", reservedPublicIpId: "r1", checkState: true }),
-    isValidation("nat_gateway_not_available"),
+    isValidation("nat_gateway_unavailable"),
   );
   await assert.rejects(
     client.vpcs.replaceNatGatewayPublicIp({ workspaceId: WS, vpcId: "v", natGatewayId: "n", reservedPublicIpId: " " }),
@@ -517,7 +517,7 @@ test("port-forward create refuses a gateway that is not available", async () => 
     client.vpcs.createPortForwardingRule({
       workspaceId: WS, vpcId: "v", natGatewayId: "n", name: "a", externalPort: 1, internalIp: "10.0.0.1", internalPort: 1,
     }),
-    isValidation("nat_gateway_not_available", /active NAT gateway is required/),
+    isValidation("nat_gateway_unavailable", /active NAT gateway is required/),
   );
 });
 
@@ -571,7 +571,7 @@ test("virtual IPs: list, get (filtered), create checks and delete guard", async 
   );
   await assert.rejects(
     client.vpcs.createVirtualIp({ ...base, privateIp: "10.0.0.1", announcerVmIds: ["vm-a"] }),
-    isValidation("invalid_private_ip", /gateway/),
+    isValidation("address_is_gateway", /gateway/),
   );
   await assert.rejects(
     client.vpcs.createVirtualIp({ ...base, privateIp: "10.0.0.60", announcerVmIds: ["vm-a", " "] }),
@@ -582,7 +582,7 @@ test("virtual IPs: list, get (filtered), create checks and delete guard", async 
   assert.equal(created.virtual_ip_id, "pvip-3");
   await assert.rejects(
     client.vpcs.deleteVirtualIp({ workspaceId: WS, vpcId: "v", virtualIpId: "pvip-1" }),
-    isValidation("virtual_ip_has_public_ip", /Detach the Reserved IP/),
+    isValidation("virtual_ip_has_reserved_ip", /Detach the Reserved IP/),
   );
   await assert.rejects(
     client.vpcs.deleteVirtualIp({ workspaceId: WS, vpcId: "v", virtualIpId: "pvip-2" }),
@@ -672,7 +672,7 @@ test("move and detach apply the portal state rules", async () => {
     ["POST", /reserved-ips\/onvm\/(move|detach)$/, {}],
   ]);
   await assert.rejects(client.reservedIps.move({ workspaceId: WS, reservedIpId: "free", vmId: "v2" }), isValidation("reserved_ip_not_attached"));
-  await assert.rejects(client.reservedIps.move({ workspaceId: WS, reservedIpId: "conv", vmId: "v2" }), isValidation("reserved_ip_move_unsupported"));
+  await assert.rejects(client.reservedIps.move({ workspaceId: WS, reservedIpId: "conv", vmId: "v2" }), isValidation("reserved_ip_not_movable"));
   await assert.rejects(client.reservedIps.move({ workspaceId: WS, reservedIpId: "onvm", vmId: "v1" }), isValidation("reserved_ip_same_target"));
   await client.reservedIps.move({ workspaceId: WS, reservedIpId: "onvm", vmId: "v2", vpcId: "vpc", subnetId: "s" });
   assert.deepEqual(calls.at(-1).body, { vm_id: "v2", vpc_id: "vpc", subnet_id: "s" });
@@ -726,7 +726,7 @@ test("firewall group create: trimmed name, case-insensitive duplicates, no is_de
     ["GET", /^\/networking\/firewall-groups$/, [{ firewall_group_id: "g1", name: "Web " }]],
     ["POST", /^\/networking\/firewall-groups$/, { firewall_group_id: "g2" }],
   ]);
-  await assert.rejects(client.firewalls.createGroup({ workspaceId: WS, name: " web" }), isValidation("duplicate_firewall_group_name"));
+  await assert.rejects(client.firewalls.createGroup({ workspaceId: WS, name: " web" }), isValidation("duplicate_name"));
   assert.equal(calls[0].query.get("summary"), "true");
   assert.equal(calls[0].query.get("limit"), "100");
   await assert.rejects(client.firewalls.createGroup({ workspaceId: WS, name: "x", isDefault: true }), isValidation("invalid_is_default"));

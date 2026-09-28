@@ -6,11 +6,11 @@ import {
   InsufficientScopeError,
   StoreArchivedError,
   StoreDeletingError,
-  UnprocessableEntityError,
 } from "../errors.js";
 import { collect, paginatePages } from "../pagination.js";
 import {
   IbeeValidationError,
+  assertBodySize,
   assertRotateAllowed,
   checkRollbackTarget,
   checkScopeStoreEligibility,
@@ -75,14 +75,21 @@ function emitWarning(message: string, type: string): void {
 
 /**
  * Run an optional read-only pre-check. When the token lacks the read scope
- * (403 insufficient_scope) the check is skipped and `undefined` returned:
- * the server enforces the same or a weaker rule.
+ * (403 insufficient_scope) the check is skipped with an
+ * `IbeeSecretStoreWarning` and `undefined` returned: the server enforces
+ * the same or a weaker rule.
  */
-async function optionalRead<T>(fn: () => Promise<T>): Promise<T | undefined> {
+async function optionalRead<T>(step: string, fn: () => Promise<T>): Promise<T | undefined> {
   try {
     return await fn();
   } catch (err) {
-    if (err instanceof InsufficientScopeError) return undefined;
+    if (err instanceof InsufficientScopeError) {
+      emitWarning(
+        `${step} skipped: the API token lacks the secret-store.read scope. The API still enforces the rule.`,
+        "IbeeSecretStoreWarning",
+      );
+      return undefined;
+    }
     throw err;
   }
 }
@@ -108,6 +115,10 @@ export interface ListSecretStoresArgs extends SecretStoreCallOptions {
 
 export interface ListAllSecretStoresArgs extends SecretStoreCallOptions {
   workspaceId: string;
+  /**
+   * Include archived stores (default true here, as in the portal and the
+   * Python SDK, so archived stores can be restored).
+   */
   includeArchived?: boolean;
   /** Stores requested per page (1..200, default 200). */
   pageSize?: number;
@@ -177,7 +188,7 @@ export class SecretStoreResource {
   private async preflight(workspaceId: string, resourceType: "secret_store" | "secret"): Promise<void> {
     try {
       await this.billing.requireResourceEligibility({
-        workspaceId,
+        workspaceId: workspaceId.trim(),
         skuCode: SECRET_MANAGER_SKU_CODE,
         resourceType,
       });
@@ -207,25 +218,32 @@ export class SecretStoreResource {
     });
   }
 
-  /** Iterate every store, requesting `pageSize` stores per page. */
+  /**
+   * Iterate every store (archived included unless `includeArchived: false`),
+   * requesting `pageSize` stores per page, without an item cap.
+   */
   async *iterateSecretStores(args: ListAllSecretStoresArgs): AsyncGenerator<SecretStore, void, undefined> {
     const limit = args.pageSize ?? SECRET_STORE_MAX_PAGE_LIMIT;
     validateWorkspaceId(args.workspaceId, SERVICE);
     validatePagination({ limit });
+    const includeArchived = validateOptionalBoolean(args.includeArchived, "include_archived") ?? true;
     yield* paginatePages<SecretStore>(
       (page, pageLimit) =>
         this.listSecretStores({
           workspaceId: args.workspaceId,
           page,
           limit: pageLimit,
-          includeArchived: args.includeArchived,
+          includeArchived,
           signal: args.signal,
         }) as Promise<Record<string, unknown>>,
-      { limit, itemsKey: "stores" },
+      { limit, itemsKey: "stores", maxItems: Number.POSITIVE_INFINITY },
     );
   }
 
-  /** Every store across all pages (the API returns at most 200 per page). */
+  /**
+   * Every store across all pages (the API returns at most 200 per page).
+   * Archived stores are included by default, as in the portal.
+   */
   listAllSecretStores(args: ListAllSecretStoresArgs): Promise<SecretStore[]> {
     return collect(this.iterateSecretStores(args));
   }
@@ -243,13 +261,16 @@ export class SecretStoreResource {
     if (ifExists !== "error" && ifExists !== "return") {
       throw new IbeeValidationError("ifExists must be 'error' or 'return'.", "invalid_if_exists", "if_exists");
     }
+    // Body size is checked locally before the billing preflight.
+    const body = description === undefined ? { name } : { name, description };
+    assertBodySize(body);
     if (args.billingPreflight) await this.preflight(args.workspaceId, "secret_store");
     try {
       return await this.http.request<SecretStore>({
         method: "POST",
         path: "/secret-store/stores",
         workspaceId: args.workspaceId,
-        body: description === undefined ? { name } : { name, description },
+        body,
         signal: args.signal,
       });
     } catch (err) {
@@ -260,12 +281,16 @@ export class SecretStoreResource {
         !(err instanceof StoreDeletingError)
       ) {
         const wanted = lookup(name);
-        const stores = await this.listAllSecretStores({
-          workspaceId: args.workspaceId,
-          includeArchived: true,
-          signal: args.signal,
-        });
-        const existing = stores.find((s) => lookup(s.name) === wanted || lookup(s.store_key) === wanted);
+        // Without secret-store.read the lookup is skipped and the original
+        // ConflictError is kept.
+        const stores = await optionalRead("Existing store lookup", () =>
+          this.listAllSecretStores({
+            workspaceId: args.workspaceId,
+            includeArchived: true,
+            signal: args.signal,
+          }),
+        );
+        const existing = stores?.find((s) => lookup(s.name) === wanted || lookup(s.store_key) === wanted);
         if (existing) return existing;
       }
       throw err;
@@ -377,11 +402,11 @@ export class SecretStoreResource {
           limit: pageLimit,
           signal: args.signal,
         }) as Promise<Record<string, unknown>>,
-      { limit, itemsKey: "secrets" },
+      { limit, itemsKey: "secrets", maxItems: Number.POSITIVE_INFINITY },
     );
   }
 
-  /** Every secret in a store across all pages. */
+  /** Every secret in a store across all pages (no item cap). */
   listAllSecrets(args: ListAllSecretsArgs): Promise<Secret[]> {
     return collect(this.iterateSecrets(args));
   }
@@ -396,12 +421,15 @@ export class SecretStoreResource {
     const path = `${storePath(args.storeId)}/secrets`;
     const secretName = normalizeSecretName(args.name, "name");
     const value = normalizeSecretValue(args.value);
+    // Body size is checked locally before the billing preflight.
+    const body = { secret_name: secretName, value };
+    assertBodySize(body);
     if (args.billingPreflight) await this.preflight(args.workspaceId, "secret");
     return this.http.request({
       method: "POST",
       path,
       workspaceId: args.workspaceId,
-      body: { secret_name: secretName, value },
+      body,
       signal: args.signal,
     });
   }
@@ -409,7 +437,7 @@ export class SecretStoreResource {
   /**
    * Create up to 500 secrets without overwriting existing names. Each item
    * is normalised and validated like `createSecret`; the request body must
-   * stay within 64 KiB (split larger imports). Names repeated in one request
+   * stay within 64 KiB (split larger imports with `chunkBatchSecrets`). Names repeated in one request
    * are reported by the API as `skipped` (`duplicate_in_request`); the SDK
    * warns about them.
    */
@@ -423,7 +451,7 @@ export class SecretStoreResource {
     if (!Array.isArray(args.secrets) || args.secrets.length === 0 || args.secrets.length > MAX_SECRET_BATCH_SIZE) {
       throw new IbeeValidationError(
         `secrets must contain 1 to ${MAX_SECRET_BATCH_SIZE} items.`,
-        "invalid_batch_size",
+        "invalid_secrets",
         "secrets",
       );
     }
@@ -637,7 +665,7 @@ export class SecretStoreResource {
     const path = `${secretPath(args.secretId)}/rollback`;
     const version = validateVersion(args.version);
     if (args.checkTarget !== false) {
-      const versions = await optionalRead(() =>
+      const versions = await optionalRead("Rollback target check", () =>
         this.listSecretVersions({ workspaceId: args.workspaceId, secretId: args.secretId, signal: args.signal }),
       );
       if (versions) checkRollbackTarget(versions, version);
@@ -767,7 +795,7 @@ export class SecretStoreResource {
     validateWorkspaceId(args.workspaceId, SERVICE);
     const path = `${identityPath(args.identityId)}/rotate-secret-id`;
     if (args.checkAuthMethod) {
-      const identity = await optionalRead(() =>
+      const identity = await optionalRead("Auth method check", () =>
         this.getSecretIdentity({ workspaceId: args.workspaceId, identityId: args.identityId, signal: args.signal }),
       );
       if (identity) assertRotateAllowed(identity);
@@ -833,7 +861,7 @@ export class SecretStoreResource {
 
     if (args.checkStore) {
       const common = { workspaceId: args.workspaceId, signal: args.signal };
-      const identity = await optionalRead(() =>
+      const identity = await optionalRead("Identity policy check", () =>
         this.getSecretIdentity({ ...common, identityId: args.identityId }),
       );
       if (identity) {
@@ -844,16 +872,17 @@ export class SecretStoreResource {
           identityMode: identity.token_policy_mode,
         });
       }
-      const scopes = await optionalRead(() =>
+      const scopes = await optionalRead("Existing scope check", () =>
         this.listSecretIdentityScopes({ ...common, identityId: args.identityId }),
       );
-      const stores = await optionalRead(() =>
-        this.listAllSecretStores({ ...common, includeArchived: false }),
+      const stores = await optionalRead("Store status check", () =>
+        this.listAllSecretStores({ ...common, includeArchived: true }),
       );
       checkScopeStoreEligibility(
         storeId,
         stores?.filter((s) => lookup(s.status) === "active").map((s) => String(s.id)),
         scopes?.scopes?.map((s) => String(s.store_id)),
+        stores?.map((s) => String(s.id)),
       );
     }
 
@@ -906,25 +935,15 @@ export class SecretStoreResource {
       allowRollback: body.allow_rollback,
       allowDestroy: body.allow_destroy,
     });
-    try {
-      return await this.http.request<SecretIdentityScope>({
-        method: "PATCH",
-        path,
-        workspaceId: args.workspaceId,
-        body,
-        signal: args.signal,
-      });
-    } catch (err) {
-      if (err instanceof UnprocessableEntityError && /Read-only scopes cannot grant/.test(err.message)) {
-        throw new UnprocessableEntityError(
-          err.statusCode,
-          err.body,
-          `${err.message} (send accessMode 'read_write' or clear allowRollback/allowDestroy)`,
-          { headers: err.headers },
-        );
-      }
-      throw err;
-    }
+    // A merged read-only scope with rollback/destroy comes back as
+    // ScopeValidationError (422) with a hint.
+    return this.http.request<SecretIdentityScope>({
+      method: "PATCH",
+      path,
+      workspaceId: args.workspaceId,
+      body,
+      signal: args.signal,
+    });
   }
 
   /** Remove a scope; the identity loses access to that store. */

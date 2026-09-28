@@ -117,10 +117,10 @@ test("pagination and search query rules", () => {
 
 test("store and secret name rules match the portal and backend", () => {
   assert.equal(normalizeStoreName("  Prod Store ", { creating: true }), "Prod Store");
-  assert.throws(() => normalizeStoreName("  ", { creating: true }), vErr("invalid_store_name", /required/));
-  assert.throws(() => normalizeStoreName("---", { creating: true }), vErr("invalid_store_name", /letter or number/));
+  assert.throws(() => normalizeStoreName("  ", { creating: true }), vErr("invalid_name", /required/));
+  assert.throws(() => normalizeStoreName("---", { creating: true }), vErr("invalid_name", /letter or number/));
   assert.equal(normalizeStoreName("---", { creating: false }), "---");
-  assert.throws(() => normalizeStoreName("x".repeat(129), { creating: true }), vErr("invalid_store_name"));
+  assert.throws(() => normalizeStoreName("x".repeat(129), { creating: true }), vErr("invalid_name"));
 
   assert.equal(normalizeSecretName("  DB-Url "), "db-url");
   assert.equal(normalizeSecretName("a1"), "a1");
@@ -162,7 +162,7 @@ test("identity create body: defaults, trimming and Kubernetes fields", () => {
   assert.throws(() => validateIdentityCreate({ authMethod: "kubernetes", name: "k", k8sNamespace: "ns" }), vErr("invalid_kubernetes_identity"));
   assert.throws(() => validateIdentityCreate({ authMethod: "approle", name: "a", k8sNamespace: "ns" }), vErr("invalid_approle_identity"));
   assert.throws(() => validateIdentityCreate({ authMethod: "ldap", name: "a" }), vErr("invalid_auth_method"));
-  assert.throws(() => validateIdentityCreate({ authMethod: "approle", name: " " }), vErr("invalid_identity_name"));
+  assert.throws(() => validateIdentityCreate({ authMethod: "approle", name: " " }), vErr("invalid_name"));
   assert.throws(() => validateIdentityCreate({ authMethod: "approle", name: "a", tokenPolicyMode: "admin" }), vErr("invalid_token_policy_mode"));
 });
 
@@ -172,7 +172,7 @@ test("scope permission combinations", () => {
   assert.throws(() => validateScopePermissions({ accessMode: "read_only", allowDestroy: true }), vErr("invalid_scope_permissions"));
   assert.throws(
     () => validateScopePermissions({ accessMode: "read_write", identityMode: "read_only" }),
-    vErr("invalid_scope_permissions", /Read-only identities/),
+    vErr("scope_permission_denied", /Read-only identities/),
   );
   validateScopePermissions({ accessMode: "read_only", identityMode: "read_only" });
 });
@@ -180,9 +180,9 @@ test("scope permission combinations", () => {
 test("rollback target rule", () => {
   const versions = { current_version: 3, versions: { 1: { destroyed: true }, 2: { destroyed: false }, 3: { destroyed: false } } };
   checkRollbackTarget(versions, 2);
-  assert.throws(() => checkRollbackTarget(versions, 3), vErr("invalid_rollback_target", /current/));
-  assert.throws(() => checkRollbackTarget(versions, 1), vErr("invalid_rollback_target", /destroyed/));
-  assert.throws(() => checkRollbackTarget(versions, 9), vErr("invalid_rollback_target", /does not exist/));
+  assert.throws(() => checkRollbackTarget(versions, 3), vErr("rollback_to_current", /current/));
+  assert.throws(() => checkRollbackTarget(versions, 1), vErr("version_destroyed", /destroyed/));
+  assert.throws(() => checkRollbackTarget(versions, 9), vErr("unknown_version", /does not exist/));
 });
 
 // ------------------------------------------------------------------ stores
@@ -207,7 +207,7 @@ test("listSecretStores validates paging; listAllSecretStores pages until total",
 
 test("createSecretStore trims fields and validates the name before sending", async () => {
   const { calls, client } = router([["POST", /^\/secret-store\/stores$/, { status: 201, json: { id: "st1" } }]]);
-  await assert.rejects(client.secretStore.createSecretStore({ workspaceId: WS, name: " !! " }), vErr("invalid_store_name"));
+  await assert.rejects(client.secretStore.createSecretStore({ workspaceId: WS, name: " !! " }), vErr("invalid_name"));
   assert.equal(calls.length, 0);
   await client.secretStore.createSecretStore({ workspaceId: WS, name: "  Payments ", description: "  main  " });
   assert.deepEqual(calls[0].body, { name: "Payments", description: "main" });
@@ -280,7 +280,7 @@ test("createSecretStore is never retried (a retried success would be a conflict)
 test("updateSecretStore needs a field and sends only provided fields", async () => {
   const { calls, client } = router([["PATCH", /^\/secret-store\/stores\/st1$/, { id: "st1" }]]);
   await assert.rejects(client.secretStore.updateSecretStore({ workspaceId: WS, storeId: "st1" }), vErr("no_changes"));
-  await assert.rejects(client.secretStore.updateSecretStore({ workspaceId: WS, storeId: "st1", name: " " }), vErr("invalid_store_name"));
+  await assert.rejects(client.secretStore.updateSecretStore({ workspaceId: WS, storeId: "st1", name: " " }), vErr("invalid_name"));
   await client.secretStore.updateSecretStore({ workspaceId: WS, storeId: "st1", name: " New " });
   assert.deepEqual(calls[0].body, { name: "New" });
 });
@@ -320,7 +320,7 @@ test("batchCreateSecrets validates every item, size and warns on duplicates", as
   process.on("warning", onWarning);
   try {
     const { calls, client } = router([["POST", /secrets:batchIngest$/, { results: [], created_count: 1, skipped_count: 1, failed_count: 0 }]]);
-    await assert.rejects(client.secretStore.batchCreateSecrets({ workspaceId: WS, storeId: "st1", secrets: [] }), vErr("invalid_batch_size"));
+    await assert.rejects(client.secretStore.batchCreateSecrets({ workspaceId: WS, storeId: "st1", secrets: [] }), vErr("invalid_secrets"));
     await assert.rejects(
       client.secretStore.batchCreateSecrets({ workspaceId: WS, storeId: "st1", secrets: [{ secret_name: "ok", value: { a: "b" } }, { secret_name: "Bad_Name", value: { a: "b" } }] }),
       (err) => err instanceof IbeeValidationError && err.field === "secrets[1].secret_name",
@@ -397,14 +397,21 @@ test("rollbackSecret checks the target like the portal, skipping on missing scop
     ["GET", /\/versions$/, () => versionsResp],
     ["POST", /\/rollback$/, { data: {} }],
   ]);
-  await assert.rejects(client.secretStore.rollbackSecret({ workspaceId: WS, secretId: "s1", version: 3 }), vErr("invalid_rollback_target"));
-  await assert.rejects(client.secretStore.rollbackSecret({ workspaceId: WS, secretId: "s1", version: 1 }), vErr("invalid_rollback_target"));
+  await assert.rejects(client.secretStore.rollbackSecret({ workspaceId: WS, secretId: "s1", version: 3 }), vErr("rollback_to_current"));
+  await assert.rejects(client.secretStore.rollbackSecret({ workspaceId: WS, secretId: "s1", version: 1 }), vErr("version_destroyed"));
   assert.equal(calls.filter((c) => c.method === "POST").length, 0);
   await client.secretStore.rollbackSecret({ workspaceId: WS, secretId: "s1", version: 2 });
   assert.deepEqual(calls.at(-1).body, { version: 2 });
   versionsResp = { status: 403, json: { error: "insufficient_scope", required_scope: "secret-store.read" } };
+  const warnings = [];
+  const onWarning = (w) => warnings.push(w);
+  process.on("warning", onWarning);
   await client.secretStore.rollbackSecret({ workspaceId: WS, secretId: "s1", version: 3 });
+  await new Promise((r) => setImmediate(r));
+  process.off("warning", onWarning);
   assert.equal(calls.at(-1).method, "POST");
+  // The skipped pre-check is reported, as in the Python SDK and CLI.
+  assert.ok(warnings.some((w) => w.name === "IbeeSecretStoreWarning" && /Rollback target check skipped/.test(w.message)));
   const before = calls.length;
   await client.secretStore.rollbackSecret({ workspaceId: WS, secretId: "s1", version: 3, checkTarget: false });
   assert.equal(calls.length, before + 1);
@@ -438,12 +445,12 @@ test("rotateSecretIdentitySecretId checkAuthMethod refuses Kubernetes and disabl
   ]);
   await assert.rejects(
     client.secretStore.rotateSecretIdentitySecretId({ workspaceId: WS, identityId: "i1", checkAuthMethod: true }),
-    vErr("invalid_auth_method"),
+    (err) => vErr("auth_method_mismatch")(err) && err.field === "identity_id",
   );
   identity = { id: "i1", auth_method: "approle", status: "disabled" };
   await assert.rejects(
     client.secretStore.rotateSecretIdentitySecretId({ workspaceId: WS, identityId: "i1", checkAuthMethod: true }),
-    vErr("identity_disabled"),
+    (err) => vErr("identity_disabled")(err) && err.field === "identity_id",
   );
   identity = { id: "i1", auth_method: "approle", status: "active" };
   await client.secretStore.rotateSecretIdentitySecretId({ workspaceId: WS, identityId: "i1", checkAuthMethod: true });
@@ -487,14 +494,15 @@ test("createSecretIdentityScope checkStore refuses inactive, already granted, an
     ["POST", /\/scopes$/, { status: 201, json: { id: "sc" } }],
   ]);
   const base = { workspaceId: WS, identityId: "i1", checkStore: true };
-  await assert.rejects(client.secretStore.createSecretIdentityScope({ ...base, storeId: "st1" }), vErr("scope_store_already_granted"));
-  await assert.rejects(client.secretStore.createSecretIdentityScope({ ...base, storeId: "st3" }), vErr("scope_store_not_active"));
-  await assert.rejects(client.secretStore.createSecretIdentityScope({ ...base, storeId: "st2", accessMode: "read_write" }), vErr("invalid_scope_permissions"));
+  await assert.rejects(client.secretStore.createSecretIdentityScope({ ...base, storeId: "st1" }), vErr("scope_already_exists"));
+  await assert.rejects(client.secretStore.createSecretIdentityScope({ ...base, storeId: "st3" }), vErr("store_not_active"));
+  await assert.rejects(client.secretStore.createSecretIdentityScope({ ...base, storeId: "st2", accessMode: "read_write" }), vErr("scope_permission_denied"));
+  await assert.rejects(client.secretStore.createSecretIdentityScope({ ...base, storeId: "st9" }), vErr("store_not_found"));
   assert.equal(calls.filter((c) => c.method === "POST").length, 0);
   await client.secretStore.createSecretIdentityScope({ ...base, storeId: "st2" });
   assert.equal(calls.at(-1).method, "POST");
   const storeList = calls.find((c) => c.path === "/secret-store/stores");
-  assert.equal(storeList.query.get("include_archived"), "false");
+  assert.equal(storeList.query.get("include_archived"), "true");
 });
 
 test("updateSecretIdentityScope needs a field, checks same-call combos and hints on 422", async () => {
@@ -538,7 +546,8 @@ test("Secret Store 403 messages map to typed ForbiddenError subclasses", () => {
   const nf = apiErrorFromResponse(403, envelope("FORBIDDEN", "Identity 'i-9' does not belong to workspace '12'"), { path: "/secret-store/identities/i-9" });
   assert.equal(nf.kind, "identity");
   assert.equal(nf.resourceId, "i-9");
-  assert.ok(!(nf instanceof WorkspaceNotAllowedError));
+  // Python parity: a not-owned Secret Store resource is a WorkspaceNotAllowedError.
+  assert.ok(nf instanceof WorkspaceNotAllowedError);
   // Edge errors keep their generic mapping.
   assert.ok(apiErrorFromResponse(403, { error: "insufficient_scope", required_scope: "secret-store.write" }, { path }) instanceof InsufficientScopeError);
   assert.ok(apiErrorFromResponse(403, { error: "workspace_not_allowed" }, { path }) instanceof WorkspaceNotAllowedError);

@@ -9,6 +9,7 @@ export type BillingCreateType =
   | "gpu_vm"
   | "block_storage"
   | "object_storage"
+  | "s3_credential"
   | "container_registry"
   | "load_balancer"
   | "cdn"
@@ -26,6 +27,7 @@ export const CREATE_TYPE_LABELS: Readonly<Record<BillingCreateType, string>> = O
   gpu_vm: "GPU VM",
   block_storage: "block storage volume",
   object_storage: "object storage bucket",
+  s3_credential: "S3 credential",
   load_balancer: "load balancer",
   cdn: "CDN distribution",
   custom_domain: "custom domain",
@@ -116,10 +118,10 @@ export function billingBlockMessage(
       ? decision
       : String(field(decision, "can_create_reason") || field(decision, "reason") || "")
   ).trim();
-  const state = String(options.billingState ?? field(decision, "billing_state") ?? "").trim();
+  const state = String(options.billingState ?? field(decision, "billing_state") ?? "").trim().toUpperCase();
   const currency = String(options.currency ?? field(decision, "currency") ?? "").trim().toUpperCase();
   const label =
-    (CREATE_TYPE_LABELS as Record<string, string>)[String(createType)] ?? "resource";
+    (CREATE_TYPE_LABELS as Record<string, string>)[String(createType ?? "").trim().toLowerCase()] ?? "resource";
 
   if (reason === "initial_topup_required") {
     return currency && currency !== "INR"

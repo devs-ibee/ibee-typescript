@@ -331,7 +331,7 @@ test("cloudVms.create attaches an idempotency key and never omits site_id", asyn
   assert.equal(calls.length, 0);
   await client.cloudVms.create({
     workspaceId: "1", name: "web", site_id: "site-1", plan_id: "plan-1", template_id: "image-1",
-    os_distro: "ubuntu", os_type: "linux", cpu: 2, ram_mb: 4096, resolveCatalog: false,
+    os_distro: "ubuntu", os_type: "linux", cpu: 2, ram_mb: 4096, resolveCatalog: false, disk_gb: 50,
     billing_catalog: PLAN_SKU,
   });
   assert.equal(calls.length, 1);
@@ -363,7 +363,7 @@ test("cloud VM lifecycle uses canonical paths, methods, and idempotency", async 
     os_type: "linux",
     cpu: 2,
     ram_mb: 4096,
-    resolveCatalog: false,
+    resolveCatalog: false, disk_gb: 50,
     billing_catalog: PLAN_SKU,
   });
   await client.cloudVms.get({ workspaceId: "710995", vmId: VM1 });
@@ -420,7 +420,7 @@ test("gpuVms.create forwards gpu_count and gpu_model", async () => {
     ram_mb: 32768,
     gpu_count: 1,
     gpu_model: "A100",
-    resolveCatalog: false,
+    resolveCatalog: false, disk_gb: 50,
     billing_catalog: { sku_id: 5, sku_code: "GPU-A100-1" },
   });
   assert.equal(calls.length, 1);
@@ -472,6 +472,7 @@ test("extended VM writes use canonical bodies and idempotency headers", async ()
     vmId: VM1,
     idempotencyKey: "access-key",
     request: { ssh_key_mode: "add", ssh_key_ids: ["key-1"], password_auth_enabled: false },
+    checkState: false,
   });
   await client.cloudVms.precheckResize({
     workspaceId: "710995",
@@ -501,6 +502,7 @@ test("extended VM writes use canonical bodies and idempotency headers", async ()
     vmId: VM1,
     idempotencyKey: "attach-key",
     request: { volume_id: "64b0000000000000000000b1", mode: "single-writer", billing_catalog: { sku_id: 3, sku_code: "block-std" } },
+    checkState: false,
   });
   await client.cloudVms.detachVolume({
     workspaceId: "710995",
@@ -571,6 +573,7 @@ test("snapshot and backup lifecycle forwards exact paths, queries, and bodies", 
       status: "succeeded",
       snapshot_set_id: "snap-1",
       run_id: "backup-1",
+      recovery_point_id: "backup-1",
       enabled: true,
       policy_id: "pol-1",
       schedule: { frequency: "daily", hour: 20, minute: 0, timezone: "UTC", window_minutes: 30 },
@@ -660,7 +663,7 @@ test("snapshot and backup lifecycle forwards exact paths, queries, and bodies", 
 });
 
 test("GPU recovery uses GPU-specific collection paths", async () => {
-  const { calls, fetchImpl } = stub({ json: { status: "succeeded", volume_manifest: [] } });
+  const { calls, fetchImpl } = stub({ json: { status: "succeeded", recovery_point_id: "backup/1", volume_manifest: [] } });
   const client = new Ibee({ token: "t", fetch: fetchImpl });
   await client.gpuVms.listEvents({ workspaceId: "710995", vmId: GPU1 });
   await client.gpuVms.createSnapshot({
@@ -905,15 +908,15 @@ test("Block Storage exposes all 8 operations with canonical paths and bodies", a
     name: "database", size_gb: 100, site_id: "site-1", site_name: "Chennai",
     volume_class: "balanced", replica_count: 2, backup_enabled: true,
   });
-  assert.match(createKey, /^create-volume-database-[A-Za-z0-9_-]+$/);
+  assert.match(createKey, /^block-volume-create-database-[A-Za-z0-9_-]+$/);
   assert.equal(calls[1].headers.get("x-idempotency-key"), createKey);
   const { idempotency_key: attachKey, ...attachBody } = JSON.parse(calls[4].body);
   assert.deepEqual(attachBody, {
     node_name: "worker-1", mode: "single-writer", vm_id: "vm-1",
   });
-  assert.match(attachKey, new RegExp(`^attach-volume-${volumeId}-`));
+  assert.match(attachKey, new RegExp(`^block-volume-attach-${volumeId}-`));
   assert.equal(new URL(calls[7].url).searchParams.get("force"), "true");
-  assert.match(new URL(calls[7].url).searchParams.get("idempotency_key"), new RegExp(`^delete-volume-${volumeId}-`));
+  assert.match(new URL(calls[7].url).searchParams.get("idempotency_key"), new RegExp(`^block-volume-delete-${volumeId}-`));
 });
 
 test("CDN exposes all 15 operations with encoded IDs and canonical bodies", async () => {
@@ -1074,7 +1077,7 @@ const billableCreates = [
     run: (client) => client.cloudVms.create({
       workspaceId: "1", idempotencyKey: "cloud-key", name: "web", site_id: "s1", plan_id: "plan-1",
       template_id: "image-1", os_distro: "ubuntu", os_type: "linux", cpu: 2, ram_mb: 4096,
-      resolveCatalog: false, billing_catalog: { sku_id: 1, sku_code: "STANDARD-2-8-50" },
+      resolveCatalog: false, disk_gb: 50, billing_catalog: { sku_id: 1, sku_code: "STANDARD-2-8-50" },
     }),
   },
   {
@@ -1083,7 +1086,7 @@ const billableCreates = [
     run: (client) => client.gpuVms.create({
       workspaceId: "1", idempotencyKey: "gpu-key", name: "trainer", site_id: "s1", plan_id: "gpu-plan-1",
       template_id: "image-1", os_distro: "ubuntu", os_type: "linux", cpu: 8, ram_mb: 32768,
-      gpu_count: 1, gpu_model: "A100", resolveCatalog: false, billing_catalog: { sku_id: 2, sku_code: "GPU-A100-1" },
+      gpu_count: 1, gpu_model: "A100", resolveCatalog: false, disk_gb: 50, billing_catalog: { sku_id: 2, sku_code: "GPU-A100-1" },
     }),
   },
 ];

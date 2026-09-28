@@ -1,5 +1,5 @@
 import type { HttpClient } from "../core.js";
-import { BadRequestError, ForbiddenError, NotFoundError } from "../errors.js";
+import { BadRequestError, ForbiddenError, IbeeError, NotFoundError } from "../errors.js";
 import { collect, paginateOffset } from "../pagination.js";
 import { sleepMs } from "../polling.js";
 import {
@@ -38,6 +38,7 @@ import {
   validateNetworkBillingCatalog,
   validateNodeConnectivity,
   validateOptionalText,
+  validatePathId,
   validateRequiredId,
   validateReservedIpEligibleForService,
   validateReservedIpSiteId,
@@ -77,7 +78,7 @@ import type {
 } from "../types.js";
 
 const pathId = (value: string) => encodeURIComponent(value);
-const vpcPath = (vpcId: string) => `/networking/vpcs/${pathId(validateRequiredId(vpcId, "vpc_id"))}`;
+const vpcPath = (vpcId: string) => `/networking/vpcs/${pathId(validatePathId(vpcId, "vpc_id"))}`;
 const lower = (v: unknown) => String(v ?? "").trim().toLowerCase();
 const fail = (message: string, code: string, field?: string, details?: unknown): never => {
   throw new IbeeValidationError(message, code, field, details);
@@ -199,11 +200,13 @@ export class VpcsResource {
   /**
    * Delete a VPC (its subnets go with it).
    *
-   * With `checkDependencies: true` the SDK runs the portal checks first:
-   * attached nodes block the delete, virtual IPs block it, and a NAT gateway
-   * blocks it unless `deleteNatGateway: true`, in which case the gateway is
-   * deleted first (with `natIpAction`, when given) and the SDK waits until it
-   * is gone.
+   * Like the portal (and the Python SDK) the VPC is read first by default:
+   * attached nodes block the delete, and a NAT gateway blocks it unless
+   * `deleteNatGateway: true`, in which case the gateway is deleted first
+   * (with `natIpAction` and, to reserve a platform NAT IP,
+   * `natBillingCatalog` = the RESERVED-IP SKU) and the SDK waits until it is
+   * gone. `checkDependencies: true` also refuses while virtual IPs exist;
+   * `checkDependencies: false` skips the read (unless `deleteNatGateway`).
    */
   async delete(args: {
     workspaceId: string;
@@ -211,10 +214,18 @@ export class VpcsResource {
     checkDependencies?: boolean;
     deleteNatGateway?: boolean;
     natIpAction?: NatDeleteIpAction;
+    /** RESERVED-IP billing catalog, needed to reserve a platform NAT IP (`natIpAction: "reserve"`). */
+    natBillingCatalog?: Record<string, unknown>;
   }): Promise<void> {
     validateWorkspaceId(args.workspaceId);
     const path = vpcPath(args.vpcId);
-    if (args.checkDependencies || args.deleteNatGateway) {
+    if (args.natBillingCatalog !== undefined && args.natBillingCatalog !== null) {
+      if (lower(args.natIpAction) !== "reserve") {
+        fail("natBillingCatalog is only allowed with natIpAction 'reserve'.", "invalid_billing_catalog", "nat_billing_catalog");
+      }
+      validateNetworkBillingCatalog(args.natBillingCatalog, "nat_billing_catalog");
+    }
+    if (args.checkDependencies !== false || args.deleteNatGateway) {
       const vpc = await this.get(args);
       const nodes = Math.max(Number(vpc.node_count ?? 0) || 0, (vpc.attached_nodes ?? []).length);
       if (nodes > 0) {
@@ -237,6 +248,7 @@ export class VpcsResource {
             vpcId: args.vpcId,
             natGatewayId: gw.nat_gateway_id,
             publicIpAction: args.natIpAction,
+            billingCatalog: args.natBillingCatalog,
             wait: true,
           });
         }
@@ -281,7 +293,7 @@ export class VpcsResource {
   getSubnet(args: { workspaceId: string; vpcId: string; subnetId: string }): Promise<Subnet> {
     return this.http.request({
       method: "GET",
-      path: `${vpcPath(args.vpcId)}/subnets/${pathId(validateRequiredId(args.subnetId, "subnet_id"))}`,
+      path: `${vpcPath(args.vpcId)}/subnets/${pathId(validatePathId(args.subnetId, "subnet_id"))}`,
       workspaceId: args.workspaceId,
     });
   }
@@ -298,7 +310,7 @@ export class VpcsResource {
     const body = buildSubnetUpdateBody(input);
     return this.http.request({
       method: "PATCH",
-      path: `${vpcPath(vpcId)}/subnets/${pathId(validateRequiredId(subnetId, "subnet_id"))}`,
+      path: `${vpcPath(vpcId)}/subnets/${pathId(validatePathId(subnetId, "subnet_id"))}`,
       workspaceId,
       body,
     });
@@ -307,7 +319,7 @@ export class VpcsResource {
   deleteSubnet(args: { workspaceId: string; vpcId: string; subnetId: string }): Promise<void> {
     return this.http.request({
       method: "DELETE",
-      path: `${vpcPath(args.vpcId)}/subnets/${pathId(validateRequiredId(args.subnetId, "subnet_id"))}`,
+      path: `${vpcPath(args.vpcId)}/subnets/${pathId(validatePathId(args.subnetId, "subnet_id"))}`,
       workspaceId: args.workspaceId,
     });
   }
@@ -392,7 +404,7 @@ export class VpcsResource {
   detachNode(args: { workspaceId: string; vpcId: string; vmId: string }): Promise<void> {
     return this.http.request({
       method: "DELETE",
-      path: `${vpcPath(args.vpcId)}/nodes/${pathId(validateRequiredId(args.vmId, "vm_id"))}`,
+      path: `${vpcPath(args.vpcId)}/nodes/${pathId(validatePathId(args.vmId, "vm_id"))}`,
       workspaceId: args.workspaceId,
     });
   }
@@ -420,7 +432,8 @@ export class VpcsResource {
    *
    * - `validateVpc` (default true) reads the VPC and requires a
    *   `nat_gateway` VPC; with `reservedPublicIpId` it also checks the Reserved
-   *   IP is in the VPC's site, unattached and reserved.
+   *   IP is in the VPC's site, unattached and reserved (skipped when the VPC
+   *   already has a NAT gateway, so an idempotent retry is not refused).
    * - `billingCatalog` (NAT-GATEWAY SKU; not yet part of the published API
    *   contract) makes the gateway metered. Without it an
    *   `IbeeBillingWarning` is emitted.
@@ -455,7 +468,7 @@ export class VpcsResource {
       if (lower(vpc.connectivity_type) !== "nat_gateway") {
         fail("NAT gateways can only be created for nat_gateway VPCs.", "vpc_not_nat_gateway", "vpc_id");
       }
-      if (reservedPublicIpId) {
+      if (reservedPublicIpId && (vpc.nat_gateways ?? []).length === 0) {
         const rip = await this.http.request<ReservedIp>({
           method: "GET",
           path: `/networking/reserved-ips/${pathId(reservedPublicIpId)}`,
@@ -500,7 +513,8 @@ export class VpcsResource {
    *
    * `checkDependencies: true` refuses while a virtual IP still has a Reserved
    * IP. `wait: true` polls until the gateway is gone (20 x 0.5 s) and throws
-   * `IbeeValidationError` (`nat_delete_pending`) if it is still there.
+   * `IbeeError` (code `nat_gateway_deleting`, not a validation error: the
+   * DELETE was already accepted) if it is still there.
    */
   async deleteNatGateway(args: {
     workspaceId: string;
@@ -543,7 +557,7 @@ export class VpcsResource {
       if ((Array.isArray(vips) ? vips : []).some((v) => String(v.public_ip_id ?? "").trim())) {
         fail(
           "Detach virtual-IP Reserved Public IPs before deleting the NAT gateway.",
-          "nat_has_virtual_ip_public_ips",
+          "virtual_ip_has_reserved_ip",
           "nat_gateway_id",
         );
       }
@@ -560,7 +574,7 @@ export class VpcsResource {
         natGatewayId,
       });
       if (!gone) {
-        fail("NAT gateway deletion is still reconciling; check again shortly.", "nat_delete_pending", "nat_gateway_id");
+        throw new IbeeError("NAT gateway deletion is still reconciling; check again shortly.", "nat_gateway_deleting");
       }
     }
   }
@@ -610,7 +624,7 @@ export class VpcsResource {
     if (args.checkState) {
       const gw = await this.findNatGateway(args.workspaceId, args.vpcId, natGatewayId);
       if (lower(gw.status) !== "available") {
-        fail("An active NAT gateway is required.", "nat_gateway_not_available", "nat_gateway_id");
+        fail("An active NAT gateway is required.", "nat_gateway_unavailable", "nat_gateway_id");
       }
       const vpc = await this.get(args);
       const rip = await this.http.request<ReservedIp>({
@@ -635,7 +649,7 @@ export class VpcsResource {
   }): Promise<NatPortForwardingRule[]> {
     return this.http.request({
       method: "GET",
-      path: `${vpcPath(args.vpcId)}/nat-gateways/${pathId(validateRequiredId(args.natGatewayId, "nat_gateway_id"))}/port-forwarding-rules`,
+      path: `${vpcPath(args.vpcId)}/nat-gateways/${pathId(validatePathId(args.natGatewayId, "nat_gateway_id"))}/port-forwarding-rules`,
       workspaceId: args.workspaceId,
     });
   }
@@ -643,7 +657,7 @@ export class VpcsResource {
   private async requireAvailableGateway(workspaceId: string, vpcId: string, natGatewayId: string): Promise<void> {
     const gw = await this.findNatGateway(workspaceId, vpcId, natGatewayId);
     if (lower(gw.status) !== "available") {
-      fail("An active NAT gateway is required.", "nat_gateway_not_available", "nat_gateway_id");
+      fail("An active NAT gateway is required.", "nat_gateway_unavailable", "nat_gateway_id");
     }
   }
 
@@ -805,6 +819,10 @@ export class VpcsResource {
           if (body.target_type === "vip" && body.target_vm_ids === undefined) body.target_vm_ids = merged.target_vm_ids;
         }
       }
+    } else if (body.target_type === "vip" && !((body.target_vm_ids as string[] | undefined) ?? []).length) {
+      // Without the read the announcers cannot be filled in; the API would
+      // fail the merged rule.
+      fail("Select at least one MetalLB announcer node.", "invalid_target_vm_ids", "target_vm_ids");
     }
     return this.http.request({ method: "PATCH", path, workspaceId, body });
   }
@@ -817,7 +835,7 @@ export class VpcsResource {
   }): Promise<void> {
     return this.http.request({
       method: "DELETE",
-      path: `${vpcPath(args.vpcId)}/nat-gateways/${pathId(validateRequiredId(args.natGatewayId, "nat_gateway_id"))}/port-forwarding-rules/${pathId(validateRequiredId(args.portForwardingRuleId, "port_forwarding_rule_id"))}`,
+      path: `${vpcPath(args.vpcId)}/nat-gateways/${pathId(validatePathId(args.natGatewayId, "nat_gateway_id"))}/port-forwarding-rules/${pathId(validatePathId(args.portForwardingRuleId, "port_forwarding_rule_id"))}`,
       workspaceId: args.workspaceId,
     });
   }
@@ -926,7 +944,7 @@ export class VpcsResource {
     if (args.checkState !== false) {
       const vip = await this.getVirtualIp(args);
       if (String(vip.public_ip_id ?? "").trim()) {
-        fail("Detach the Reserved IP before deleting this reservation.", "virtual_ip_has_public_ip", "virtual_ip_id");
+        fail("Detach the Reserved IP before deleting this reservation.", "virtual_ip_has_reserved_ip", "virtual_ip_id");
       }
       const gateways = (await this.listNatGateways(args)) ?? [];
       for (const gw of gateways) {
@@ -955,7 +973,7 @@ export function waitForNatGatewayAbsent(
   return client.vpcs.waitForNatGatewayAbsent(args);
 }
 
-const ripPath = (id: string) => `/networking/reserved-ips/${pathId(validateRequiredId(id, "reserved_ip_id"))}`;
+const ripPath = (id: string) => `/networking/reserved-ips/${pathId(validatePathId(id, "reserved_ip_id"))}`;
 
 function mapReservedIpTargetError(err: unknown): never {
   if (err instanceof NotFoundError && /require a VPC network allocation/i.test(err.message)) {
@@ -1098,7 +1116,7 @@ export class ReservedIpsResource {
         if (!args.detachFromService) {
           fail(
             `Reserved IP is attached to a ${kind === "nat_gateway" ? "NAT gateway" : "virtual IP"}; pass detachFromService: true to move it.`,
-            "reserved_ip_attached",
+            "reserved_ip_attached_to_service",
             "reserved_ip_id",
           );
         }
@@ -1147,7 +1165,7 @@ export class ReservedIpsResource {
       if (kind === "direct" || kind === "converted_active") {
         fail(
           "Moving a converted or provider-network Reserved IP is not supported; detach first.",
-          "reserved_ip_move_unsupported",
+          "reserved_ip_not_movable",
           "reserved_ip_id",
         );
       }
@@ -1278,7 +1296,7 @@ export class ReservedIpsResource {
   }
 }
 
-const fwPath = (id: string) => `/networking/firewall-groups/${pathId(validateRequiredId(id, "firewall_group_id"))}`;
+const fwPath = (id: string) => `/networking/firewall-groups/${pathId(validatePathId(id, "firewall_group_id"))}`;
 
 export class FirewallsResource {
   constructor(private readonly http: HttpClient) {}
@@ -1307,14 +1325,16 @@ export class FirewallsResource {
     });
   }
 
-  /** Every firewall group (all pages). Same as `listGroups` without paging. */
-  listAllGroups(args: { workspaceId: string }): Promise<FirewallGroup[]> {
+  /** Every firewall group (all pages of `pageSize`, 1..100, default 100). */
+  listAllGroups(args: { workspaceId: string; pageSize?: number }): Promise<FirewallGroup[]> {
     return collect(this.iterateGroups(args));
   }
 
-  /** Iterate every firewall group, fetching pages of 100 on demand. */
-  iterateGroups(args: { workspaceId: string }): AsyncIterable<FirewallGroup> {
+  /** Iterate every firewall group, fetching pages of `pageSize` (1..100, default 100) on demand. */
+  iterateGroups(args: { workspaceId: string; pageSize?: number }): AsyncIterable<FirewallGroup> {
     validateWorkspaceId(args.workspaceId);
+    const pageSize = args.pageSize ?? 100;
+    validateLimitOffset({ limit: pageSize }, 100);
     return paginateOffset<FirewallGroup>(
       (limit, offset) =>
         this.http.request<FirewallGroup[]>({
@@ -1323,7 +1343,7 @@ export class FirewallsResource {
           workspaceId: args.workspaceId,
           query: { limit, offset },
         }),
-      { pageSize: 100, idKeys: ["firewall_group_id"] },
+      { pageSize, idKeys: ["firewall_group_id", "id"] },
     );
   }
 
@@ -1379,7 +1399,7 @@ export class FirewallsResource {
       const wanted = name.toLowerCase();
       for await (const group of this.iterateGroupSummaries(args)) {
         if (String(group.name ?? "").trim().toLowerCase() === wanted) {
-          fail("A firewall group with this name already exists.", "duplicate_firewall_group_name", "name");
+          fail("A firewall group with this name already exists.", "duplicate_name", "name");
         }
       }
     }
@@ -1523,7 +1543,7 @@ export class FirewallsResource {
   detach(args: { workspaceId: string; firewallGroupId: string; vmId: string }): Promise<FirewallGroup> {
     return this.http.request({
       method: "DELETE",
-      path: `${fwPath(args.firewallGroupId)}/attachments/${pathId(validateRequiredId(args.vmId, "vm_id"))}`,
+      path: `${fwPath(args.firewallGroupId)}/attachments/${pathId(validatePathId(args.vmId, "vm_id"))}`,
       workspaceId: args.workspaceId,
     });
   }
@@ -1550,7 +1570,7 @@ interface CreateLoadBalancerArgs extends LoadBalancerExtras {
   checkBilling?: boolean;
 }
 
-const lbPath = (id: string) => pathId(validateRequiredId(id, "load_balancer_id"));
+const lbPath = (id: string) => pathId(validatePathId(id, "load_balancer_id"));
 
 export class LoadBalancersResource {
   private readonly billing: BillingResource;
