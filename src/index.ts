@@ -74,6 +74,8 @@ export {
   createTypeForPath,
   defaultCodeForStatus,
   isPaymentBlockError,
+  PAYMENT_BLOCK_CODES,
+  PAYMENT_BLOCK_PHRASES,
   parseErrorBody,
 } from "./errors.js";
 export type {
@@ -356,6 +358,7 @@ export {
   recoveryDefaultVmName,
   recoveryMinRootDiskGb,
   recoveryTargetVolumeNames,
+  resolveBackupRecoveryPointId,
   restoreTargetFromPlan,
   validateNewVmTarget,
   validateRestoreRequest,

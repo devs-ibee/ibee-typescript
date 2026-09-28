@@ -265,7 +265,10 @@ test("createSecretStore ifExists 'return' finds the existing store like the port
   const list = calls.find((c) => c.method === "GET");
   assert.equal(list.query.get("include_archived"), "true");
   assert.equal(list.query.get("limit"), "200");
-  await assert.rejects(client.secretStore.createSecretStore({ workspaceId: WS, name: "x", ifExists: "reuse" }), vErr("invalid_if_exists"));
+  // "reuse" is an alias of "return" (Python SDK and CLI spelling).
+  const reused = await client.secretStore.createSecretStore({ workspaceId: WS, name: "payments", ifExists: "reuse" });
+  assert.equal(reused.id, "st9");
+  await assert.rejects(client.secretStore.createSecretStore({ workspaceId: WS, name: "x", ifExists: "skip" }), vErr("invalid_if_exists"));
 });
 
 test("createSecretStore is never retried (a retried success would be a conflict)", async () => {
@@ -323,7 +326,8 @@ test("batchCreateSecrets validates every item, size and warns on duplicates", as
     await assert.rejects(client.secretStore.batchCreateSecrets({ workspaceId: WS, storeId: "st1", secrets: [] }), vErr("invalid_secrets"));
     await assert.rejects(
       client.secretStore.batchCreateSecrets({ workspaceId: WS, storeId: "st1", secrets: [{ secret_name: "ok", value: { a: "b" } }, { secret_name: "Bad_Name", value: { a: "b" } }] }),
-      (err) => err instanceof IbeeValidationError && err.field === "secrets[1].secret_name",
+      // The item's own code, with field secrets[i] (as in the Python SDK).
+      (err) => err instanceof IbeeValidationError && err.code === "invalid_secret_name" && err.field === "secrets[1]",
     );
     await assert.rejects(
       client.secretStore.batchCreateSecrets({ workspaceId: WS, storeId: "st1", secrets: [{ secret_name: "big", value: { a: "x".repeat(70_000) } }] }),

@@ -946,11 +946,14 @@ export type OperationAcceptedResult = OperationAccepted & {
   operation?: OperationStatus;
 };
 
-export interface SshKeySecretRef {
-  ssh_key_id: string;
-  store_key?: string;
-  secret_name: string;
-}
+/**
+ * A Secret Store reference to an SSH public key. Either `ssh_key_id` or
+ * `secret_name` is enough (the API fills the other from it); `store_key`
+ * defaults to `ssh-keys`.
+ */
+export type SshKeySecretRef =
+  | { ssh_key_id: string; secret_name?: string; store_key?: string; ssh_key_name?: string }
+  | { ssh_key_id?: string; secret_name: string; store_key?: string; ssh_key_name?: string };
 
 export type VmSshKeyMode = "add" | "remove";
 
@@ -1375,6 +1378,8 @@ export interface BackupRun {
   policy_id?: string | null;
   chain_id?: string | null;
   recovery_point_id?: string | null;
+  /** Storage prefix; may carry the recovery point ID (`.../recovery-points/<id>`). */
+  r2_prefix?: string | null;
   trigger: "scheduled" | "manual" | "api";
   backup_type: "full" | "incremental";
   status: BackupStatus;

@@ -180,10 +180,10 @@ test("VPC create sends the portal body (private, trimmed, no blank description)"
 test("VPC create rejects bad CIDR modes and NAT catalog misuse before any request", async () => {
   const { calls, client } = router([]);
   const base = { workspaceId: WS, name: "prod", siteId: "site-1" };
-  await assert.rejects(client.vpcs.create({ ...base, name: " " }), isValidation("invalid_vpc", /Name and location/));
+  await assert.rejects(client.vpcs.create({ ...base, name: " " }), isValidation("invalid_name", /Name and location/));
   await assert.rejects(client.vpcs.create({ ...base, name: "x".repeat(81) }), isValidation("invalid_name"));
   await assert.rejects(client.vpcs.create({ ...base, cidr: "10.0.0.0/24", autoCidr: true }), isValidation("invalid_auto_cidr"));
-  await assert.rejects(client.vpcs.create({ ...base, autoCidr: false }), isValidation("invalid_cidr_mode"));
+  await assert.rejects(client.vpcs.create({ ...base, autoCidr: false }), isValidation("cidr_required"));
   await assert.rejects(client.vpcs.create({ ...base, cidr: "10.0.1.0/22" }), isValidation("invalid_cidr", /aligned/));
   await assert.rejects(
     client.vpcs.create({ ...base, cidr: "10.0.0.0/24", defaultSubnetCidr: "10.0.1.0/26" }),
@@ -191,7 +191,7 @@ test("VPC create rejects bad CIDR modes and NAT catalog misuse before any reques
   );
   await assert.rejects(
     client.vpcs.create({ ...base, defaultSubnetCidr: "10.0.1.0/26", createDefaultSubnet: false }),
-    isValidation("invalid_cidr_mode"),
+    isValidation("invalid_default_subnet_cidr"),
   );
   await assert.rejects(
     client.vpcs.create({ ...base, connectivityType: "private", natBillingCatalog: NAT_CATALOG }),
@@ -297,7 +297,7 @@ test("subnet create checks the VPC range, overlap and quota like the portal", as
   );
   await assert.rejects(
     client.vpcs.createSubnet({ workspaceId: WS, vpcId: "v", name: "a", cidr: "10.0.1.0/24", prefixLength: 24 }),
-    isValidation("invalid_cidr_mode"),
+    isValidation("invalid_prefix_length"),
   );
   await assert.rejects(
     client.vpcs.createSubnet({ workspaceId: WS, vpcId: "v", name: "a", cidr: "10.0.1.0/30" }),
@@ -325,7 +325,7 @@ test("attachNode validates a requested private IP against the subnet", async () 
   await assert.rejects(client.vpcs.attachNode({ ...base, requestedPrivateIp: "10.0.0.255" }), isValidation(null, /broadcast/));
   await assert.rejects(
     client.vpcs.attachNode({ ...base, connectivity: "private", reservedPublicIpId: "r" }),
-    isValidation("invalid_network"),
+    isValidation("invalid_reserved_public_ip_id"),
   );
   calls.length = 0;
   await client.vpcs.attachNode({ ...base, requestedPrivateIp: " 10.0.0.20 ", connectivity: "nat" });
@@ -336,8 +336,8 @@ test("attachNode validates a requested private IP against the subnet", async () 
 test("attachNode with checkVpc applies the portal connectivity rules", async () => {
   const { client } = router([["GET", /^\/networking\/vpcs\/v$/, { connectivity_type: "nat_gateway", nat_gateways: [] }]]);
   const base = { workspaceId: WS, vpcId: "v", vmId: "vm", subnetId: "s", checkVpc: true };
-  await assert.rejects(client.vpcs.attachNode({ ...base, connectivity: "public_ip" }), isValidation("invalid_network", /nat_gateway VPCs/));
-  await assert.rejects(client.vpcs.attachNode({ ...base, connectivity: "nat" }), isValidation("invalid_network", /no available NAT/));
+  await assert.rejects(client.vpcs.attachNode({ ...base, connectivity: "public_ip" }), isValidation("invalid_connectivity", /nat_gateway VPCs/));
+  await assert.rejects(client.vpcs.attachNode({ ...base, connectivity: "nat" }), isValidation("nat_gateway_unavailable", /no available NAT/));
 });
 
 // -------------------------------------------------------------------- NAT
@@ -868,7 +868,7 @@ test("LB updates: at least one field, L4 rejects L7 fields, customDomain null cl
   await assert.rejects(client.loadBalancers.updateL4({ workspaceId: WS, loadBalancerId: "lb1" }), isValidation("no_changes"));
   await assert.rejects(
     client.loadBalancers.updateL4({ workspaceId: WS, loadBalancerId: "lb1", rules: [] }),
-    isValidation("invalid_l4_field"),
+    isValidation("invalid_rules"),
   );
   await client.loadBalancers.updateL7({ workspaceId: WS, loadBalancerId: "lb1", customDomain: null });
   assert.deepEqual(calls.at(-1).body, { custom_domain: null });

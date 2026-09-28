@@ -487,7 +487,7 @@ export function expandBatchNames(base: string, count = 1, overrides?: string[]):
   const seen = new Set<string>();
   for (const n of names) {
     const key = n.toLowerCase();
-    if (seen.has(key)) vfail(`VM names must be unique: '${n}' is repeated.`, "duplicate_vm_name", "name");
+    if (seen.has(key)) vfail(`VM names must be unique: '${n}' is repeated.`, "duplicate_vm_names", "name");
     seen.add(key);
   }
   return names;
@@ -565,19 +565,21 @@ export function validateNetworkFields(args: {
   const subnet = String(args.subnet_id ?? "").trim() || undefined;
   const conn = String(args.network_connectivity ?? "").trim().toLowerCase() || undefined;
   const rip = String(args.reserved_public_ip_id ?? "").trim() || undefined;
-  if (vpc && !subnet) vfail("Select a subnet for this VPC (subnet_id).", "invalid_network", "subnet_id");
-  if (subnet && !vpc) vfail("subnet_id requires vpc_id.", "invalid_network", "vpc_id");
   if (conn && !(NETWORK_CONNECTIVITY_MODES as readonly string[]).includes(conn)) {
     vfail(
       `network_connectivity must be one of ${NETWORK_CONNECTIVITY_MODES.join(", ")}.`,
-      "invalid_network",
+      "invalid_network_connectivity",
       "network_connectivity",
     );
   }
-  if (conn && !vpc) vfail("network_connectivity requires vpc_id and subnet_id.", "invalid_network", "network_connectivity");
-  if (rip && !vpc) vfail("reserved_public_ip_id requires vpc_id and subnet_id.", "invalid_network", "reserved_public_ip_id");
+  if (conn && !vpc) vfail("network_connectivity requires vpc_id and subnet_id.", "vpc_required", "vpc_id");
+  if (vpc && !subnet) vfail("Select a subnet for this VPC (subnet_id).", "subnet_required", "subnet_id");
+  if (subnet && !vpc) vfail("subnet_id requires vpc_id.", "vpc_required", "vpc_id");
+  if (rip && !vpc) {
+    vfail("reserved_public_ip_id requires vpc_id and subnet_id.", "invalid_network_connectivity", "reserved_public_ip_id");
+  }
   if (rip && conn !== "public_ip") {
-    vfail("reserved_public_ip_id requires network_connectivity 'public_ip'.", "invalid_network", "reserved_public_ip_id");
+    vfail("reserved_public_ip_id requires network_connectivity 'public_ip'.", "invalid_network_connectivity", "reserved_public_ip_id");
   }
   return {
     vpc_id: vpc,
@@ -617,30 +619,30 @@ export function validateVmNetworkPlacement(args: {
   const { vpc, siteId, connectivity } = args;
   const vpcSite = String(vpc.site_id ?? "").trim();
   if (vpcSite && vpcSite !== siteId) {
-    vfail("The selected VPC is in a different site from the VM.", "invalid_network", "vpc_id");
+    vfail("The selected VPC is in a different site from the VM.", "vpc_site_mismatch", "vpc_id");
   }
   const status = String(vpc.status ?? "").trim().toLowerCase();
   if (UNUSABLE_VPC_STATES.has(status)) {
-    vfail(`The selected VPC is ${status} and cannot be used.`, "invalid_network", "vpc_id");
+    vfail(`The selected VPC is ${status} and cannot be used.`, "vpc_unavailable", "vpc_id");
   }
   if (args.subnet) {
     const subnetVpc = String(args.subnet.vpc_id ?? "").trim();
     if (subnetVpc && subnetVpc !== String(vpc.vpc_id ?? "").trim()) {
-      vfail("The selected subnet does not belong to this VPC.", "invalid_network", "subnet_id");
+      vfail("The selected subnet does not belong to this VPC.", "subnet_mismatch", "subnet_id");
     }
   }
   const type = normaliseVpcConnectivityType(vpc.connectivity_type);
   if (connectivity === "nat" && type !== "nat_gateway") {
-    vfail("NAT connectivity is available only in NAT Gateway VPCs.", "invalid_network", "network_connectivity");
+    vfail("NAT connectivity is available only in NAT Gateway VPCs.", "vpc_connectivity_mismatch", "network_connectivity");
   }
   if (connectivity === "public_ip") {
     if (type === "nat_gateway") {
-      vfail("Dedicated public IPs are not available for NAT Gateway VPCs.", "invalid_network", "network_connectivity");
+      vfail("Dedicated public IPs are not available for NAT Gateway VPCs.", "vpc_connectivity_mismatch", "network_connectivity");
     }
     if (type === "private" && !args.reservedIp && args.requireReservedIpForPublic !== false) {
       vfail(
         "Select an available Reserved IP (reserved_public_ip_id) for a public IP on a private VPC.",
-        "invalid_network",
+        "reserved_ip_required",
         "reserved_public_ip_id",
       );
     }
@@ -649,11 +651,11 @@ export function validateVmNetworkPlacement(args: {
     const rip = args.reservedIp;
     const ripSite = String(rip.site_id ?? "").trim();
     if (ripSite && ripSite !== siteId) {
-      vfail("The Reserved IP is in a different site from the VM.", "invalid_network", "reserved_public_ip_id");
+      vfail("The Reserved IP is in a different site from the VM.", "reserved_ip_site_mismatch", "reserved_public_ip_id");
     }
     for (const key of ["attached_resource_id", "attached_to", "nat_gateway_id", "vm_id"]) {
       if (String(rip[key] ?? "").trim()) {
-        vfail("The Reserved IP is already attached.", "invalid_network", "reserved_public_ip_id");
+        vfail("The Reserved IP is already attached.", "reserved_ip_attached", "reserved_public_ip_id");
       }
     }
   }
@@ -687,13 +689,13 @@ const ACTION_LABELS: Partial<Record<VmStateAction, string>> = {
   "detach-volume": "detach a volume from",
 };
 
-/** Portal state matrix: throws `vm_state_conflict` when the action is not allowed now. */
+/** Portal state matrix: throws `invalid_vm_state` when the action is not allowed now. */
 export function assertVmActionAllowed(vm: Record<string, unknown> | null | undefined, action: VmStateAction): void {
   const status = String(vm?.status ?? "").trim().toLowerCase();
   const block = (why: string) =>
     vfail(
       `Cannot ${ACTION_LABELS[action] ?? action.replace(/-/g, " ")} this VM while its status is '${status || "unknown"}'${why}.`,
-      "vm_state_conflict",
+      "invalid_vm_state",
       "status",
     );
   switch (action) {
@@ -709,7 +711,7 @@ export function assertVmActionAllowed(vm: Record<string, unknown> | null | undef
       break;
     case "access":
       if (isWindowsVm(vm)) {
-        vfail("SSH key and password-login settings are supported for Linux VMs only.", "vm_os_unsupported", "os_type");
+        vfail("SSH key and password-login settings are supported for Linux VMs only.", "vm_not_linux", "os_type");
       }
       if (status !== "running") block(" (the VM must be running)");
       break;
@@ -750,7 +752,7 @@ export function resolveDeletePublicIpAction(
     if (!String(vm.site_id ?? "").trim()) {
       vfail(
         "The VM location is unavailable, so its public IP cannot be reserved yet.",
-        "invalid_public_ip_action",
+        "vm_site_unavailable",
         "public_ip_action",
       );
     }
@@ -758,7 +760,7 @@ export function resolveDeletePublicIpAction(
     if (!isRec(catalog) || !String(catalog.sku_id ?? "").trim()) {
       vfail(
         "reservedIpBillingCatalog with sku_id is required to reserve the public IP (copy the billing_catalog of an existing Reserved IP in the same site).",
-        "invalid_reserved_ip_billing_catalog",
+        "reserved_ip_billing_catalog_required",
         "reserved_ip_billing_catalog",
       );
     }
@@ -776,31 +778,37 @@ export function resolveDeletePublicIpAction(
 
 /** Validate an access-update payload on its own (no VM lookup). Returns the cleaned body. */
 export function validateAccessUpdate(payload: Record<string, unknown>): Record<string, unknown> {
-  if (!isRec(payload)) vfail("request must be an object.", "invalid_access_update", "request");
+  if (!isRec(payload)) vfail("request must be an object.", "invalid_request", "request");
   const body: Record<string, unknown> = { ...payload };
   const mode = body.ssh_key_mode === undefined || body.ssh_key_mode === null ? undefined : String(body.ssh_key_mode).trim().toLowerCase();
   if (mode !== undefined && mode !== "add" && mode !== "remove") {
-    vfail("ssh_key_mode must be 'add' or 'remove'.", "invalid_access_update", "ssh_key_mode");
+    vfail("ssh_key_mode must be 'add' or 'remove'.", "invalid_ssh_key_mode", "ssh_key_mode");
   }
   const keys = normaliseSshKeys(body.ssh_keys);
   const ids = normaliseIdList(body.ssh_key_ids, "ssh_key_ids");
   let refs: Record<string, unknown>[] = [];
   if (body.ssh_key_secret_refs !== undefined && body.ssh_key_secret_refs !== null) {
     if (!Array.isArray(body.ssh_key_secret_refs)) {
-      vfail("ssh_key_secret_refs must be an array.", "invalid_access_update", "ssh_key_secret_refs");
+      vfail("ssh_key_secret_refs must be an array.", "invalid_ssh_key_secret_refs", "ssh_key_secret_refs");
     }
     refs = (body.ssh_key_secret_refs as unknown[]).map((r) => {
       if (!isRec(r) || !(String(r.ssh_key_id ?? "").trim() || String(r.secret_name ?? "").trim())) {
-        vfail("Each ssh_key_secret_refs entry needs ssh_key_id or secret_name.", "invalid_access_update", "ssh_key_secret_refs");
+        vfail("Each ssh_key_secret_refs entry needs ssh_key_id or secret_name.", "invalid_ssh_key_secret_refs", "ssh_key_secret_refs");
       }
-      return r as Record<string, unknown>;
+      // Either identifier is enough (the API fills the other); store_key
+      // defaults to `ssh-keys`, as in the Python SDK and the API.
+      const plain: Record<string, unknown> = Object.fromEntries(
+        Object.entries(r as Record<string, unknown>).filter(([, v]) => v !== undefined && v !== null),
+      );
+      if (!("store_key" in plain)) plain.store_key = "ssh-keys";
+      return plain;
     });
   }
   const hasKeys = keys.length + ids.length + refs.length > 0;
   if (mode && !hasKeys) {
-    vfail("ssh_keys, ssh_key_ids or ssh_key_secret_refs are required when ssh_key_mode is set.", "invalid_access_update", "ssh_key_mode");
+    vfail("ssh_keys, ssh_key_ids or ssh_key_secret_refs are required when ssh_key_mode is set.", "invalid_ssh_key_mode", "ssh_key_mode");
   }
-  if (hasKeys && !mode) vfail("ssh_key_mode ('add' or 'remove') is required when SSH keys are given.", "invalid_access_update", "ssh_key_mode");
+  if (hasKeys && !mode) vfail("ssh_key_mode ('add' or 'remove') is required when SSH keys are given.", "invalid_ssh_key_mode", "ssh_key_mode");
   let password: string | undefined;
   if (body.new_password !== undefined && body.new_password !== null) {
     if (typeof body.new_password !== "string") vfail("new_password must be a string.", "invalid_password", "new_password");
@@ -813,10 +821,10 @@ export function validateAccessUpdate(payload: Record<string, unknown>): Record<s
   }
   const pwAuth = body.password_auth_enabled;
   if (pwAuth !== undefined && pwAuth !== null && typeof pwAuth !== "boolean") {
-    vfail("password_auth_enabled must be a boolean.", "invalid_access_update", "password_auth_enabled");
+    vfail("password_auth_enabled must be a boolean.", "invalid_password_auth_enabled", "password_auth_enabled");
   }
   if (!mode && !password && (pwAuth === undefined || pwAuth === null)) {
-    vfail("At least one access setting change is required.", "invalid_access_update", "request");
+    vfail("At least one access setting change is required.", "no_changes");
   }
   if (mode) body.ssh_key_mode = mode;
   else delete body.ssh_key_mode;
@@ -863,13 +871,13 @@ export function validateAccessUpdateAgainstVm(vm: Record<string, unknown>, body:
   const current = vm.ssh_password_auth_enabled;
   const requested = body.password_auth_enabled;
   if (requested === false && !remaining) {
-    vfail("Cannot disable SSH password login without at least one tracked SSH key.", "invalid_access_update", "password_auth_enabled");
+    vfail("Cannot disable SSH password login without at least one tracked SSH key.", "ssh_key_required", "password_auth_enabled");
   }
   const finalPw = typeof requested === "boolean" ? requested : typeof current === "boolean" ? current : undefined;
   if (body.ssh_key_mode === "remove" && !remaining && finalPw === false && body.confirm_remove_last_ssh_key !== true) {
     vfail(
       "Removing the last tracked SSH key while password SSH login is disabled requires confirm_remove_last_ssh_key: true.",
-      "invalid_access_update",
+      "confirmation_required",
       "confirm_remove_last_ssh_key",
     );
   }
@@ -886,7 +894,7 @@ function checkRange(value: unknown, field: keyof typeof VM_RESIZE_LIMITS | "new_
   if (value === undefined || value === null) return;
   const lim = field === "new_size_gb" ? VM_RESIZE_LIMITS.disk_gb : VM_RESIZE_LIMITS[field];
   if (!isInt(value) || value < lim.min || value > lim.max) {
-    vfail(`${field} must be an integer between ${lim.min} and ${lim.max}.`, "invalid_resize_target", field);
+    vfail(`${field} must be an integer between ${lim.min} and ${lim.max}.`, `invalid_${field}`, field);
   }
 }
 
@@ -904,7 +912,7 @@ export function validateResizeTarget(
     (target.ram_mb === undefined || target.ram_mb === null) &&
     (target.disk_gb === undefined || target.disk_gb === null)
   ) {
-    vfail("At least one of cpu, ram_mb or disk_gb is required.", "invalid_resize_target", "request");
+    vfail("At least one of cpu, ram_mb or disk_gb is required.", "no_changes");
   }
 }
 
@@ -912,13 +920,13 @@ export function validateResizeTarget(
 export function validateRootDiskGrow(newSizeGb: unknown, currentGb?: unknown): void {
   checkRange(newSizeGb, "new_size_gb");
   if (newSizeGb === undefined || newSizeGb === null) {
-    vfail("new_size_gb is required.", "invalid_resize_target", "new_size_gb");
+    vfail("new_size_gb is required.", "invalid_new_size_gb", "new_size_gb");
   }
   const cur = Number(currentGb);
   if (Number.isFinite(cur) && cur > 0 && (newSizeGb as number) <= cur) {
     vfail(
       `new_size_gb must be larger than the current root disk (${cur} GB); shrinking is not supported.`,
-      "invalid_resize_target",
+      "root_disk_grow_only",
       "new_size_gb",
     );
   }
@@ -939,7 +947,7 @@ export function validateResizePlanChange(
   }
   const downgrade = (Number.isFinite(cpu) && target.cpu < cpu) || (Number.isFinite(ram) && target.ram_mb < ram);
   if (downgrade && target.confirm_downgrade !== true) {
-    vfail("This is a downgrade; set confirm_downgrade: true to continue.", "downgrade_not_confirmed", "confirm_downgrade");
+    vfail("This is a downgrade; set confirm_downgrade: true to continue.", "confirmation_required", "confirm_downgrade");
   }
 }
 
@@ -983,10 +991,10 @@ export const SNAPSHOT_MODES = ["root_only", "all_attached", "selective"] as cons
 
 /** Validate a snapshot create body; returns the body to send (without billing_catalog). */
 export function validateSnapshotCreate(req: Record<string, unknown>): Record<string, unknown> {
-  if (!isRec(req)) vfail("request must be an object.", "invalid_snapshot", "request");
+  if (!isRec(req)) vfail("request must be an object.", "invalid_request", "request");
   const name = typeof req.name === "string" ? req.name.trim() : "";
-  if (!name) vfail("Snapshot name is required.", "invalid_snapshot_name", "name");
-  if (name.length > 255) vfail("Snapshot name must be at most 255 characters.", "invalid_snapshot_name", "name");
+  if (!name) vfail("Snapshot name is required.", "invalid_name", "name");
+  if (name.length > 255) vfail("Snapshot name must be at most 255 characters.", "invalid_name", "name");
   let description: string | undefined;
   if (req.description !== undefined && req.description !== null) {
     description = String(req.description).trim() || undefined;
@@ -1002,14 +1010,14 @@ export function validateSnapshotCreate(req: Record<string, unknown>): Record<str
   if (mode === "selective" && ids.length === 0) {
     vfail(
       "Select at least one attached data volume for a selective snapshot.",
-      "invalid_snapshot_volumes",
+      "invalid_selected_data_volume_ids",
       "selected_data_volume_ids",
     );
   }
   if (mode !== "selective" && ids.length > 0) {
     vfail(
       "selected_data_volume_ids is only used with mode 'selective'.",
-      "invalid_snapshot_volumes",
+      "invalid_selected_data_volume_ids",
       "selected_data_volume_ids",
     );
   }
@@ -1063,7 +1071,7 @@ export function validateBackupSchedule(
   const s = { ...base, ...(schedule ?? {}) } as Record<string, unknown>;
   const frequency = String(s.frequency ?? "daily").toLowerCase();
   if (!(BACKUP_FREQUENCIES as readonly string[]).includes(frequency)) {
-    vfail("schedule.frequency must be 'daily' or 'weekly'.", "invalid_schedule", "schedule.frequency");
+    vfail("schedule.frequency must be 'daily' or 'weekly'.", "invalid_frequency", "frequency");
   }
   const hour = s.hour ?? 12;
   const minute = s.minute ?? 0;
@@ -1073,14 +1081,14 @@ export function validateBackupSchedule(
   validateIntRange(windowMinutes, "window_minutes", 5, 180);
   const timezone = String(s.timezone ?? "UTC").trim() || "UTC";
   if (timezone.length > 128 || !isValidTimeZone(timezone)) {
-    vfail(`schedule.timezone '${timezone}' is not a valid IANA time zone.`, "invalid_schedule", "schedule.timezone");
+    vfail(`schedule.timezone '${timezone}' is not a valid IANA time zone.`, "invalid_timezone", "timezone");
   }
   const out: Record<string, unknown> = { frequency, hour, minute, timezone, window_minutes: windowMinutes };
   if (frequency === "weekly") {
     const dow = s.day_of_week;
     if ((dow === undefined || dow === null) && opts.partial) return out;
     if (dow === undefined || dow === null) {
-      vfail("schedule.day_of_week (0 = Monday .. 6 = Sunday) is required for weekly backups.", "invalid_schedule", "schedule.day_of_week");
+      vfail("schedule.day_of_week (0 = Monday .. 6 = Sunday) is required for weekly backups.", "invalid_day_of_week", "day_of_week");
     }
     validateIntRange(dow, "day_of_week", 0, 6);
     out.day_of_week = dow;
@@ -1089,7 +1097,7 @@ export function validateBackupSchedule(
       // The saved frequency (maybe weekly) is not known yet: check the range only.
       validateIntRange(schedule.day_of_week, "day_of_week", 0, 6);
     } else {
-      vfail("schedule.day_of_week is only used with weekly backups.", "invalid_schedule", "schedule.day_of_week");
+      vfail("schedule.day_of_week is only used with weekly backups.", "invalid_day_of_week", "day_of_week");
     }
   }
   return out;
@@ -1134,7 +1142,7 @@ export function validateDetachConfirmation(req: { confirm_unmounted?: boolean; f
   if (req.confirm_unmounted !== true && req.force !== true) {
     vfail(
       "Confirm the volume is unmounted in the guest (confirm_unmounted: true) or pass force: true.",
-      "detach_not_confirmed",
+      "confirmation_required",
       "confirm_unmounted",
     );
   }
@@ -1329,11 +1337,11 @@ export function validateHostInSubnet(
   field = "private_ip",
 ): string {
   const address = trimStr(ip);
-  if (!address) vfail("Enter a private IPv4 address.", "invalid_private_ip", field);
+  if (!address) vfail("Enter a private IPv4 address.", `invalid_${field}`, field);
   const n = parseIpv4(address);
-  if (n === null) vfail("Enter a valid IPv4 address.", "invalid_private_ip", field);
+  if (n === null) vfail("Enter a valid IPv4 address.", `invalid_${field}`, field);
   const c = parseIpv4Cidr(subnetCidr);
-  if (!c) vfail("The selected subnet has an invalid CIDR.", "invalid_private_ip", field);
+  if (!c) vfail("The selected subnet has an invalid CIDR.", `invalid_${field}`, field);
   const { start, end } = c as ParsedIpv4Cidr;
   if ((n as number) < start || (n as number) > end) {
     vfail(`Address must be inside ${subnetCidr}.`, "address_outside_subnet", field);
@@ -1522,7 +1530,7 @@ export interface VpcCreateInput {
 export function buildVpcCreateBody(args: VpcCreateInput): Record<string, unknown> {
   const name = trimStr(args.name);
   const siteId = trimStr(args.siteId);
-  if (!name || !siteId) vfail("Name and location are required.", "invalid_vpc", !name ? "name" : "site_id");
+  if (!name || !siteId) vfail("Name and location are required.", !name ? "invalid_name" : "invalid_site_id", !name ? "name" : "site_id");
   if (name.length > 80) vfail("name must be 1-80 characters.", "invalid_name", "name");
   if (siteId.length > 120) vfail("site_id must be 120 characters or fewer.", "invalid_site_id", "site_id");
   const description = validateOptionalText(args.description, "description", 500);
@@ -1548,13 +1556,13 @@ export function buildVpcCreateBody(args: VpcCreateInput): Record<string, unknown
     cidr = validateVpcCidr(cidrRaw, "cidr");
     autoCidr = false;
   } else if (autoCidr === false) {
-    vfail("cidr is required when auto_cidr is false.", "invalid_cidr_mode", "cidr");
+    vfail("cidr is required when auto_cidr is false.", "cidr_required", "cidr");
   }
 
   let defaultSubnetCidr: string | undefined;
   if (args.defaultSubnetCidr !== undefined && args.defaultSubnetCidr !== null && trimStr(args.defaultSubnetCidr)) {
     if (args.createDefaultSubnet === false) {
-      vfail("default_subnet_cidr requires create_default_subnet=true.", "invalid_cidr_mode", "default_subnet_cidr");
+      vfail("default_subnet_cidr requires create_default_subnet=true.", "invalid_default_subnet_cidr", "default_subnet_cidr");
     }
     defaultSubnetCidr = validateVpcCidr(args.defaultSubnetCidr, "default_subnet_cidr");
     if (cidr && !cidrContains(cidr, defaultSubnetCidr)) {
@@ -1629,14 +1637,14 @@ export function buildSubnetCreateBody(
       prefixMessage: "Subnet must contain room for gateway and VM addresses (/29 or larger).",
     });
     if (args.prefixLength !== undefined && args.prefixLength !== null) {
-      vfail("prefix_length is only valid with automatic CIDR allocation.", "invalid_cidr_mode", "prefix_length");
+      vfail("prefix_length is only valid with automatic CIDR allocation.", "invalid_prefix_length", "prefix_length");
     }
     // As for VPCs (and in the Python SDK): an explicit CIDR with
     // autoCidr: true is contradictory and refused, not silently overridden.
     if (autoCidr === true) vfail("cidr requires auto_cidr=false.", "invalid_auto_cidr", "auto_cidr");
     autoCidr = false;
   } else if (autoCidr === false) {
-    vfail("cidr is required when auto_cidr is false.", "invalid_cidr_mode", "cidr");
+    vfail("cidr is required when auto_cidr is false.", "cidr_required", "cidr");
   }
   if (args.prefixLength !== undefined && args.prefixLength !== null) {
     validateIntRange(args.prefixLength, "prefix_length", 22, SUBNET_MAX_PREFIX);
@@ -1728,20 +1736,20 @@ export function validateNodeConnectivity(
   const type = normaliseVpcConnectivityType(vpc.connectivity_type);
   if (connectivity === "nat") {
     if (type !== "nat_gateway") {
-      vfail("NAT connectivity is available only in NAT Gateway VPCs.", "invalid_network", "connectivity");
+      vfail("NAT connectivity is available only in NAT Gateway VPCs.", "invalid_connectivity", "connectivity");
     }
     if (!(vpc.nat_gateways ?? []).some((g) => isAvailable(g.status))) {
-      vfail("This VPC has no available NAT gateway.", "invalid_network", "connectivity");
+      vfail("This VPC has no available NAT gateway.", "nat_gateway_unavailable", "connectivity");
     }
   }
   if (connectivity === "public_ip") {
     if (type === "nat_gateway") {
-      vfail("Dedicated public IPs are not available for nat_gateway VPCs.", "invalid_network", "connectivity");
+      vfail("Dedicated public IPs are not available for nat_gateway VPCs.", "invalid_connectivity", "connectivity");
     }
     if (type === "private" && !reservedPublicIpId) {
       vfail(
         "A public IP on a private VPC needs a Reserved IP (reservedPublicIpId).",
-        "invalid_network",
+        "reserved_ip_required",
         "reserved_public_ip_id",
       );
     }
@@ -1831,7 +1839,7 @@ function pfInternalIp(v: unknown): string {
 export function buildPortForwardingCreateBody(args: PortForwardingRuleInput): Record<string, unknown> {
   const name = trimStr(args.name);
   const internalIpRaw = trimStr(args.internalIp);
-  if (!name || !internalIpRaw) vfail("Rule name and internal IP are required.", "invalid_port_forwarding_rule", !name ? "name" : "internal_ip");
+  if (!name || !internalIpRaw) vfail("Rule name and internal IP are required.", "invalid_rule", !name ? "name" : "internal_ip");
   if (name.length > 80) vfail("name must be 80 characters or fewer.", "invalid_name", "name");
   const protocol = args.protocol === undefined || args.protocol === null ? "tcp" : pfProtocol(args.protocol);
   const externalPort = validatePort(args.externalPort, "external_port");
@@ -2422,7 +2430,7 @@ export function buildLoadBalancerBody(
   }
   if (layer === "l4") {
     if (args.customDomain !== undefined || args.rules !== undefined) {
-      vfail("custom_domain and rules are only supported for L7 load balancers.", "invalid_l4_field", args.rules !== undefined ? "rules" : "custom_domain");
+      vfail("custom_domain and rules are only supported for L7 load balancers.", args.rules !== undefined ? "invalid_rules" : "invalid_custom_domain", args.rules !== undefined ? "rules" : "custom_domain");
     }
   } else {
     if (args.rules !== undefined && args.rules !== null) body.rules = validateLbRules(args.rules);
@@ -2772,7 +2780,7 @@ export function validateNodeSafeDetach(req: { force?: unknown; confirm_unmounted
   if (req.force !== true && req.confirm_unmounted !== true && state !== "stopped" && state !== "suspended") {
     vfail(
       "Safe detach requires VM state or explicit unmount confirmation.",
-      "detach_not_confirmed",
+      "confirmation_required",
       "confirm_unmounted",
     );
   }
@@ -2789,13 +2797,13 @@ export function validateVolumeResize(
   if (!vol) return;
   const current = Number(vol.size_gb);
   if (Number.isFinite(current) && size < current) {
-    vfail("Shrink is not supported. Resize is increase-only.", "resize_shrink", "new_size_gb");
+    vfail("Shrink is not supported. Resize is increase-only.", "resize_shrink_not_supported", "new_size_gb");
   }
   const state = trimStr(req.vm_state);
   if (attachmentsOf(vol).length > 0 && req.allow_online !== true && state !== "stopped" && state !== "suspended") {
     vfail(
       "Attached volume resize requires vm_state=stopped/suspended or allow_online=true.",
-      "resize_attached",
+      "resize_requires_offline",
       "allow_online",
     );
   }
@@ -2854,7 +2862,7 @@ export function resolveObjectStorageRegion(region: unknown, baseUrl: string): st
     host = "";
   }
   const def = OBJECT_STORAGE_DEFAULT_REGIONS[host];
-  if (!def) vfail("region is required for this base URL", "region_required", "region");
+  if (!def) vfail("region is required for this base URL", "invalid_region", "region");
   return def;
 }
 
@@ -3095,7 +3103,7 @@ const splitList = (value: unknown, field: string): string[] => {
       ? value.split(/[,\n]/)
       : Array.isArray(value)
         ? value
-        : vfail(`${field} must be an array of strings.`, "invalid_purge_request", field);
+        : vfail(`${field} must be an array of strings.`, `invalid_${field}`, field);
   return (items as unknown[]).map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean);
 };
 
@@ -3114,26 +3122,26 @@ export function buildCdnPurgeBody(input: {
   tags?: unknown;
   prefixes?: unknown;
 }): Record<string, unknown> {
-  if (!isRec(input)) vfail("request must be an object.", "invalid_purge_request");
-  const mode = enumOf(input.mode, CDN_PURGE_MODES, "mode", "invalid_purge_request");
+  if (!isRec(input)) vfail("request must be an object.", "invalid_request", "request");
+  const mode = enumOf(input.mode, CDN_PURGE_MODES, "mode", "invalid_mode");
   const selector = PURGE_SELECTOR[mode];
   for (const key of ["paths", "hostnames", "tags", "prefixes"]) {
     if (key !== selector && input[key as keyof typeof input] !== undefined && input[key as keyof typeof input] !== null) {
-      vfail(`${key} cannot be used with mode '${mode}'.`, "invalid_purge_request", key);
+      vfail(`${key} cannot be used with mode '${mode}'.`, "invalid_purge_selector", key);
     }
   }
   if (!selector) return { mode };
   let values = splitList(input[selector as keyof typeof input], selector);
   const max = mode === "url" ? 30 : 100;
-  if (values.length === 0) vfail(`mode '${mode}' requires at least one entry in ${selector}.`, "invalid_purge_request", selector);
-  if (values.length > max) vfail(`${selector} accepts at most ${max} entries.`, "invalid_purge_request", selector);
+  if (values.length === 0) vfail(`mode '${mode}' requires at least one entry in ${selector}.`, `invalid_${selector}`, selector);
+  if (values.length > max) vfail(`${selector} accepts at most ${max} entries.`, `invalid_${selector}`, selector);
   if (mode === "url") {
     values = values.map((p) => {
       if (!p.includes("://")) return p.startsWith("/") ? p : `/${p}`;
-      if (!p.toLowerCase().startsWith("https://")) vfail("Absolute purge URLs must use https://.", "invalid_purge_request", "paths");
-      if (p.includes("#")) vfail("Purge URLs must not contain a fragment (#).", "invalid_purge_request", "paths");
+      if (!p.toLowerCase().startsWith("https://")) vfail("Absolute purge URLs must use https://.", "invalid_paths", "paths");
+      if (p.includes("#")) vfail("Purge URLs must not contain a fragment (#).", "invalid_paths", "paths");
       const authority = p.slice(p.indexOf("://") + 3).split("/")[0];
-      if (authority.includes("@")) vfail("Purge URLs must not contain credentials.", "invalid_purge_request", "paths");
+      if (authority.includes("@")) vfail("Purge URLs must not contain credentials.", "invalid_paths", "paths");
       return p;
     });
   } else if (mode === "hostname") {
@@ -3141,7 +3149,7 @@ export function buildCdnPurgeBody(input: {
   } else if (mode === "prefix") {
     for (const p of values) {
       if (p.includes("?") || p.includes("#")) {
-        vfail("Purge prefixes must not contain a query string or fragment.", "invalid_purge_request", "prefixes");
+        vfail("Purge prefixes must not contain a query string or fragment.", "invalid_prefixes", "prefixes");
       }
     }
   }

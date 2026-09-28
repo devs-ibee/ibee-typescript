@@ -139,9 +139,10 @@ export interface CreateSecretStoreArgs extends SecretStoreCallOptions {
   /**
    * On a name conflict: `"error"` (default) throws `ConflictError`;
    * `"return"` returns the existing store with that name or store key
-   * (archived stores included), as the portal does.
+   * (archived stores included), as the portal does. `"reuse"` is accepted
+   * as an alias of `"return"` (same as the Python SDK and the CLI).
    */
-  ifExists?: "error" | "return";
+  ifExists?: "error" | "return" | "reuse";
 }
 
 export interface ListSecretsArgs extends SecretStoreCallOptions {
@@ -257,7 +258,7 @@ export class SecretStoreResource {
     validateWorkspaceId(args.workspaceId, SERVICE);
     const name = normalizeStoreName(args.name, { creating: true });
     const description = normalizeStoreDescription(args.description);
-    const ifExists = args.ifExists ?? "error";
+    const ifExists = args.ifExists === "reuse" ? "return" : args.ifExists ?? "error";
     if (ifExists !== "error" && ifExists !== "return") {
       throw new IbeeValidationError("ifExists must be 'error' or 'return'.", "invalid_if_exists", "if_exists");
     }
@@ -458,11 +459,18 @@ export class SecretStoreResource {
     const seen = new Set<string>();
     const duplicates = new Set<string>();
     const secrets = args.secrets.map((item, i) => {
-      if (!item || typeof item !== "object") {
-        throw new IbeeValidationError(`secrets[${i}] must be an object.`, "invalid_batch_item", `secrets[${i}]`);
+      // An item error keeps its own code (for example invalid_secret_name)
+      // with field `secrets[i]`, as in the Python SDK.
+      const fields = item && typeof item === "object" ? item : ({} as Partial<BatchCreateSecretItem>);
+      let secretName: string;
+      let value: ReturnType<typeof normalizeSecretValue>;
+      try {
+        secretName = normalizeSecretName(fields.secret_name, "secret_name");
+        value = normalizeSecretValue(fields.value, { field: "value" });
+      } catch (err) {
+        if (!(err instanceof IbeeValidationError)) throw err;
+        throw new IbeeValidationError(`secrets[${i}]: ${err.message}`, err.code, `secrets[${i}]`, err.details);
       }
-      const secretName = normalizeSecretName(item.secret_name, `secrets[${i}].secret_name`);
-      const value = normalizeSecretValue(item.value, { field: `secrets[${i}].value` });
       if (seen.has(secretName)) duplicates.add(secretName);
       seen.add(secretName);
       return { secret_name: secretName, value };

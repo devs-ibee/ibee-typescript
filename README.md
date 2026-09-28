@@ -296,8 +296,9 @@ Pre-checks the portal runs:
 A pre-check that the token cannot perform (403 `insufficient_scope`, for
 example a token without `billing.read` or `secret-store.read`) is skipped with
 an `IbeeSecretStoreWarning` (`IbeeBillingWarning` for billing) and the request
-is sent; the API enforces the same rule. With `ifExists: "return"` a store
-lookup the token cannot perform keeps the original `ConflictError`.
+is sent; the API enforces the same rule. With `ifExists: "return"` (or its
+alias `"reuse"`) a store lookup the token cannot perform keeps the original
+`ConflictError`.
 
 `createSecretIdentity` always sends `token_policy_mode` (default `read_only`)
 and sends the Kubernetes fields only for `kubernetes` identities.
@@ -378,9 +379,97 @@ try {
 
 Errors raised by the SDK itself extend `IbeeError`: `IbeeValidationError`
 (input rejected before sending; has `code` and `field`),
-`OperationFailedError` and `OperationTimeoutError`. `isPaymentBlockError(err)`
-tells whether an error means a payment or wallet problem (a missing scope,
-`InsufficientScopeError`, never does).
+`OperationFailedError` and `OperationTimeoutError`.
+
+`isPaymentBlockError(err)` tells whether an error is a payment or wallet
+wall. It checks, in order: the billing error classes; a missing scope (never a
+payment wall); HTTP 402; a structured code or billing reason
+(`billing_denied`, `payment_required`, `insufficient_balance`,
+`insufficient_funds` or a billing denial reason such as
+`initial_topup_required`); and only when the error carries no code of its own,
+whole phrases in the server message ("insufficient balance", "payment
+required", "add a payment method", "top up"). The lists are exported as
+`PAYMENT_BLOCK_CODES` and `PAYMENT_BLOCK_PHRASES`.
+
+### Error codes
+
+Errors raised by the SDK itself extend `IbeeError` and carry a stable `code`.
+The Python and TypeScript SDKs raise the same codes for the same conditions.
+Unless the class column says otherwise the class is `IbeeValidationError`,
+raised before the request is sent, with `field` naming the argument.
+
+A code of the form `invalid_<field>` means the argument `<field>` (its
+snake_case API name) is missing, malformed, out of range, or not allowed with
+the other arguments, for example `invalid_workspace_id`, `invalid_limit`,
+`invalid_cidr`, `invalid_prefix_length`, `invalid_ssh_key_mode`,
+`invalid_target_mode`, `invalid_rules`. Other codes:
+
+| Code | Class | Meaning |
+| --- | --- | --- |
+| `ibee_error` | `IbeeError` | Base code; not raised on its own |
+| `operation_failed` | `OperationFailedError` | An awaited operation ended `failed`, `cancelled` or `timed_out` |
+| `operation_wait_timeout` | `OperationTimeoutError` | A wait (operation, volume, CDN custom domain) ran out of time |
+| `recovery_failed` | `RecoveryFailedError` | An awaited snapshot or backup run failed |
+| `recovery_restore_failed` | `RecoveryRestoreFailedError` | An awaited snapshot or backup restore failed |
+| `cdn_purge_failed` | `CdnPurgeFailedError` (TypeScript: `IbeeCdnPurgeError`) | The API accepted a CDN purge but reported it failed |
+| `nat_gateway_deleting` | `IbeeError` | The NAT gateway delete was accepted but the gateway is still listed; retry the VPC delete shortly |
+| `reserved_ip_target_unsupported` | `ReservedIpTargetUnsupportedError` | Reserved IP attach/move to a VM without a VPC attachment (404) |
+| `no_changes` | | An update carries no field, or the requested value equals the current one |
+| `confirmation_required` | | A confirmation flag is needed (`confirm_unmounted`/`force` on detach, `confirm_downgrade` on resize) |
+| `request_body_too_large` | | The request body exceeds the API limit |
+| `token_environment_mismatch` | | The token belongs to the other environment |
+| `invalid_base_url`, `invalid_environment`, `invalid_token` | | Client configuration is invalid |
+| `forbidden_field` | | A server-managed field was passed in a request object (TypeScript only) |
+| `invalid_request` | | The request argument is not an object (TypeScript only) |
+| `billing_catalog_required` | | A billing SKU object is required and cannot be resolved |
+| `invalid_billing_term`, `unsupported_billing_term` | | The billing term is unknown, or the plan does not offer it |
+| `windows_license_required`, `windows_license_not_allowed` | | Windows VMs need a licence SKU; other VMs must not send one |
+| `plan_not_found`, `plan_not_selectable`, `invalid_plan` | | The plan is not offered in the site, not selectable or unpriced, or incomplete |
+| `image_not_found`, `image_not_compatible` | | The image is not offered in the site, or not for this VM type |
+| `shape_mismatch` | | An explicit cpu, ram_mb, os or GPU value differs from the plan or image |
+| `duplicate_vm_names` | | VM names in one batch are not unique |
+| `invalid_vm_state` | | The VM's status does not allow the action |
+| `vm_not_linux` | | SSH key and password-login changes need a Linux VM |
+| `ssh_key_required` | | Password login cannot be turned off without an SSH key |
+| `console_not_supported` | | Console sessions are for cloud VMs only |
+| `invalid_resize_target` | | Pass either `plan_id` or explicit cpu/ram_mb/disk_gb |
+| `resize_not_in_place` | | The resize precheck did not return `in_place` |
+| `root_disk_grow_only` | | A root disk can only grow |
+| `vpc_required`, `subnet_required` | | The network choice needs a VPC or a subnet |
+| `vpc_unavailable`, `vpc_site_mismatch`, `subnet_mismatch`, `vpc_connectivity_mismatch` | | The VPC is not available, is in another site, does not own the subnet, or has the wrong connectivity type |
+| `reserved_ip_required` | | Public IP connectivity in a private VPC needs a Reserved IP |
+| `reserved_ip_billing_catalog_required`, `vm_site_unavailable` | | Keeping a VM's public IP needs the RESERVED-IP SKU and a known VM site |
+| `recovery_point_not_ready` | | The snapshot or backup has not succeeded, or the backup has no recovery point ID |
+| `backups_disabled` | | Backups are not enabled for the VM |
+| `backup_not_completed` | | Only a completed backup can be deleted |
+| `snapshot_busy` | | The snapshot is being restored |
+| `restore_disk_too_small` | | The restore target disk is smaller than the captured root disk |
+| `invalid_restore_plan` | | The restore target plan is not eligible |
+| `invalid_restore_request` | | A restore field is not used with the chosen `target_mode` |
+| `volume_not_in_recovery_point` | | `selected_volume_id` is not part of the snapshot or backup |
+| `volume_not_attached`, `volume_attached`, `volume_busy` | | The volume is not attached here, is already attached, or is busy |
+| `volume_unreadable` | | The volume could not be read to take its billing SKU |
+| `ambiguous_attachment`, `attachment_without_vm` | | The attachment to detach cannot be identified; pass `vm_id` or `node_name` |
+| `vm_type_mismatch`, `site_mismatch` | | The volume belongs to another VM type or site |
+| `resize_shrink_not_supported`, `resize_requires_offline` | | Volumes only grow; an attached volume needs a stopped VM or `allow_online` |
+| `unknown_site_id`, `site_unavailable` | | The site is unknown or not available |
+| `cidr_required` | | `auto_cidr=False` needs `cidr` |
+| `subnet_outside_vpc`, `subnet_overlap`, `subnet_quota_exceeded` | | The subnet is outside the VPC CIDR, overlaps another subnet, or exceeds 10 per VPC |
+| `address_outside_subnet`, `address_not_usable`, `address_is_gateway` | | The requested private IP is outside the subnet, a network/broadcast address, or the gateway |
+| `vpc_has_nodes`, `vpc_has_nat_gateway`, `vpc_has_virtual_ips` | | The VPC still has attached nodes, a NAT gateway, or virtual IPs |
+| `vpc_not_nat_gateway`, `nat_gateway_unavailable`, `nat_gateway_not_found` | | NAT needs a `nat_gateway` VPC with an available gateway; the gateway is not in the VPC |
+| `duplicate_external_port` | | The protocol and external port are already forwarded |
+| `virtual_ip_has_rules`, `virtual_ip_has_reserved_ip` | | Port-forwarding rules or a Reserved IP still use the virtual IP |
+| `reserved_ip_attached`, `reserved_ip_attached_to_service`, `reserved_ip_not_attached`, `reserved_ip_same_target` | | The Reserved IP is attached (to a NAT gateway or virtual IP), is not attached, or is already on that target |
+| `reserved_ip_not_movable`, `reserved_ip_converted_active`, `reserved_ip_not_user_reserved`, `reserved_ip_unavailable`, `reserved_ip_site_mismatch` | | The Reserved IP cannot be used this way |
+| `duplicate_name` | | A firewall group with this name exists |
+| `system_managed_rule` | | System-managed firewall rules cannot be changed |
+| `firewall_attach_unsupported` | | The VM's network cannot take firewall groups |
+| `bucket_not_empty`, `bucket_object_lock` | | Delete the objects first; Object Lock buckets cannot be deleted |
+| `origin_not_public` | | Only public buckets can be CDN origins |
+| `auth_method_mismatch`, `identity_disabled` | | Secret-ID rotation needs an enabled AppRole identity |
+| `scope_already_exists`, `scope_permission_denied`, `store_not_active`, `store_not_found` | | The identity scope cannot be granted |
+| `rollback_to_current`, `unknown_version`, `version_destroyed` | | The rollback target is not a restorable older version |
 
 ## Retries and idempotency
 
@@ -466,7 +555,9 @@ Other VM rules:
   the VM by default: the VM must be a running Linux VM, password login can be
   disabled only while a key remains, removing the last key needs
   `confirm_remove_last_ssh_key`, and `admin_username` defaults to the VM's.
-  `checkState: false` skips the read.
+  `checkState: false` skips the read (a 403 on it is not skipped).
+  `ssh_key_secret_refs` entries need `ssh_key_id` or `secret_name` (the API
+  fills the other); `store_key` defaults to `ssh-keys`.
 - **`checkState: true`:** applies the portal's state matrix (start only when
   stopped, stop/reboot only when running).
 - **`attachVolume`:** reads the volume first and uses its Block Storage SKU.
@@ -498,8 +589,13 @@ returned on an existing snapshot set or backup run.
 - **`deleteSnapshot({ checkState: true })`** refuses a running or restoring
   snapshot. `createSnapshot({ wait })` and `waitForSnapshot` accept
   `succeeded` or `available` and fail fast with `RecoveryFailedError`.
-- **`restoreBackup`** accepts a run ID or a recovery point ID and sends the
-  run's `recovery_point_id`.
+- **`restoreBackup`** accepts a run ID or a recovery point ID. It always reads
+  the run (also with `checkState: false`), requires it to have succeeded, and
+  sends the recovery point ID resolved like the portal: the run's
+  `recovery_point_id`, then `metadata.recovery_point_id` /
+  `metadata.recoveryPointId`, then the `/recovery-points/<id>` segment of
+  `r2_prefix`, `metadata.r2_manifest_key` or `metadata.r2_prefix`
+  (`resolveBackupRecoveryPointId`).
 
 ```ts
 const restore = await client.cloudVms.restoreSnapshot({
@@ -524,8 +620,10 @@ For `new_vm` restores the SDK fills in the rest:
 
 `volume_only` needs `selected_volume_id`.
 
-Two methods are not yet part of the published API contract:
-`listAllBackupRuns` (workspace-wide) and `deleteBackupRun`.
+Two methods, `listAllBackupRuns` (workspace-wide) and `deleteBackupRun`, need
+the backend release that provides them: currently available on the
+development environment; production returns 404/405 until then. They are not
+yet part of the published API contract; behaviour may change.
 
 ## Networking
 
@@ -550,12 +648,16 @@ and `invalid_auto_cidr`.
 - `vpcs.createSubnet` reads the VPC (`checkVpc`, default true). The CIDR must
   be a sub-range of the VPC that does not overlap other subnets, and a VPC
   holds at most 10 subnets.
-- `vpcs.delete` reads the VPC first by default, like the portal's delete
-  dialog: attached nodes block the delete, and so does a NAT gateway unless
-  `deleteNatGateway: true` (it is deleted first and the SDK waits for it to
-  go; `natIpAction` and `natBillingCatalog` are passed to it).
-  `checkDependencies: true` also refuses while virtual IPs exist;
-  `checkDependencies: false` skips the read.
+- `vpcs.delete` runs the dependency checks the API also enforces, by default
+  and whenever `deleteNatGateway` is set: attached nodes (`vpc_has_nodes`), a
+  NAT gateway unless `deleteNatGateway: true` (`vpc_has_nat_gateway`), then
+  virtual IPs (`vpc_has_virtual_ips`). Only then is the NAT gateway deleted
+  (`natIpAction` and `natBillingCatalog` are passed to it) and the SDK waits
+  for it to go; if it is still listed, `IbeeError` with code
+  `nat_gateway_deleting` is thrown (retry shortly). Without `network.read`
+  (403) the default checks are skipped; `checkDependencies: true` re-throws
+  the 403, and `checkDependencies: false` without `deleteNatGateway` sends a
+  plain DELETE.
 - An explicit subnet `cidr` with `autoCidr: true` is refused
   (`invalid_auto_cidr`), as for VPCs.
 
@@ -627,7 +729,10 @@ price entry you already have. Without a catalog the SDK emits an
   `portStart`. Remote targets must be IPv4 and are normalised, so a bare IP
   becomes `/32`.
 - System-managed rules are refused on update and delete.
-- `listGroupSummaries` / `iterateGroupSummaries` return the portal list view.
+- `listGroupSummaries` returns the portal list view (rule and VM counts);
+  without `limit`/`offset` it fetches every page, like `listGroups`.
+  `iterateGroupSummaries` and `listAllGroupSummaries` page through all of
+  them (`pageSize` 1..100, default 100).
 
 **Load balancers**
 
@@ -728,7 +833,8 @@ const key = await client.objectStorage.createS3Credential({
 **CDN**
 
 - `createDistribution` needs a public origin bucket
-  (`checkOriginPublic: true` checks it first). Creating again for the same
+  (`checkOriginPublic: true` checks it first; the check is skipped when the
+  bucket cannot be read by that name, 404, or by this token, 403). Creating again for the same
   bucket returns the existing distribution.
 - `purgeCache` throws `IbeeCdnPurgeError` when the CDN reports
   `success: false`:

@@ -144,11 +144,11 @@ test("create applies MONTHLY terms, rejects unsupported terms and unavailable pl
     return true;
   });
   await assert.rejects(client.cloudVms.create({ ...base, billing_term: "WEEKLY" }), isValidation("invalid_billing_term"));
-  await assert.rejects(client.cloudVms.create({ ...base, cpu: 4 }), isValidation("catalog_mismatch"));
-  await assert.rejects(client.cloudVms.create({ ...base, plan_id: "nope" }), isValidation("invalid_plan"));
-  await assert.rejects(client.cloudVms.create({ ...base, template_id: "nope" }), isValidation("invalid_template"));
+  await assert.rejects(client.cloudVms.create({ ...base, cpu: 4 }), isValidation("shape_mismatch"));
+  await assert.rejects(client.cloudVms.create({ ...base, plan_id: "nope" }), isValidation("plan_not_found"));
+  await assert.rejects(client.cloudVms.create({ ...base, template_id: "nope" }), isValidation("image_not_found"));
   const unpriced = router([...catalogRoutes([{ ...PLAN, pricing_status: "unpriced" }])]);
-  await assert.rejects(unpriced.client.cloudVms.create(base), isValidation("invalid_plan"));
+  await assert.rejects(unpriced.client.cloudVms.create(base), isValidation("plan_not_selectable"));
 });
 
 test("create validates names, SSH keys, firewall groups and network fields before any request", async () => {
@@ -157,14 +157,16 @@ test("create validates names, SSH keys, firewall groups and network fields befor
   const bad = [
     [{ name: "web server" }, "invalid_vm_name"],
     [{ name: "  " }, "invalid_vm_name"],
-    [{ site_id: undefined }, "site_required"],
+    [{ site_id: undefined }, "invalid_site_id"],
     [{ ssh_keys: ["-----BEGIN OPENSSH PRIVATE KEY-----"] }, "invalid_ssh_key"],
     [{ ssh_keys: ["ssh-dss AAAA"] }, "invalid_ssh_key"],
     [{ ssh_keys: ["ssh-rsa AAAA\nssh-rsa BBBB"] }, "invalid_ssh_key"],
     [{ firewall_group_ids: ["a", "b"] }, "invalid_firewall_group_ids"],
-    [{ vpc_id: "vpc-1" }, "invalid_network"],
-    [{ network_connectivity: "nat" }, "invalid_network"],
-    [{ vpc_id: "v", subnet_id: "s", reserved_public_ip_id: "r" }, "invalid_network"],
+    [{ vpc_id: "vpc-1" }, "subnet_required"],
+    [{ subnet_id: "s" }, "vpc_required"],
+    [{ network_connectivity: "nat" }, "vpc_required"],
+    [{ vpc_id: "v", subnet_id: "s", network_connectivity: "wifi" }, "invalid_network_connectivity"],
+    [{ vpc_id: "v", subnet_id: "s", reserved_public_ip_id: "r" }, "invalid_network_connectivity"],
     [{ os_type: "windows" }, "windows_license_required"],
   ];
   for (const [patch, code] of bad) {
@@ -192,7 +194,7 @@ test("Windows create attaches the licence priced for the term with quantity = vC
   const linux = router([...catalogRoutes(), ["POST", /^\/compute\/cloud-vms$/, ACCEPTED]]);
   await assert.rejects(
     linux.client.cloudVms.create({ ...base, template_id: "ubuntu-24", windows_license: WIN_LICENSE }),
-    isValidation("invalid_billing_catalog"),
+    isValidation("windows_license_not_allowed"),
   );
 });
 
@@ -206,7 +208,7 @@ test("GPU create takes gpu_count/gpu_model from the plan and sends the plan SKU 
   assert.equal(body.gpu_model, "A100");
   assert.equal(body.disk_gb, 200);
   assert.equal(body.billing_catalog.billing_interval, undefined);
-  await assert.rejects(client.gpuVms.create({ ...base, gpu_model: "H100" }), isValidation("catalog_mismatch"));
+  await assert.rejects(client.gpuVms.create({ ...base, gpu_model: "H100" }), isValidation("shape_mismatch"));
   await client.gpuVms.create({ ...base, billing_term: "HOURLY" });
   assert.equal(calls.at(-1).body.billing_catalog.billing_interval, "HOURLY");
 });
@@ -226,12 +228,12 @@ test("VPC placement: NAT only in NAT VPCs, Reserved IP SKU attached, primary att
   ];
   const { calls, client } = router(routes);
   const base = { workspaceId: WS, name: "web", site_id: "site-1", plan_id: "plan-1", template_id: "ubuntu-24", subnet_id: "sub-1" };
-  await assert.rejects(client.cloudVms.create({ ...base, vpc_id: "vpc-pub", network_connectivity: "nat" }), isValidation("invalid_network"));
-  await assert.rejects(client.cloudVms.create({ ...base, vpc_id: "vpc-nat", network_connectivity: "public_ip" }), isValidation("invalid_network"));
-  await assert.rejects(client.cloudVms.create({ ...base, vpc_id: "vpc-priv", network_connectivity: "public_ip" }), isValidation("invalid_network"));
+  await assert.rejects(client.cloudVms.create({ ...base, vpc_id: "vpc-pub", network_connectivity: "nat" }), isValidation("vpc_connectivity_mismatch"));
+  await assert.rejects(client.cloudVms.create({ ...base, vpc_id: "vpc-nat", network_connectivity: "public_ip" }), isValidation("vpc_connectivity_mismatch"));
+  await assert.rejects(client.cloudVms.create({ ...base, vpc_id: "vpc-priv", network_connectivity: "public_ip" }), isValidation("reserved_ip_required"));
   await assert.rejects(
     client.cloudVms.create({ ...base, vpc_id: "vpc-priv", network_connectivity: "public_ip", reserved_public_ip_id: "rip-used" }),
-    isValidation("invalid_network"),
+    isValidation("reserved_ip_attached"),
   );
   await client.cloudVms.create({ ...base, vpc_id: "vpc-priv", network_connectivity: "public_ip", reserved_public_ip_id: "rip-free" });
   const body = calls.at(-1).body;
@@ -308,7 +310,7 @@ test("delete asks for the public IP choice like the portal (default release)", a
   ]);
   await client.cloudVms.delete({ workspaceId: WS, vmId: VM1 });
   assert.deepEqual(calls.at(-1).body, { public_ip_action: "release" });
-  await assert.rejects(client.cloudVms.delete({ workspaceId: WS, vmId: VM1, publicIpAction: "reserve" }), isValidation("invalid_reserved_ip_billing_catalog"));
+  await assert.rejects(client.cloudVms.delete({ workspaceId: WS, vmId: VM1, publicIpAction: "reserve" }), isValidation("reserved_ip_billing_catalog_required"));
   await client.cloudVms.delete({
     workspaceId: WS, vmId: VM1, publicIpAction: "reserve", preflightBilling: true,
     reservedIpBillingCatalog: { sku_id: 9, sku_code: "rip-std" },
@@ -327,7 +329,7 @@ test("delete asks for the public IP choice like the portal (default release)", a
     isValidation("invalid_public_ip_action"),
   );
   vm = { ...vm, status: "deleting" };
-  await assert.rejects(client.cloudVms.delete({ workspaceId: WS, vmId: VM1 }), isValidation("vm_state_conflict"));
+  await assert.rejects(client.cloudVms.delete({ workspaceId: WS, vmId: VM1 }), isValidation("invalid_vm_state"));
   assert.deepEqual(
     resolveDeletePublicIpAction({ public_ip: " " }, {}),
     undefined,
@@ -341,7 +343,7 @@ test("checkState applies the portal state matrix", async () => {
     ["GET", new RegExp(`^/compute/cloud-vms/${VM1}$`), { _id: VM1, status: "running", os_type: "linux" }],
     ["POST", /\/actions\//, ACCEPTED],
   ]);
-  await assert.rejects(client.cloudVms.start({ workspaceId: WS, vmId: VM1, checkState: true }), isValidation("vm_state_conflict"));
+  await assert.rejects(client.cloudVms.start({ workspaceId: WS, vmId: VM1, checkState: true }), isValidation("invalid_vm_state"));
   await client.cloudVms.stop({ workspaceId: WS, vmId: VM1, checkState: true });
   assert.equal(calls.filter((c) => c.method === "POST").length, 1);
 });
@@ -353,23 +355,28 @@ test("updateAccess applies the API and portal access rules", async () => {
     ["PATCH", /\/actions\/access$/, ACCEPTED],
   ]);
   const call = (request, extra = {}) => client.cloudVms.updateAccess({ workspaceId: WS, vmId: VM1, request, ...extra });
-  await assert.rejects(call({}), isValidation("invalid_access_update"));
-  await assert.rejects(call({ ssh_key_mode: "add" }), isValidation("invalid_access_update"));
-  await assert.rejects(call({ ssh_keys: [SSH] }), isValidation("invalid_access_update"));
+  await assert.rejects(call({}), isValidation("no_changes"));
+  await assert.rejects(call("nope"), isValidation("invalid_request"));
+  await assert.rejects(call({ ssh_key_mode: "add" }), isValidation("invalid_ssh_key_mode"));
+  await assert.rejects(call({ ssh_key_mode: "swap", ssh_keys: [SSH] }), isValidation("invalid_ssh_key_mode"));
+  await assert.rejects(call({ ssh_keys: [SSH] }), isValidation("invalid_ssh_key_mode"));
+  await assert.rejects(call({ ssh_key_mode: "add", ssh_key_secret_refs: {} }), isValidation("invalid_ssh_key_secret_refs"));
+  await assert.rejects(call({ ssh_key_mode: "add", ssh_key_secret_refs: [{ store_key: "ssh-keys" }] }), isValidation("invalid_ssh_key_secret_refs"));
+  await assert.rejects(call({ password_auth_enabled: "no" }), isValidation("invalid_password_auth_enabled"));
   await assert.rejects(call({ new_password: " short " }), isValidation("invalid_password"));
   await assert.rejects(call({ new_password: "long enough\npassword" }), isValidation("invalid_password"));
   await assert.rejects(call({ ssh_key_mode: "add", ssh_keys: ["not-a-key"] }), isValidation("invalid_ssh_key"));
   assert.equal(calls.length, 0);
-  await assert.rejects(call({ ssh_key_mode: "remove", ssh_keys: [SSH] }, { checkState: true }), isValidation("invalid_access_update"));
+  await assert.rejects(call({ ssh_key_mode: "remove", ssh_keys: [SSH] }, { checkState: true }), isValidation("confirmation_required"));
   await call({ ssh_key_mode: "remove", ssh_keys: [SSH], confirm_remove_last_ssh_key: true }, { checkState: true });
   await call({ new_password: "  s3cret-pass  " }, { checkState: true });
   assert.deepEqual(calls.at(-1).body, { new_password: "s3cret-pass", admin_username: "ubuntu" });
   vm = { ...vm, ssh_keys: [] };
-  await assert.rejects(call({ password_auth_enabled: false }, { checkState: true }), isValidation("invalid_access_update"));
+  await assert.rejects(call({ password_auth_enabled: false }, { checkState: true }), isValidation("ssh_key_required"));
   vm = { ...vm, os_type: "windows" };
-  await assert.rejects(call({ new_password: "long-enough" }, { checkState: true }), isValidation("vm_os_unsupported"));
+  await assert.rejects(call({ new_password: "long-enough" }, { checkState: true }), isValidation("vm_not_linux"));
   vm = { ...vm, os_type: "linux", status: "stopped" };
-  await assert.rejects(call({ new_password: "long-enough" }, { checkState: true }), isValidation("vm_state_conflict"));
+  await assert.rejects(call({ new_password: "long-enough" }, { checkState: true }), isValidation("invalid_vm_state"));
 });
 
 // ---------------------------------------------------------------- resize
@@ -402,9 +409,9 @@ test("resize to a plan: SKU for the term, Windows licence carried over, precheck
     return true;
   });
   await assert.rejects(client.cloudVms.resize({ workspaceId: WS, vmId: VM1, request: { plan_id: "plan-4", cpu: 4 } }), isValidation("invalid_resize_target"));
-  await assert.rejects(client.cloudVms.resize({ workspaceId: WS, vmId: VM1, request: {} }), isValidation("invalid_resize_target"));
-  await assert.rejects(client.cloudVms.precheckResize({ workspaceId: WS, vmId: VM1, request: { cpu: 300 } }), isValidation("invalid_resize_target"));
-  await assert.rejects(client.cloudVms.resize({ workspaceId: WS, vmId: VM1, request: { cpu: 2, billing_term: "MONTHLY" } }), isValidation("invalid_resize_target"));
+  await assert.rejects(client.cloudVms.resize({ workspaceId: WS, vmId: VM1, request: {} }), isValidation("no_changes"));
+  await assert.rejects(client.cloudVms.precheckResize({ workspaceId: WS, vmId: VM1, request: { cpu: 300 } }), isValidation("invalid_cpu"));
+  await assert.rejects(client.cloudVms.resize({ workspaceId: WS, vmId: VM1, request: { cpu: 2, billing_term: "MONTHLY" } }), isValidation("invalid_billing_term"));
 });
 
 test("resizePlan rejects no-op and unconfirmed downgrades; resizeRootDisk is grow-only", async () => {
@@ -414,14 +421,14 @@ test("resizePlan rejects no-op and unconfirmed downgrades; resizeRootDisk is gro
   ]);
   const plan = (request) => client.cloudVms.resizePlan({ workspaceId: WS, vmId: VM1, request });
   await assert.rejects(plan({ cpu: 4, ram_mb: 8192 }), isValidation("no_changes"));
-  await assert.rejects(plan({ cpu: 2, ram_mb: 8192 }), isValidation("downgrade_not_confirmed"));
-  await assert.rejects(plan({ cpu: 2, ram_mb: 256 }), isValidation("invalid_resize_target"));
+  await assert.rejects(plan({ cpu: 2, ram_mb: 8192 }), isValidation("confirmation_required"));
+  await assert.rejects(plan({ cpu: 2, ram_mb: 256 }), isValidation("invalid_ram_mb"));
   await plan({ cpu: 2, ram_mb: 8192, confirm_downgrade: true });
   await plan({ cpu: 8, ram_mb: 16384 });
   const disk = (n) => client.cloudVms.resizeRootDisk({ workspaceId: WS, vmId: VM1, request: { new_size_gb: n } });
-  await assert.rejects(disk(80), isValidation("invalid_resize_target"));
-  await assert.rejects(disk(40), isValidation("invalid_resize_target"));
-  await assert.rejects(disk(10001), isValidation("invalid_resize_target"));
+  await assert.rejects(disk(80), isValidation("root_disk_grow_only"));
+  await assert.rejects(disk(40), isValidation("root_disk_grow_only"));
+  await assert.rejects(disk(10001), isValidation("invalid_new_size_gb"));
   await disk(120);
   assert.equal(calls.filter((c) => c.method === "PATCH").length, 3);
 });
@@ -481,7 +488,7 @@ test("attachVolume resolves the Block Storage SKU and checks the volume like the
   await assert.rejects(attach(), isValidation("invalid_billing_catalog"));
   await assert.rejects(
     client.cloudVms.attachVolume({ workspaceId: WS, vmId: VM1, request: { volume_id: "64b0000000000000000000b1", mode: "rw" } }),
-    isValidation("invalid_attach"),
+    isValidation("invalid_attach_mode"),
   );
 });
 
@@ -489,7 +496,7 @@ test("detachVolume requires confirm_unmounted or force", async () => {
   const { calls, client } = router([["POST", /\/actions\/detach-volume$/, ACCEPTED]]);
   await assert.rejects(
     client.cloudVms.detachVolume({ workspaceId: WS, vmId: VM1, request: { volume_id: "64b0000000000000000000b1" } }),
-    isValidation("detach_not_confirmed"),
+    isValidation("confirmation_required"),
   );
   await client.cloudVms.detachVolume({ workspaceId: WS, vmId: VM1, request: { volume_id: "64b0000000000000000000b1", force: true } });
   assert.equal(calls.length, 1);
@@ -506,9 +513,9 @@ test("createSnapshot requires the snapshot SKU and the portal mode rules", async
   await assert.rejects(snap({ name: "s" }), isValidation("billing_catalog_required"));
   await assert.rejects(snap({ name: "s", billing_catalog: BACKUP_SKU }), isValidation("invalid_billing_catalog"));
   await assert.rejects(snap({ name: "s", billing_catalog: { sku_id: 1, sku_code: "ROOTDISK-50" } }), isValidation("invalid_billing_catalog"));
-  await assert.rejects(snap({ name: " ", billing_catalog: SNAP_SKU }), isValidation("invalid_snapshot_name"));
-  await assert.rejects(snap({ name: "s", mode: "selective", billing_catalog: SNAP_SKU }), isValidation("invalid_snapshot_volumes"));
-  await assert.rejects(snap({ name: "s", mode: "root_only", selected_data_volume_ids: ["v"], billing_catalog: SNAP_SKU }), isValidation("invalid_snapshot_volumes"));
+  await assert.rejects(snap({ name: " ", billing_catalog: SNAP_SKU }), isValidation("invalid_name"));
+  await assert.rejects(snap({ name: "s", mode: "selective", billing_catalog: SNAP_SKU }), isValidation("invalid_selected_data_volume_ids"));
+  await assert.rejects(snap({ name: "s", mode: "root_only", selected_data_volume_ids: ["v"], billing_catalog: SNAP_SKU }), isValidation("invalid_selected_data_volume_ids"));
   assert.equal(calls.length, 0);
 });
 
@@ -603,20 +610,22 @@ test("restoreSnapshot new_vm resolves the plan, default names and minimum disk",
   const natBefore = calls.length;
   await assert.rejects(
     restore({ target_mode: "new_vm", vpc_id: "vpc-1", subnet_id: "sub-1", network_connectivity: "nat" }),
-    isValidation("invalid_network"),
+    isValidation("vpc_connectivity_mismatch"),
   );
   await assert.rejects(
     restore({ target_mode: "new_vm", vpc_id: "vpc-nat", subnet_id: "sub-1", network_connectivity: "public_ip" }),
-    isValidation("invalid_network"),
+    isValidation("vpc_connectivity_mismatch"),
   );
   assert.equal(calls.slice(natBefore).some((c) => c.method === "POST"), false);
   // A dedicated public IP on a private VPC needs no Reserved IP for a restore.
   await restore({ target_mode: "new_vm", vpc_id: "vpc-1", subnet_id: "sub-1", network_connectivity: "public_ip" });
   assert.equal(calls.at(-1).body.network_connectivity, "public_ip");
   await assert.rejects(restore({ target_mode: "new_vm", target_volume_names: { nope: "x" } }), isValidation("invalid_target_volume_names"));
-  await assert.rejects(restore({ target_mode: "volume_only" }), isValidation("invalid_restore"));
-  await assert.rejects(restore({ target_vm_name: "x" }), isValidation("invalid_restore"));
-  await assert.rejects(restore({ target_mode: "new_vm", network_connectivity: "nat" }), isValidation("invalid_network"));
+  await assert.rejects(restore({ target_mode: "volume_only" }), isValidation("invalid_selected_volume_id"));
+  await assert.rejects(restore({ target_mode: "copy" }), isValidation("invalid_target_mode"));
+  await assert.rejects(restore({ target_vm_name: "x" }), isValidation("invalid_restore_request"));
+  await assert.rejects(restore({ target_mode: "new_vm", target_vm_name: " " }), isValidation("invalid_target_vm_name"));
+  await assert.rejects(restore({ target_mode: "new_vm", network_connectivity: "nat" }), isValidation("vpc_required"));
   await restore({ target_mode: "volume_only", selected_volume_id: "data-1" });
   assert.deepEqual(calls.at(-1).body, { target_mode: "volume_only", selected_volume_id: "data-1", auto_start: true });
   await assert.rejects(restore({ target_mode: "replace" }, { wait: { pollIntervalMs: 1000 } }), (err) => {
@@ -640,7 +649,7 @@ test("restoreBackup needs a succeeded recovery point and rejects snapshot-only f
   const restore = (request) => client.cloudVms.restoreBackup({ workspaceId: WS, vmId: VM1, request: { recovery_point_id: "rp-1", ...request } });
   await assert.rejects(restore({}), isValidation("recovery_point_not_ready"));
   status = "succeeded";
-  await assert.rejects(restore({ target_mode: "new_vm", vpc_id: "v" }), isValidation("invalid_restore"));
+  await assert.rejects(restore({ target_mode: "new_vm", vpc_id: "v" }), isValidation("invalid_restore_request"));
   await restore({ target_mode: "new_vm", auto_start: true });
   const body = calls.at(-1).body;
   assert.equal(body.target_vm_name, "db-backup-restored-20260902");
@@ -669,9 +678,10 @@ test("enableBackups: SKU required, portal defaults, re-enable reuses saved value
   const enable = (request) => client.cloudVms.enableBackups({ workspaceId: WS, vmId: VM1, request });
   await assert.rejects(enable({}), isValidation("billing_catalog_required"));
   await assert.rejects(enable({ billing_catalog: SNAP_SKU }), isValidation("invalid_billing_catalog"));
-  await assert.rejects(enable({ billing_catalog: BACKUP_SKU, schedule: { frequency: "hourly" } }), isValidation("invalid_schedule"));
-  await assert.rejects(enable({ billing_catalog: BACKUP_SKU, schedule: { frequency: "weekly" } }), isValidation("invalid_schedule"));
-  await assert.rejects(enable({ billing_catalog: BACKUP_SKU, schedule: { timezone: "Mars/Olympus" } }), isValidation("invalid_schedule"));
+  await assert.rejects(enable({ billing_catalog: BACKUP_SKU, schedule: { frequency: "hourly" } }), isValidation("invalid_frequency"));
+  await assert.rejects(enable({ billing_catalog: BACKUP_SKU, schedule: { frequency: "weekly" } }), isValidation("invalid_day_of_week"));
+  await assert.rejects(enable({ billing_catalog: BACKUP_SKU, schedule: { timezone: "Mars/Olympus" } }), isValidation("invalid_timezone"));
+  await assert.rejects(enable({ billing_catalog: BACKUP_SKU, schedule: "daily" }), isValidation("invalid_schedule"));
   await assert.rejects(enable({ billing_catalog: BACKUP_SKU, retention_days: 400 }), isValidation("invalid_retention_days"));
   await enable({ billing_catalog: BACKUP_SKU });
   assert.deepEqual(calls.at(-1).body, {

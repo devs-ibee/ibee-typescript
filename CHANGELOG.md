@@ -40,6 +40,17 @@
   `isRetrySafe`, `retryDelayMs`, `paginateOffset`, `paginatePages`,
   `pollUntil`, `resolveBaseUrl`, `checkTokenEnvironment`,
   `environmentFromName` and the validators in `validation`.
+  `isPaymentBlockError` applies the same rules as the Python SDK: billing
+  error classes, then HTTP 402, then a structured code or billing reason
+  (`PAYMENT_BLOCK_CODES`); the server message is checked for whole phrases
+  (`PAYMENT_BLOCK_PHRASES`, such as "insufficient balance" or "top up") only
+  when the error has no code of its own, and a missing scope is never a
+  payment wall.
+- A canonical table of the SDK-raised error codes (shared with the Python
+  SDK) in the README. Input errors are `invalid_<field>` with `field` naming
+  the argument; the other codes (for example `no_changes`,
+  `confirmation_required`, `invalid_vm_state`, `shape_mismatch`,
+  `vpc_required`, `reserved_ip_required`) are the same in both SDKs.
 - Block-volume writes accept `idempotencyKey`.
 - `IbeeEnvironment.PRODUCTION` (same value as `DEFAULT`) and `VERSION`.
 
@@ -68,7 +79,9 @@
     snapshot creates and manual backup runs;
   - `getBackupPolicyOrNull`;
   - `listBackupRuns({ restorableOnly })`;
-  - `listAllBackupRuns` and `deleteBackupRun`. These two are not yet part of
+  - `listAllBackupRuns` and `deleteBackupRun`. These two need the backend
+    release that provides them (available on the development environment
+    today; production answers 404/405 until then) and are not yet part of
     the published API contract.
 
   Snapshot restores accept `vpc_id`, `subnet_id`, `network_connectivity` and
@@ -77,7 +90,9 @@
 - `billing_catalog` on snapshot create, backup enable/update, manual backup
   run and VM attach-volume requests.
 - Errors: `ResizeBlockedError` (409 with a precheck decision),
-  `RecoveryFailedError` and `RecoveryRestoreFailedError`.
+  `RecoveryFailedError` (code `recovery_failed`) and
+  `RecoveryRestoreFailedError` (code `recovery_restore_failed`, still an
+  instance of `RecoveryFailedError`).
   `IbeeValidationError` now has `details`.
 - Helpers:
   - billing catalog: `validateBillingCatalog`, `selectBillingOption`,
@@ -87,7 +102,8 @@
     `assertVmActionAllowed`, `expandBatchNames`, `validateSshPublicKey`;
   - backups: `validateBackupSchedule`;
   - restores: `recoveryDefaultVmName`, `recoveryTargetVolumeNames`,
-    `recoveryMinRootDiskGb`, `restoreTargetFromPlan`;
+    `recoveryMinRootDiskGb`, `restoreTargetFromPlan`,
+    `resolveBackupRecoveryPointId`;
   - the VM and recovery validators in `validation`.
 
 - **Networking, portal parity.** New methods:
@@ -96,8 +112,10 @@
   - `vpcs.listVirtualIps`, `getVirtualIp`, `createVirtualIp` and
     `deleteVirtualIp`;
   - `reservedIps.convert` and `reservedIps.attachVirtualIp`;
-  - `firewalls.listGroupSummaries`, `iterateGroupSummaries` and
-    `listAllGroups`.
+  - `firewalls.listGroupSummaries` (every page when `limit`/`offset` are
+    omitted, like the Python SDK's `list_firewall_group_summaries`),
+    `iterateGroupSummaries` and `listAllGroupSummaries` (`pageSize` 1..100),
+    and `listAllGroups`.
 
   Of these, the NAT public-IP swap, the virtual-IP methods, convert,
   attach-virtual-IP and group summaries are not yet part of the published
@@ -171,12 +189,15 @@
     CDN without a SKU, CUSTOMDO-STD with 19 900 minor units, as the portal
     checks);
   - `cdn.createDistribution({ checkOriginPublic: true })` refuses a private
-    origin bucket before creating;
+    origin bucket before creating (a 404 or 403 on the bucket read skips the
+    check);
   - `cdn.listCachePolicies` and `cdn.getDistributionMetrics({ range })`
     (`24h`, `7d`, `30d`). Not yet part of the published API contract;
     behaviour may change;
   - `cdn.waitForCustomDomain`: calls verify every 15 s until `active` or
-    `failed` (up to 10 min), else `CdnDomainVerificationTimeoutError`;
+    `failed` (up to 10 min), else `CdnDomainVerificationTimeoutError` (an
+    `OperationTimeoutError` with code `operation_wait_timeout`, like every
+    other wait);
   - `IbeeCdnPurgeError` (also exported as `CdnPurgeFailedError`) for a purge
     the CDN reported as `success: false`;
   - `cloudVms.attachVolume` / `gpuVms.attachVolume` accept `volume` (a
@@ -215,7 +236,8 @@
     `IbeeBillingWarning` when the token lacks `billing.read`.
   - `createSecretStore({ ifExists: "return" })` returns the existing store
     with that name or store key (archived included) instead of throwing
-    `ConflictError`, as the portal does.
+    `ConflictError`, as the portal does. `"reuse"` is accepted as an alias
+    of `"return"` (the Python SDK and CLI spelling).
   - `rollbackSecret({ checkTarget })` (default true) refuses the current,
     destroyed or missing version after reading the versions.
   - `createSecretIdentityScope({ checkStore })` refuses stores that are not
@@ -283,7 +305,7 @@
 
 - **VM create sends what the API requires.** 0.3.0 creates always failed
   with 422, because `billing_catalog` was missing. `site_id` is now required
-  (`site_required`) and `disk_gb` is always the plan's, instead of the
+  (`invalid_site_id`) and `disk_gb` is always the plan's, instead of the
   server's 50/140 GB default. `cpu`, `ram_mb`, `os_type` and `os_distro` (and
   GPU `gpu_count`/`gpu_model`) are optional and must match the plan and
   image. VM creates are no longer retried automatically.
@@ -305,6 +327,9 @@
   `_id`).
 - **Access updates** are validated locally: key mode, SSH key format,
   password of 8+ characters with no line breaks, and at least one change.
+  `SshKeySecretRef` needs only `ssh_key_id` or `secret_name` (the API fills
+  the other) and accepts `ssh_key_name`; `store_key` defaults to `ssh-keys`
+  and is sent explicitly, as the Python SDK does.
 - **Recovery requests are validated:**
   - snapshots: name 1-255, the selective-mode volume rule, a required
     `snapshot_storage` `billing_catalog`;
@@ -502,14 +527,27 @@
   - New-VM restores accept a selectable plan without pricing; errors are
     `invalid_restore_plan` / `restore_disk_too_small`. Snapshot restores into
     a VPC apply the shared NAT / public-IP VPC rules before sending.
-  - `restoreBackup` sends the run's `recovery_point_id` (a run ID is
-    accepted as input) and refuses a run without one.
+  - `restoreBackup` always reads the backup run (`recovery_point_id` may be a
+    run ID or a recovery point ID; `checkState: false` no longer skips the
+    read), requires it to have succeeded, and sends the recovery point ID
+    resolved like the portal: the run's `recovery_point_id`, its metadata,
+    then the `/recovery-points/<id>` segment of its storage prefix
+    (`r2_prefix`, `metadata.r2_manifest_key`, `metadata.r2_prefix`). A run
+    without one is refused (`recovery_point_not_ready`).
   - `deleteSnapshot` accepts `checkState` (refuses running/restoring
     snapshots, `snapshot_busy`); new `waitForSnapshot`; snapshot waits accept
     `available` and read the status from the VM's snapshot list while the
     snapshot is not yet readable by ID.
-  - `vpcs.delete` reads the VPC by default (nodes / NAT gateway checks;
-    `checkDependencies: false` skips it) and accepts `natBillingCatalog`.
+  - `vpcs.delete` runs the node, NAT gateway and virtual-IP checks together,
+    by default and whenever `deleteNatGateway` is set (virtual IPs used to be
+    checked only with `checkDependencies: true`). Virtual IPs are checked
+    before any NAT gateway is deleted, so a VPC the API would still refuse
+    is left intact. Without `network.read` (403) the default checks are
+    skipped; `checkDependencies: true` re-throws the 403 and
+    `checkDependencies: false` without `deleteNatGateway` sends a plain
+    DELETE. A NAT gateway still listed after the wait throws `IbeeError`
+    `nat_gateway_deleting` and the VPC is not deleted. It accepts
+    `natBillingCatalog`.
   - `firewalls.iterateGroups` / `listAllGroups` accept `pageSize` (1..100) and
     de-duplicate by `firewall_group_id` or `id`.
   - Load balancer `policy.retries` gets the portal defaults (3 attempts,
@@ -541,6 +579,59 @@
     throws `IbeeError` with code `nat_gateway_deleting` (was an
     `IbeeValidationError` `nat_delete_pending`; the delete had been accepted).
   - Operation IDs accept upper-case hex (as in the Python SDK).
+  - Error codes follow the canonical table shared with the Python SDK
+    (these codes were never released):
+    `catalog_mismatch` -> `shape_mismatch`; `console_not_ready` and
+    `vm_state_conflict` -> `invalid_vm_state`; `detach_not_confirmed` and
+    `downgrade_not_confirmed` -> `confirmation_required`;
+    `duplicate_vm_name` -> `duplicate_vm_names`; `vm_os_unsupported` ->
+    `vm_not_linux`; `resize_attached` -> `resize_requires_offline`;
+    `resize_shrink` -> `resize_shrink_not_supported`; `site_required` ->
+    `invalid_site_id`; `region_required` -> `invalid_region`;
+    `missing_field` -> `invalid_<field>`; `invalid_wait` ->
+    `invalid_timeout` / `invalid_poll_interval`; `invalid_template` ->
+    `image_not_found` / `image_not_compatible`; `invalid_plan` for an
+    unknown or unavailable create plan -> `plan_not_found` /
+    `plan_not_selectable`; `invalid_target_plan` ->
+    `invalid_billing_catalog`; `invalid_snapshot_name` -> `invalid_name`;
+    `invalid_snapshot_volumes` -> `invalid_selected_data_volume_ids` (or
+    `volume_not_attached`); `invalid_vpc` -> `invalid_name` /
+    `invalid_site_id`; `invalid_port_forwarding_rule` -> `invalid_rule`;
+    `invalid_reserved_ip_billing_catalog` ->
+    `reserved_ip_billing_catalog_required`; `invalid_l4_field` ->
+    `invalid_rules` / `invalid_custom_domain`; `invalid_cidr_mode` ->
+    `cidr_required` / `invalid_default_subnet_cidr` /
+    `invalid_prefix_length`; `invalid_network` -> `subnet_required`,
+    `vpc_required`, `invalid_network_connectivity`, `invalid_connectivity`,
+    `reserved_ip_required`, `vpc_site_mismatch`, `subnet_mismatch`,
+    `vpc_unavailable`, `vpc_connectivity_mismatch`,
+    `reserved_ip_site_mismatch`, `reserved_ip_attached` or
+    `nat_gateway_unavailable`; `invalid_private_ip` ->
+    `invalid_<field>` (for example `invalid_requested_private_ip`);
+    `invalid_purge_request` -> `invalid_mode`, `invalid_paths`,
+    `invalid_prefixes`, `invalid_tags`, `invalid_hostnames` or
+    `invalid_purge_selector`; `invalid_restore` -> `invalid_target_mode`,
+    `invalid_restore_request`, `invalid_selected_volume_id`,
+    `invalid_target_vm_name`, `invalid_restore_plan`,
+    `restore_disk_too_small` or `volume_not_in_recovery_point`;
+    `invalid_schedule` -> `invalid_frequency`, `invalid_day_of_week`,
+    `invalid_timezone`, ... (`invalid_schedule` only when `schedule` is not
+    an object); `invalid_access_update` -> `invalid_ssh_key_mode`,
+    `invalid_ssh_key_secret_refs`, `invalid_password_auth_enabled`,
+    `ssh_key_required`, `confirmation_required` or `no_changes`;
+    `invalid_attach` -> `invalid_attach_mode`; a request argument that is not
+    an object -> `invalid_request`; `invalid_batch_item` -> the item's own
+    code with field `secrets[i]`; Windows licence errors ->
+    `windows_license_not_allowed`, `unsupported_billing_term` or
+    `invalid_windows_license`; an unknown block-volume site ->
+    `unknown_site_id`; VM resize range errors -> `invalid_cpu` /
+    `invalid_ram_mb` / `invalid_disk_gb` / `invalid_new_size_gb`, an empty
+    resize -> `no_changes`, `billing_term` without `plan_id` ->
+    `invalid_billing_term`, a root-disk shrink -> `root_disk_grow_only`;
+    `CdnDomainVerificationTimeoutError` `cdn_domain_wait_timeout` ->
+    `operation_wait_timeout`; `RecoveryRestoreFailedError` `recovery_failed`
+    -> `recovery_restore_failed`. A NAT gateway that is not in the VPC is
+    `IbeeValidationError` `nat_gateway_not_found` (was `NotFoundError`).
   - Secret Store `workspaceId` is trimmed before it is validated and sent.
 
 ### Fixed
