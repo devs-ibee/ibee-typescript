@@ -45,6 +45,9 @@ export {
   OrganizationSuspendedError,
   PayloadTooLargeError,
   PaymentRequiredError,
+  RecoveryFailedError,
+  RecoveryRestoreFailedError,
+  ResizeBlockedError,
   RouteNotAvailableError,
   ServiceUnavailableError,
   TooManyRequestsError,
@@ -82,7 +85,72 @@ export {
   validateToken,
   validateWaitOptions,
   validateWorkspaceId,
+  // Compute (VM) rules
+  BACKUP_FREQUENCIES,
+  BACKUP_RUN_STATUSES,
+  MAX_VM_BATCH_SIZE,
+  NETWORK_CONNECTIVITY_MODES,
+  OPERATION_ID_PATTERN,
+  SNAPSHOT_MODES,
+  SSH_KEY_TYPES,
+  VM_ID_PATTERN,
+  VM_METRICS_RANGES,
+  VM_NAME_PATTERN,
+  VM_RESIZE_LIMITS,
+  VM_VOLUME_MODES,
+  assertVmActionAllowed,
+  expandBatchNames,
+  isValidTimeZone,
+  isWindowsVm,
+  normaliseIdList,
+  normaliseSshKeys,
+  normaliseVpcConnectivityType,
+  resolveDeletePublicIpAction,
+  validateAccessUpdate,
+  validateAccessUpdateAgainstVm,
+  validateBackupRetention,
+  validateBackupSchedule,
+  validateBandwidthMonth,
+  validateDetachConfirmation,
+  validateMetricsRange,
+  validateNetworkFields,
+  validateNextRunAt,
+  validateResizePlanChange,
+  validateResizeTarget,
+  validateRootDiskGrow,
+  validateSnapshotCreate,
+  validateSshPublicKey,
+  validateVmId,
+  validateVmName,
+  validateVmNetworkPlacement,
 } from "./validation.js";
+export type { VmStateAction } from "./validation.js";
+export {
+  BILLING_TERMS,
+  ROOT_DISK_COMPONENTS,
+  applyBillingTerm,
+  billingCatalogForTerm,
+  billingOptionsOf,
+  buildVmCreateBillingCatalog,
+  normaliseBillingTerm,
+  requireBillingSku,
+  selectBillingOption,
+  validateBillingCatalog,
+  windowsLicenseAttachment,
+  withAttachedBillingSkus,
+} from "./billingCatalog.js";
+export type { BuildVmBillingCatalogArgs, ValidateBillingCatalogOptions } from "./billingCatalog.js";
+export {
+  recoveryCapturedDataVolumes,
+  recoveryDateStamp,
+  recoveryDefaultVmName,
+  recoveryMinRootDiskGb,
+  recoveryTargetVolumeNames,
+  restoreTargetFromPlan,
+  validateNewVmTarget,
+  validateRestoreRequest,
+} from "./recovery.js";
+export type { RecoveryKind } from "./recovery.js";
 export {
   CREATE_TYPE_LABELS,
   HOURLY_BILLING_PERIOD_HOURS,
@@ -109,7 +177,16 @@ export type {
   CheckResourceEligibilityArgs,
   RequireResourceEligibilityArgs,
 } from "./resources/billing.js";
-export type { VmListArgs, WaitForOperationArgs } from "./resources/vms.js";
+export { normalizeVmRecord } from "./resources/vms.js";
+export type {
+  RecoveryWaitOptions,
+  VmActionOptions,
+  VmCreateOptions,
+  VmListAllArgs,
+  VmListArgs,
+  VmWaitOptions,
+  WaitForOperationArgs,
+} from "./resources/vms.js";
 export type { VolumeIdempotencyArgs } from "./resources/blockStorage.js";
 export * from "./types.js";
 

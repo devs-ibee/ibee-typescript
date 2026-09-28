@@ -16,8 +16,8 @@ export interface RequestArgs {
   path: string;
   /** Workspace scope — sent as the required `workspace_id` query param. */
   workspaceId: string;
-  /** Extra query parameters. */
-  query?: Record<string, string | number | boolean | undefined>;
+  /** Extra query parameters. Arrays repeat the key once per value. */
+  query?: Record<string, string | number | boolean | undefined | Array<string | number>>;
   /** JSON request body. */
   body?: unknown;
   /** Sent as the `X-Idempotency-Key` header on write operations. */
@@ -87,7 +87,9 @@ export class HttpClient {
     url.searchParams.set("workspace_id", args.workspaceId);
     if (args.query) {
       for (const [k, v] of Object.entries(args.query)) {
-        if (v !== undefined && k !== "workspace_id") url.searchParams.set(k, String(v));
+        if (v === undefined || k === "workspace_id") continue;
+        if (Array.isArray(v)) for (const item of v) url.searchParams.append(k, String(item));
+        else url.searchParams.set(k, String(v));
       }
     }
 
