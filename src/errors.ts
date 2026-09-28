@@ -365,6 +365,23 @@ export class NotFoundError extends ApiError {
 export class ConflictError extends ApiError {
   constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "ConflictError"; }
 }
+/**
+ * 409 from a resize whose precheck is not `in_place`
+ * (`detail.decision` is `migration_required` or `blocked`).
+ */
+export class ResizeBlockedError extends ConflictError {
+  readonly decision?: string;
+  readonly reasons: string[];
+  readonly warnings: string[];
+  constructor(...a: ConstructorParameters<typeof ApiError>) {
+    super(...a);
+    this.name = "ResizeBlockedError";
+    const d = isRecord(this.details) ? this.details : {};
+    this.decision = str(d.decision);
+    this.reasons = Array.isArray(d.reasons) ? d.reasons.map(String) : [];
+    this.warnings = Array.isArray(d.warnings) ? d.warnings.map(String) : [];
+  }
+}
 export class PayloadTooLargeError extends ApiError {
   constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "PayloadTooLargeError"; }
 }
@@ -492,6 +509,9 @@ export function apiErrorFromResponse(
     case 404:
       return new NotFoundError(statusCode, body, undefined, init);
     case 409:
+      if (isRecord(parsed.details) && typeof parsed.details.decision === "string") {
+        return new ResizeBlockedError(statusCode, body, undefined, init);
+      }
       return new ConflictError(statusCode, body, undefined, init);
     case 413:
       return new PayloadTooLargeError(statusCode, body, undefined, init);
@@ -598,5 +618,42 @@ export class OperationTimeoutError extends IbeeError {
     this.lastStatus = lastStatus;
     this.timeoutMs = timeoutMs;
     this.operation = operation;
+  }
+}
+
+
+/** A snapshot, backup run or restore finished as `failed` or `cancelled`. */
+export class RecoveryFailedError extends IbeeError {
+  /** `snapshot`, `backup_run` or `restore`. */
+  readonly kind: string;
+  readonly resourceId?: string;
+  readonly status: string;
+  readonly errorMessage?: string;
+  /** Last value returned by the API. */
+  readonly resource: Record<string, unknown>;
+
+  constructor(kind: string, resource: Record<string, unknown>, resourceId?: string) {
+    const status = String(resource?.status ?? "failed");
+    const detail = typeof resource?.error_message === "string" ? resource.error_message : undefined;
+    super(
+      `${kind.replace(/_/g, " ")} ${resourceId ?? ""} ended with status ${status}${detail ? `: ${detail}` : ""}`
+        .replace(/\s+/g, " ")
+        .trim(),
+      "recovery_failed",
+    );
+    this.name = "RecoveryFailedError";
+    this.kind = kind;
+    this.resourceId = resourceId;
+    this.status = status;
+    this.errorMessage = detail;
+    this.resource = resource;
+  }
+}
+
+/** A snapshot or backup restore finished as `failed` or `cancelled`. */
+export class RecoveryRestoreFailedError extends RecoveryFailedError {
+  constructor(resource: Record<string, unknown>, restoreId?: string) {
+    super("restore", resource, restoreId);
+    this.name = "RecoveryRestoreFailedError";
   }
 }

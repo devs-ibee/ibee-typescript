@@ -15,8 +15,11 @@ const RETRY_STATUSES = new Set([429, 502, 503, 504]);
 /** Max delay between attempts, in milliseconds. */
 export const MAX_RETRY_DELAY_MS = 30_000;
 
+// VM create is deliberately excluded: replaying a create with the same key
+// can surface as a "name already exists" conflict instead of the original
+// operation, so creates are never retried automatically.
 const HEADER_KEY_ROUTE =
-  /^\/?compute\/(cloud-vms|gpu-vms)(\/[^/]+(\/actions\/(start|stop|reboot|access|resize|resize-plan|resize-root-disk|attach-volume|detach-volume))?)?\/?$/;
+  /^\/?compute\/(cloud-vms|gpu-vms)\/[^/]+(\/actions\/(start|stop|reboot|access|resize|resize-plan|resize-root-disk|attach-volume|detach-volume))?\/?$/;
 const BODY_KEY_ROUTE = /^\/?block-storage\/volumes(\/[^/]+\/(attachments|detach|resize))?\/?$/;
 const QUERY_KEY_ROUTE = /^\/?block-storage\/volumes\/[^/]+\/?$/;
 

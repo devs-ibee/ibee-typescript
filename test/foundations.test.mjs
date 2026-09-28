@@ -50,6 +50,8 @@ import {
 import * as cjs from "../dist/index.cjs";
 
 const WS = "710995";
+const VM1 = "64b0000000000000000000a1";
+const OP1 = "op_64b0000000000000000000f1";
 
 /**
  * Fetch mock that answers from a queue of responses (the last one repeats).
@@ -241,8 +243,9 @@ test("edge 402 billing_denied becomes BillingDeniedError with portal copy and re
   const c = client(fetchImpl);
   await assert.rejects(
     c.cloudVms.create({
-      workspaceId: WS, idempotencyKey: "my-key", name: "web", plan_id: "p", template_id: "i",
-      os_distro: "ubuntu", os_type: "linux", cpu: 2, ram_mb: 4096,
+      workspaceId: WS, idempotencyKey: "my-key", name: "web", site_id: "s1", plan_id: "p", template_id: "i",
+      os_distro: "ubuntu", os_type: "linux", cpu: 2, ram_mb: 4096, resolveCatalog: false,
+      billing_catalog: { sku_id: 1, sku_code: "STANDARD-2-8-50" },
     }),
     (err) => {
       assert.ok(err instanceof BillingDeniedError);
@@ -313,12 +316,12 @@ test("unkeyed POST is not retried; keyed VM write is retried with the same key a
   {
     const { calls, fetchImpl } = scripted(
       { status: 504, json: {}, headers: { "retry-after": "0" } },
-      { json: { operation_id: "op1" } },
+      { json: { operation_id: OP1 } },
     );
-    await client(fetchImpl).cloudVms.start({ workspaceId: WS, vmId: "vm1" });
+    await client(fetchImpl).cloudVms.start({ workspaceId: WS, vmId: VM1 });
     assert.equal(calls.length, 2);
     const k1 = calls[0].headers.get("x-idempotency-key");
-    assert.match(k1, /^cloud-vm-start-vm1-[a-z0-9]+-[0-9a-f]{16}$/);
+    assert.match(k1, new RegExp(`^cloud-vm-start-${VM1}-[a-z0-9]+-[0-9a-f]{16}$`));
     assert.equal(calls[1].headers.get("x-idempotency-key"), k1);
   }
   {
@@ -349,7 +352,7 @@ test("transport errors are retried only for retry-safe requests and carry the ke
   {
     const { calls, fetchImpl } = scripted({ throws: new TypeError("fetch failed") });
     await assert.rejects(
-      client(fetchImpl, { maxRetries: 0 }).cloudVms.delete({ workspaceId: WS, vmId: "vm1", idempotencyKey: "del-1" }),
+      client(fetchImpl, { maxRetries: 0 }).cloudVms.delete({ workspaceId: WS, vmId: VM1, idempotencyKey: "del-1", publicIpAction: "release" }),
       (err) => err instanceof TypeError && err.idempotencyKey === "del-1",
     );
     assert.equal(calls.length, 1);
@@ -359,7 +362,9 @@ test("transport errors are retried only for retry-safe requests and carry the ke
 test("isRetrySafe and retryDelayMs follow the policy", () => {
   const key = { "X-Idempotency-Key": "k" };
   assert.equal(isRetrySafe("GET", "/anything"), true);
-  assert.equal(isRetrySafe("POST", "/compute/cloud-vms", key), true);
+  // VM create is never retried: a keyed replay can surface as a name conflict.
+  assert.equal(isRetrySafe("POST", "/compute/cloud-vms", key), false);
+  assert.equal(isRetrySafe("POST", "/compute/gpu-vms", key), false);
   assert.equal(isRetrySafe("PATCH", "/compute/gpu-vms/vm1/actions/resize-plan", key), true);
   assert.equal(isRetrySafe("DELETE", "/compute/cloud-vms/vm1", key), true);
   assert.equal(isRetrySafe("POST", "/compute/cloud-vms/vm1/actions/resize/precheck", key), false);
@@ -404,7 +409,7 @@ test("caller-supplied idempotency keys are validated", async () => {
   const c = client(fetchImpl);
   for (const bad of ["", "has space", "x".repeat(129), "line\nbreak", "ümlaut"]) {
     await assert.rejects(
-      c.cloudVms.reboot({ workspaceId: WS, vmId: "vm1", idempotencyKey: bad }),
+      c.cloudVms.reboot({ workspaceId: WS, vmId: VM1, idempotencyKey: bad }),
       (err) => err instanceof IbeeValidationError && err.code === "invalid_idempotency_key",
     );
     await assert.rejects(
@@ -424,23 +429,30 @@ test("caller-supplied idempotency keys are validated", async () => {
 });
 
 test("every VM write auto-fills a scoped key", async () => {
-  const { calls, fetchImpl } = scripted({ json: {} });
+  const { calls, fetchImpl } = scripted({ json: { decision: "in_place" } });
   const c = client(fetchImpl);
-  const vm = { workspaceId: WS, vmId: "vm1" };
-  await c.gpuVms.create({ workspaceId: WS, name: "trainer", plan_id: "p", template_id: "i", os_distro: "u", os_type: "linux", cpu: 1, ram_mb: 1, gpu_count: 1, gpu_model: "A100" });
-  await c.gpuVms.delete(vm);
+  const vm = { workspaceId: WS, vmId: VM1 };
+  const sku = { sku_id: 1, sku_code: "GPU-A100-1" };
+  await c.gpuVms.create({
+    workspaceId: WS, name: "trainer", site_id: "s1", plan_id: "p", template_id: "i", os_distro: "u",
+    os_type: "linux", cpu: 1, ram_mb: 1024, gpu_count: 1, gpu_model: "A100", resolveCatalog: false, billing_catalog: sku,
+  });
+  await c.gpuVms.delete({ ...vm, publicIpAction: "release" });
   await c.gpuVms.stop(vm);
-  await c.gpuVms.updateAccess({ ...vm, request: {} });
-  await c.gpuVms.resize({ ...vm, request: {} });
-  await c.gpuVms.resizePlan({ ...vm, request: {} });
-  await c.gpuVms.resizeRootDisk({ ...vm, request: {} });
-  await c.gpuVms.attachVolume({ ...vm, request: {} });
-  await c.gpuVms.detachVolume({ ...vm, request: {} });
-  const scopes = calls.map((call) => call.headers.get("x-idempotency-key").split("-").slice(0, -2).join("-"));
+  await c.gpuVms.updateAccess({ ...vm, request: { password_auth_enabled: true } });
+  await c.gpuVms.resize({ ...vm, request: { cpu: 2 } });
+  await c.gpuVms.resizePlan({ ...vm, request: { cpu: 2, ram_mb: 4096 } });
+  await c.gpuVms.resizeRootDisk({ ...vm, request: { new_size_gb: 20 } });
+  await c.gpuVms.attachVolume({ ...vm, request: { volume_id: "vol1", billing_catalog: { sku_id: 2, sku_code: "BLOCK-STD" } } });
+  await c.gpuVms.detachVolume({ ...vm, request: { volume_id: "vol1", confirm_unmounted: true } });
+  const scopes = calls
+    .map((call) => call.headers.get("x-idempotency-key"))
+    .filter(Boolean)
+    .map((key) => key.split("-").slice(0, -2).join("-"));
   assert.deepEqual(scopes, [
-    "gpu-vm-create-trainer", "gpu-vm-delete-vm1", "gpu-vm-stop-vm1", "gpu-vm-access-vm1",
-    "gpu-vm-resize-vm1", "gpu-vm-resize-plan-vm1", "gpu-vm-resize-root-disk-vm1",
-    "gpu-vm-attach-volume-vm1", "gpu-vm-detach-volume-vm1",
+    "gpu-vm-create-trainer", `gpu-vm-delete-${VM1}`, `gpu-vm-stop-${VM1}`, `gpu-vm-access-${VM1}`,
+    `gpu-vm-resize-${VM1}`, `gpu-vm-resize-plan-${VM1}`, `gpu-vm-resize-root-disk-${VM1}`,
+    `gpu-vm-attach-volume-vol1-${VM1}`, `gpu-vm-detach-volume-vol1-${VM1}`,
   ]);
 });
 
@@ -540,7 +552,7 @@ test("paginatePages stops at total", async () => {
 // ---------------------------------------------------------- operation wait
 
 const op = (status, extra = {}) => ({
-  operation_id: "op1", vm_id: "vm1", action: "start", status,
+  operation_id: OP1, vm_id: VM1, action: "start", status,
   submitted_at: "2026-09-28T00:00:00Z", updated_at: "2026-09-28T00:00:01Z", ...extra,
 });
 
@@ -548,24 +560,24 @@ test("operations.wait returns on success and calls onUpdate", async () => {
   const { calls, fetchImpl } = scripted({ json: op("succeeded") });
   const updates = [];
   const c = client(fetchImpl);
-  const result = await c.operations.wait({ workspaceId: WS, operationId: " op1 ", onUpdate: (o) => updates.push(o.status) });
+  const result = await c.operations.wait({ workspaceId: WS, operationId: ` ${OP1} `, onUpdate: (o) => updates.push(o.status) });
   assert.equal(result.status, "succeeded");
   assert.deepEqual(updates, ["succeeded"]);
-  assert.match(calls[0].url, /\/compute\/operations\/op1\?workspace_id=710995$/);
-  const legacy = await waitForComputeOperation(client(scripted({ json: op("COMPLETED") }).fetchImpl), { workspaceId: WS, operationId: "op1" });
+  assert.match(calls[0].url, new RegExp(`/compute/operations/${OP1}\\?workspace_id=710995$`));
+  const legacy = await waitForComputeOperation(client(scripted({ json: op("COMPLETED") }).fetchImpl), { workspaceId: WS, operationId: OP1 });
   assert.equal(legacy.status, "COMPLETED");
 });
 
 test("operations.wait raises OperationFailedError for failed, cancelled and timed_out", async () => {
   for (const status of ["failed", "cancelled", "timed_out"]) {
     const { fetchImpl } = scripted({ json: op(status, { error_code: "E1", error_message: "boom" }) });
-    await assert.rejects(client(fetchImpl).operations.wait({ workspaceId: WS, operationId: "op1" }), (err) => {
+    await assert.rejects(client(fetchImpl).operations.wait({ workspaceId: WS, operationId: OP1 }), (err) => {
       assert.ok(err instanceof OperationFailedError);
       assert.ok(err instanceof IbeeError);
       assert.equal(err.code, "operation_failed");
       assert.equal(err.status, status);
-      assert.equal(err.operationId, "op1");
-      assert.equal(err.vmId, "vm1");
+      assert.equal(err.operationId, OP1);
+      assert.equal(err.vmId, VM1);
       assert.equal(err.errorCode, "E1");
       assert.equal(err.errorMessage, "boom");
       assert.equal(err.operation.status, status);
@@ -573,7 +585,7 @@ test("operations.wait raises OperationFailedError for failed, cancelled and time
     });
   }
   const { fetchImpl } = scripted({ json: op("failed") });
-  const res = await client(fetchImpl).operations.wait({ workspaceId: WS, operationId: "op1", raiseOnFailure: false });
+  const res = await client(fetchImpl).operations.wait({ workspaceId: WS, operationId: OP1, raiseOnFailure: false });
   assert.equal(res.status, "failed");
 });
 
@@ -582,18 +594,19 @@ test("operations.wait validates inputs before polling and re-raises 404 at once"
   const c = client(fetchImpl);
   const bad = [
     [{ operationId: "  " }, "invalid_operation_id"],
-    [{ operationId: "op1", timeoutMs: 999 }, "invalid_timeout"],
-    [{ operationId: "op1", timeoutMs: 7_200_001 }, "invalid_timeout"],
-    [{ operationId: "op1", pollIntervalMs: 500 }, "invalid_poll_interval"],
-    [{ operationId: "op1", pollIntervalMs: 61_000 }, "invalid_poll_interval"],
-    [{ operationId: "op1", timeoutMs: 2_000, pollIntervalMs: 3_000 }, "invalid_poll_interval"],
+    [{ operationId: "op1" }, "invalid_operation_id"],
+    [{ operationId: OP1, timeoutMs: 999 }, "invalid_timeout"],
+    [{ operationId: OP1, timeoutMs: 7_200_001 }, "invalid_timeout"],
+    [{ operationId: OP1, pollIntervalMs: 500 }, "invalid_poll_interval"],
+    [{ operationId: OP1, pollIntervalMs: 61_000 }, "invalid_poll_interval"],
+    [{ operationId: OP1, timeoutMs: 2_000, pollIntervalMs: 3_000 }, "invalid_poll_interval"],
   ];
   for (const [args, code] of bad) {
     await assert.rejects(c.operations.wait({ workspaceId: WS, ...args }), (err) => err instanceof IbeeValidationError && err.code === code, code);
   }
   await assert.rejects(c.operations.get({ workspaceId: WS, operationId: "" }), IbeeValidationError);
   assert.equal(calls.length, 0);
-  await assert.rejects(c.operations.wait({ workspaceId: WS, operationId: "op1" }), NotFoundError);
+  await assert.rejects(c.operations.wait({ workspaceId: WS, operationId: OP1 }), NotFoundError);
   assert.equal(calls.length, 1);
 });
 
@@ -612,13 +625,13 @@ test("pollUntil times out with OperationTimeoutError and truncates the last slee
   let polls = 0;
   await assert.rejects(
     pollUntil(async () => { polls += 1; return op("running"); }, (o) => o.status, {
-      operationId: "op1", timeoutMs: 12_000, pollIntervalMs: 5_000, now: clock.now, sleep: clock.sleep,
+      operationId: OP1, timeoutMs: 12_000, pollIntervalMs: 5_000, now: clock.now, sleep: clock.sleep,
     }),
     (err) => {
       assert.ok(err instanceof OperationTimeoutError);
       assert.equal(err.code, "operation_wait_timeout");
       assert.equal(err.lastStatus, "running");
-      assert.equal(err.operationId, "op1");
+      assert.equal(err.operationId, OP1);
       assert.equal(err.timeoutMs, 12_000);
       return true;
     },
@@ -641,14 +654,14 @@ test("pollUntil tolerates up to 2 consecutive transient failures and resets on s
   ];
   let i = 0;
   const res = await pollUntil(async () => script[i++](), (o) => o.status, {
-    operationId: "op1", timeoutMs: 600_000, pollIntervalMs: 1_000, now: clock.now, sleep: clock.sleep,
+    operationId: OP1, timeoutMs: 600_000, pollIntervalMs: 1_000, now: clock.now, sleep: clock.sleep,
   });
   assert.equal(res.status, "succeeded");
 
   let j = 0;
   await assert.rejects(
     pollUntil(async () => { j += 1; throw apiErrorFromResponse(504, {}); }, (o) => o.status, {
-      operationId: "op1", timeoutMs: 600_000, pollIntervalMs: 1_000, now: clock.now, sleep: clock.sleep,
+      operationId: OP1, timeoutMs: 600_000, pollIntervalMs: 1_000, now: clock.now, sleep: clock.sleep,
     }),
     GatewayTimeoutError,
   );
@@ -657,7 +670,7 @@ test("pollUntil tolerates up to 2 consecutive transient failures and resets on s
   let k = 0;
   await assert.rejects(
     pollUntil(async () => { k += 1; throw apiErrorFromResponse(403, {}); }, (o) => o.status, {
-      operationId: "op1", timeoutMs: 600_000, pollIntervalMs: 1_000, now: clock.now, sleep: clock.sleep,
+      operationId: OP1, timeoutMs: 600_000, pollIntervalMs: 1_000, now: clock.now, sleep: clock.sleep,
     }),
     ForbiddenError,
   );
@@ -669,7 +682,7 @@ test("operations.wait honours an AbortSignal", async () => {
   const controller = new AbortController();
   const reason = new Error("stop waiting");
   const pending = client(fetchImpl).operations.wait({
-    workspaceId: WS, operationId: "op1", pollIntervalMs: 60_000, timeoutMs: 600_000, signal: controller.signal,
+    workspaceId: WS, operationId: OP1, pollIntervalMs: 60_000, timeoutMs: 600_000, signal: controller.signal,
   });
   setTimeout(() => controller.abort(reason), 20);
   await assert.rejects(pending, (err) => err === reason);

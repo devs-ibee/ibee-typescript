@@ -239,7 +239,10 @@ export type VmLifecycleStatus =
   | "error";
 
 export interface CloudVm {
+  /** VM ID. The SDK copies `_id` here when the API returns only `_id`. */
   id?: string;
+  /** Raw document ID as returned by the API. */
+  _id?: string;
   name?: string;
   status?: VmLifecycleStatus;
   cpu?: number;
@@ -256,6 +259,16 @@ export interface CloudVm {
   tags?: string[];
   created_at?: string;
   updated_at?: string | null;
+  /** Reserved IP attached to the VM (its public IP is then not auto-assigned). */
+  reserved_public_ip_id?: string | null;
+  admin_username?: string | null;
+  ssh_password_auth_enabled?: boolean | null;
+  ssh_keys?: string[];
+  ssh_key_ids?: string[];
+  ssh_key_secret_refs?: SshKeySecretRef[];
+  billing_catalog?: BillingCatalogSelection | null;
+  data_volumes?: Array<{ volume_id?: string; [key: string]: unknown }>;
+  [key: string]: unknown;
 }
 
 export type GpuVm = CloudVm & {
@@ -288,6 +301,44 @@ export interface VmMetrics {
 
 export type VmType = "cloud" | "gpu";
 export type BillingInterval = "HOURLY" | "MONTHLY";
+/** Billing term a VM can be bought on. */
+export type BillingTerm = "HOURLY" | "MONTHLY" | "YEARLY";
+
+/** One SKU reference inside a billing catalog selection. */
+export interface BillingSkuReference {
+  sku_id: string | number;
+  sku_code: string;
+  product_id?: string | number | null;
+  product_code?: string | null;
+  product_name?: string | null;
+  display_name?: string | null;
+  plan_id?: string | number | null;
+  plan_version?: string | number | null;
+  [key: string]: unknown;
+}
+
+/** A priced billing term offered by a SKU (`billing_catalog.billing_options[]`). */
+export interface BillingOption {
+  billing_interval: BillingTerm;
+  unit_price_minor: number;
+  committed?: boolean;
+  commitment_period?: BillingTerm;
+  commitment_months?: number;
+  committed_hours?: number;
+  discount_percent?: number | null;
+  price_unit?: string | null;
+  [key: string]: unknown;
+}
+
+/**
+ * Billing catalog selection sent with billable VM, snapshot, backup and
+ * volume-attach requests. Treat as opaque; the SDK only validates its shape.
+ */
+export interface BillingCatalogSelection extends BillingSkuReference {
+  attached_skus?: Record<string, BillingSkuReference>;
+  billing_options?: BillingOption[];
+  billing_interval?: BillingTerm;
+}
 
 export interface ComputeSite {
   site_id: string;
@@ -322,6 +373,8 @@ export interface ComputePlan {
   hourly_price_minor?: number;
   monthly_price_minor?: number;
   site_id?: string;
+  /** Plan SKU; pass it (priced for a term) as the create body's `billing_catalog`. */
+  billing_catalog?: BillingCatalogSelection | null;
 }
 
 export interface ComputePlanList {
@@ -558,6 +611,8 @@ export interface BlockVolume {
   attachments: BlockVolumeAttachment[];
   created_at: string;
   updated_at: string;
+  billing_catalog?: BillingCatalogSelection | null;
+  metadata?: { billing_catalog?: BillingCatalogSelection | null; [key: string]: unknown } | null;
 }
 
 export interface BlockVolumeOperation {
@@ -707,26 +762,84 @@ export interface CdnCachePurge {
   message?: string | null;
 }
 
-/** Body of POST /compute/cloud-vms. */
+/** VPC connectivity for a VM placed in a VPC. */
+export type NetworkConnectivity = "private" | "nat" | "public_ip";
+
+/**
+ * Input of `cloudVms.create`. Only `name`, `site_id`, `plan_id` and
+ * `template_id` are needed: the SDK reads the plan and image from the compute
+ * catalog and fills `cpu`, `ram_mb`, `disk_gb`, `os_type`, `os_distro` and
+ * `billing_catalog` the way the portal does. Values you pass must match.
+ */
 export interface CreateVmRequest {
+  /** Hostname: letters, digits and `-` only. */
   name: string;
+  /** Required: a `site_id` from `computeCatalog.listSites`. */
   site_id?: string;
-  os_distro: string;
-  os_type: string;
-  cpu: number;
-  ram_mb: number;
-  template_id: string;
-  disk_gb?: number;
   plan_id: string;
+  template_id: string;
+  os_distro?: string;
+  os_type?: string;
+  cpu?: number;
+  ram_mb?: number;
+  disk_gb?: number;
+  /**
+   * Plan SKU. Built from the plan and `billing_term` when omitted; a value
+   * you pass is validated and sent as-is.
+   */
+  billing_catalog?: BillingCatalogSelection;
+  /**
+   * SDK-only (folded into `billing_catalog`, not sent). Cloud default: HOURLY,
+   * or the plan's first term. GPU default: the plan SKU unmodified (hourly).
+   */
+  billing_term?: BillingTerm;
+  /**
+   * SDK-only. Windows licence SKU, required for Windows images (attached as
+   * `billing_catalog.attached_skus.windows_license`, quantity = vCPUs). The
+   * public API cannot list it yet.
+   */
+  windows_license?: BillingCatalogSelection;
+  /**
+   * SSH key IDs. Keys are resolved under the VM creator, so API-token creates
+   * cannot use them yet: prefer `ssh_keys`.
+   */
   ssh_key_ids?: string[];
+  /** Inline public SSH keys (ssh-rsa, ssh-ed25519, ecdsa-sha2-nistp*, sk-*). */
+  ssh_keys?: string[];
+  /** At most one firewall group. */
+  firewall_group_ids?: string[];
+  /** VPC placement; `subnet_id` is required with it. */
+  vpc_id?: string;
+  subnet_id?: string;
+  network_connectivity?: NetworkConnectivity;
+  /** Reserved IP to attach (needs `network_connectivity: "public_ip"`). */
+  reserved_public_ip_id?: string;
   tags?: string[];
+  requested_by?: string;
 }
 
-/** Body of POST /compute/gpu-vms — adds the required GPU fields. */
+/** Input of `gpuVms.create`; GPU fields default to the plan's values. */
 export interface CreateGpuVmRequest extends CreateVmRequest {
-  gpu_count: number;
-  gpu_model: string;
+  gpu_count?: number;
+  gpu_model?: string;
 }
+
+/** Delete choice for a VM's auto-assigned public IP. */
+export type PublicIpAction = "reserve" | "release";
+
+/** Body of DELETE /compute/{cloud-vms|gpu-vms}/{vm_id}. */
+export interface VmDeleteRequest {
+  public_ip_action?: PublicIpAction;
+  reserved_ip_label?: string;
+  reserved_ip_billing_catalog?: BillingCatalogSelection;
+  requested_by?: string;
+}
+
+/** An accepted async VM operation; `operation` is set when the call waited. */
+export type OperationAcceptedResult = OperationAccepted & {
+  /** Final operation status (only when `wait` was requested). */
+  operation?: OperationStatus;
+};
 
 export interface SshKeySecretRef {
   ssh_key_id: string;
@@ -752,6 +865,15 @@ export interface VmResizeRequest {
   cpu?: number;
   ram_mb?: number;
   disk_gb?: number;
+  /**
+   * SDK-only: resize to this plan (cpu/ram/disk and SKU come from the plan in
+   * the VM's site). Not combinable with explicit cpu/ram_mb/disk_gb.
+   */
+  plan_id?: string;
+  /** SDK-only: term for the target plan SKU (default HOURLY). Needs `plan_id`. */
+  billing_term?: BillingTerm;
+  /** Target SKU. Built from `plan_id` when omitted. */
+  billing_catalog?: BillingCatalogSelection;
   requested_by?: string;
 }
 
@@ -783,13 +905,17 @@ export interface VmResizePlanRequest {
   cpu: number;
   ram_mb: number;
   allow_online?: boolean;
+  /** Required when cpu or ram_mb is lower than the VM's current value. */
   confirm_downgrade?: boolean;
+  billing_catalog?: BillingCatalogSelection;
   requested_by?: string;
 }
 
 export interface VmResizeRootDiskRequest {
+  /** New size in GB; must be larger than the current root disk. */
   new_size_gb: number;
   allow_online?: boolean;
+  billing_catalog?: BillingCatalogSelection;
   requested_by?: string;
 }
 
@@ -798,6 +924,8 @@ export type VmVolumeMode = "single-writer" | "multi-writer";
 export interface VmAttachVolumeRequest {
   volume_id: string;
   mode?: VmVolumeMode;
+  /** Block Storage SKU of the volume. Read from the volume when omitted. */
+  billing_catalog?: BillingCatalogSelection;
   requested_by?: string;
 }
 
@@ -856,6 +984,12 @@ export interface SnapshotCreateRequest {
   description?: string | null;
   mode?: SnapshotCaptureMode;
   selected_data_volume_ids?: string[];
+  /**
+   * Required by the API: the snapshot storage SKU (product `snapshot_storage`,
+   * SKU code `SNAPSHOT-STD`). The public API cannot list it yet; reuse the
+   * `billing_catalog` returned on an existing snapshot set.
+   */
+  billing_catalog?: BillingCatalogSelection;
   requested_by?: string;
 }
 
@@ -941,6 +1075,10 @@ export interface SnapshotSet {
   volume_manifest_summary?: RecoveryPointSummary;
   live_drift_summary?: LiveDriftSummary;
   metadata?: Record<string, unknown>;
+  /** SKU echoed by the API (not yet part of the published contract). */
+  billing_catalog?: BillingCatalogSelection | null;
+  sku_code?: string | null;
+  sku_id?: string | number | null;
   created_at: string;
   updated_at: string;
 }
@@ -981,9 +1119,24 @@ export interface RecoveryRestoreRequest {
   target_gpu_memory_display?: string | null;
   target_site_id?: string | null;
   target_site_name?: string | null;
+  /** new_vm only: SKU of the target plan (resolved from the plan when omitted). */
+  target_billing_catalog?: BillingCatalogSelection | null;
+  /** new_vm only: names for the restored data volumes, keyed by source volume ID. */
+  target_volume_names?: Record<string, string>;
   selected_volume_id?: string | null;
   requested_by?: string;
   auto_start?: boolean;
+}
+
+/** Body of a snapshot restore (adds new-VM network and SSH options). */
+export interface SnapshotRestoreRequest extends RecoveryRestoreRequest {
+  /** new_vm only; with `subnet_id`. */
+  vpc_id?: string | null;
+  subnet_id?: string | null;
+  /** new_vm only; defaults to `private` when `vpc_id` is set. */
+  network_connectivity?: NetworkConnectivity | null;
+  /** new_vm only. */
+  ssh_key_ids?: string[];
 }
 
 export interface RecoveryRestore {
@@ -1045,6 +1198,8 @@ export interface BackupPolicyUpdateRequest {
   retention_days?: number | null;
   full_backup_interval_days?: number | null;
   incremental_enabled?: boolean | null;
+  /** Optional replacement backup storage SKU. */
+  billing_catalog?: BillingCatalogSelection;
   requested_by?: string;
 }
 
@@ -1053,6 +1208,12 @@ export interface BackupPolicyEnableRequest {
   retention_days?: number;
   full_backup_interval_days?: number;
   incremental_enabled?: boolean;
+  /**
+   * Required by the API: the backup storage SKU (product `backup_storage`,
+   * SKU code `BACKUP-STD`). The public API cannot list it yet; reuse the
+   * `billing_catalog` returned on an existing backup run.
+   */
+  billing_catalog?: BillingCatalogSelection;
   requested_by?: string;
 }
 
@@ -1061,13 +1222,16 @@ export interface BackupPolicyDisableRequest {
 }
 
 export interface BackupPolicyNextRunRequest {
-  next_run_at: string;
+  /** ISO-8601 timestamp with `Z` or an offset (or a Date). */
+  next_run_at: string | Date;
   requested_by?: string;
 }
 
 export interface ManualBackupRunRequest {
   requested_by?: string;
   reason?: string | null;
+  /** Required by the API: the backup storage SKU (see `BackupPolicyEnableRequest`). */
+  billing_catalog?: BillingCatalogSelection;
 }
 
 export interface BackupRun {
@@ -1112,11 +1276,28 @@ export interface BackupRun {
   live_drift_summary?: LiveDriftSummary;
   error_message?: string | null;
   metadata?: Record<string, unknown>;
+  /** SKU echoed by the API (not yet part of the published contract). */
+  billing_catalog?: BillingCatalogSelection | null;
+  sku_code?: string | null;
+  sku_id?: string | number | null;
+  created_at?: string | null;
 }
 
 export interface BackupRunList {
   runs: BackupRun[];
   total: number;
+}
+
+/** Result of deleting a backup run (not yet part of the published API contract). */
+export interface BackupRunDeleteResult {
+  status: "deleted" | (string & {});
+  run_id?: string;
+  recovery_point_id?: string | null;
+  deleted_artifact_count?: number;
+  verified_remote_absent_count?: number;
+  deleted_run_count?: number;
+  deleted_projection_count?: number;
+  [key: string]: unknown;
 }
 
 export interface BackupRestoreRequest extends RecoveryRestoreRequest {
@@ -1280,6 +1461,9 @@ export interface ReservedIp {
   attached_subnet_id?: string;
   created_at?: string;
   updated_at?: string;
+  /** Reserved IP SKU (not yet part of the published contract). */
+  billing_catalog?: BillingCatalogSelection | null;
+  [key: string]: unknown;
 }
 
 export type FirewallDirection = "ingress" | "egress";

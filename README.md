@@ -43,48 +43,48 @@ const plans = await client.computeCatalog.listPlans({
   currency: "INR",
   billingInterval: "MONTHLY",
 });
+// cpu, ram_mb, disk_gb, OS and billing_catalog come from the plan and image.
 await client.cloudVms.create({
   workspaceId: "710995",
   name: "web-01",
   site_id: "site_blr_01",
-  os_distro: "ubuntu",
-  os_type: "linux",
-  cpu: 2,
-  ram_mb: 4096,
   plan_id: "plan_standard_2c_4g",
   template_id: "tmpl_ubuntu_2204",
-  ssh_key_ids: ["ssh_key_123"],
+  ssh_keys: ["ssh-ed25519 AAAAC3Nza... user@laptop"],
+  wait: true,
 });
 
-// VM lifecycle and recovery
-await client.cloudVms.stop({
-  workspaceId: "710995",
-  vmId: "vm_123",
-});
+// VM lifecycle and recovery (VM IDs are 24-character hex IDs)
+const vmId = "64b0c0ffee0000000000abcd";
+await client.cloudVms.stop({ workspaceId: "710995", vmId, checkState: true });
 await client.cloudVms.resize({
   workspaceId: "710995",
-  vmId: "vm_123",
-  request: { cpu: 4, ram_mb: 8192 },
+  vmId,
+  request: { plan_id: "plan_standard_4c_8g", billing_term: "MONTHLY" },
 });
+// Snapshot/backup SKUs cannot be listed publicly yet: reuse the billing_catalog
+// returned on an existing snapshot set or backup run.
+const snapshotSku = { sku_id: "<snapshot sku id>", sku_code: "SNAPSHOT-STD" };
+const backupSku = { sku_id: "<backup sku id>", sku_code: "BACKUP-STD" };
 const snapshot = await client.cloudVms.createSnapshot({
   workspaceId: "710995",
-  vmId: "vm_123",
-  request: { name: "before-upgrade", mode: "all_attached" },
+  vmId,
+  request: { name: "before-upgrade", mode: "all_attached", billing_catalog: snapshotSku },
 });
 await client.cloudVms.enableBackups({
   workspaceId: "710995",
-  vmId: "vm_123",
+  vmId,
   request: {
     schedule: { frequency: "daily", timezone: "Asia/Kolkata", hour: 20 },
     retention_days: 14,
+    billing_catalog: backupSku,
   },
 });
 
 // Sensitive, short-lived graphical console URL — do not log or persist it.
 const consoleSession = await client.vmConsole.createSession({
   workspaceId: "710995",
-  vmId: "vm_123",
-  vmType: "cloud",
+  vmId,
 });
 
 // VPC networking
@@ -291,10 +291,108 @@ retried automatically because their backends do not deduplicate requests yet.
 In browsers, the API gateway does not yet allow the `X-Idempotency-Key` header
 in CORS preflight, so VM writes currently need a server-side (Node) runtime.
 
+## Creating VMs
+
+`cloudVms.create` and `gpuVms.create` follow the portal's deploy flow. You
+pass `name`, `site_id`, `plan_id` and `template_id`; the SDK then:
+
+- reads the plan (`GET /compute/plans?vm_type=…&site_id=…`) and requires it to
+  be `selectable` and `priced`;
+- reads the image (`GET /compute/images`) and takes `os_type`/`os_distro`
+  from it;
+- sends the plan's `cpu`, `ram_mb` and `disk_gb` (values you pass must
+  match), and for GPU VMs the plan's `gpu_count` and `gpu_model`;
+- builds `billing_catalog` from the plan SKU for `billing_term` (`HOURLY`
+  default for cloud VMs, `MONTHLY` or `YEARLY` when the plan offers them; GPU
+  VMs send the plan SKU unchanged unless you set a term).
+
+Rules checked before anything is sent (`IbeeValidationError`):
+
+- names use letters, digits and `-` only (`expandBatchNames` builds
+  `web-1..web-5` for batches of up to 5);
+- `ssh_keys` must be single-line public keys (`ssh-rsa`, `ssh-ed25519`,
+  `ecdsa-sha2-nistp256/384/521`, `sk-…`); private keys are refused;
+- at most one firewall group;
+- `vpc_id` and `subnet_id` go together. `nat` works only in NAT Gateway VPCs,
+  and a public IP on a private VPC needs `reserved_public_ip_id`, whose SKU is
+  attached as `attached_skus.reserved_ip`.
+
+Windows images need the Windows licence SKU as `windows_license`. It is
+attached with `quantity` equal to the vCPU count. The public API cannot list
+this SKU yet. `ssh_key_ids` are resolved under the VM creator, so creates made
+with an API token should use inline `ssh_keys`.
+
+Pass `preflightBilling: true` to run the billing eligibility check first. A
+VM create is never retried automatically, because replaying it can surface as
+"VM with this name already exists".
+
+Other VM rules:
+
+- **Delete:** a VM with an auto-assigned public IP must release it (the
+  default) or reserve it. Reserving uses `publicIpAction: "reserve"` plus
+  `reservedIpBillingCatalog`; copy that from an existing Reserved IP in the
+  same site.
+- **Resize:** `resize` runs the precheck and submits only when the decision is
+  `in_place`. `request.plan_id` resolves the shape and the new SKU, carrying
+  over the Windows licence.
+- **`resizePlan`:** rejects a no-op change, and needs `confirm_downgrade` for a
+  downgrade.
+- **`resizeRootDisk`:** can only grow the disk.
+- **`updateAccess`:** checks the key mode, keys and password rules
+  (8+ characters, no line breaks).
+- **`checkState: true`:** applies the portal's state matrix (start only when
+  stopped, stop/reboot only when running, access only on running Linux VMs).
+- **`attachVolume`:** reads the volume first and uses its Block Storage SKU.
+- **`detachVolume`:** needs `confirm_unmounted: true` or `force: true`.
+
+## Snapshots, backups and restores
+
+The API requires a `billing_catalog` on snapshot creates, backup enables and
+manual backup runs:
+
+| Operation | Product | SKU |
+|---|---|---|
+| Snapshot create | `snapshot_storage` | `SNAPSHOT-STD` |
+| Backup enable, manual backup run | `backup_storage` | `BACKUP-STD` |
+
+The public API cannot list these SKUs yet. Reuse the `billing_catalog`
+returned on an existing snapshot set or backup run.
+
+- **Backup schedules** are `daily` or `weekly`; weekly needs `day_of_week`,
+  where 0 is Monday. The timezone must be a valid IANA zone.
+- **`enableBackups`** fills the portal defaults: 12:00 UTC, a 30-minute
+  window, 7-day retention, a weekly full backup and incremental backups on.
+- **`updateBackupPolicy`** merges your changes into the saved schedule.
+
+```ts
+const restore = await client.cloudVms.restoreSnapshot({
+  workspaceId: "710995",
+  vmId,
+  snapshotSetId: "ss_123",
+  request: { target_mode: "new_vm" },   // plan, names and SKU resolved like the portal
+  wait: true,                           // polls every 5 s; RecoveryRestoreFailedError on failure
+});
+```
+
+For `new_vm` restores the SDK fills in the rest:
+
+- the target plan: your `target_plan_id`, or the VM's own plan. It sets the
+  `target_*` fields and `target_billing_catalog`, and checks the plan disk
+  against the recovery point's root disk.
+- the default names, `<vm>-snapshot-restored-YYYYMMDD` for the VM and
+  `<volume>-backup-restored-YYYYMMDD` for volumes, using the recovery point
+  date in UTC.
+
+`volume_only` needs `selected_volume_id`.
+
+Two methods are not yet part of the published API contract:
+`listAllBackupRuns` (workspace-wide) and `deleteBackupRun`.
+
 ## Waiting for operations
 
 VM creates, deletes, power actions, resizes and volume changes return an
-`OperationAccepted`. Wait for the result with `operations.wait`:
+`OperationAccepted`. Pass `wait: true` (or wait options) to any of
+them, or wait for the result with `operations.wait`:
 
 ```ts
 import { OperationFailedError, OperationTimeoutError } from "ibee-sdk";
@@ -352,9 +450,9 @@ contract; behaviour may change.
 | `client.loadBalancers` | list, createL4, createL7, get, updateL4, updateL7, delete, getStatus |
 | `client.computeCatalog` | typed site, plan, and image discovery |
 | `client.billing` | checkResourceEligibility, requireResourceEligibility (portal preflight) |
-| `client.cloudVms` / `client.gpuVms` | auto-paged list and iterate; full lifecycle: power, access, resize/precheck, volumes, mount guidance, events, metrics, snapshots, backup policy/runs, and restore |
-| `client.vmConsole` | createSession, getSession, closeSession |
-| `client.operations` | get, wait |
+| `client.cloudVms` / `client.gpuVms` | auto-paged list, listAll and iterate; portal-style create; full lifecycle: power, access, resize/precheck, volumes, mount guidance, events, metrics, snapshots, backup policy/runs (listAllBackupRuns, deleteBackupRun), restores and restore waits |
+| `client.vmConsole` | createSession (cloud VMs), getSession, closeSession |
+| `client.operations` | get, wait, waitFor |
 
 ## Related
 

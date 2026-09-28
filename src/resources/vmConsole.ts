@@ -1,4 +1,10 @@
 import type { HttpClient } from "../core.js";
+import {
+  IbeeValidationError,
+  validateRequestedBy,
+  validateVmId,
+  validateWorkspaceId,
+} from "../validation.js";
 import type {
   VmConsoleClose,
   VmConsoleSession,
@@ -12,23 +18,57 @@ const pathId = (value: string) => encodeURIComponent(value);
 export class VmConsoleResource {
   constructor(private readonly http: HttpClient) {}
 
-  createSession(args: {
+  /**
+   * Open a graphical console session for a cloud VM. GPU VMs do not support
+   * socket consoles yet, so `vmType: "gpu"` is rejected. With `checkState`
+   * the VM must be running. `connect_url` carries a short-lived token: do
+   * not log it.
+   */
+  async createSession(args: {
     workspaceId: string;
     vmId: string;
     vmType?: VmType;
     consoleType?: "graphical";
     requestedBy?: string | null;
     userId?: string | null;
+    checkState?: boolean;
   }): Promise<VmConsoleSession> {
+    validateWorkspaceId(args.workspaceId);
+    const vmId = validateVmId(args.vmId);
+    if (args.vmType !== undefined && args.vmType !== "cloud") {
+      throw new IbeeValidationError(
+        "Socket-based console sessions are currently available only for cloud VMs.",
+        "console_not_supported",
+        "vm_type",
+      );
+    }
+    if (args.consoleType !== undefined && args.consoleType !== "graphical") {
+      throw new IbeeValidationError("consoleType must be 'graphical'.", "invalid_console_type", "console_type");
+    }
+    validateRequestedBy(args.requestedBy ?? undefined);
+    if (args.checkState) {
+      const vm = await this.http.request<{ status?: string }>({
+        method: "GET",
+        path: `/compute/cloud-vms/${pathId(vmId)}`,
+        workspaceId: args.workspaceId,
+      });
+      if (String(vm?.status ?? "").toLowerCase() !== "running") {
+        throw new IbeeValidationError(
+          "The console is available only while the VM is running.",
+          "console_not_ready",
+          "status",
+        );
+      }
+    }
     return this.http.request({
       method: "POST",
       path: "/compute/console/sessions",
       workspaceId: args.workspaceId,
       body: {
-        vm_id: args.vmId,
-        vm_type: args.vmType,
-        console_type: args.consoleType,
-        requested_by: args.requestedBy,
+        vm_id: vmId,
+        vm_type: args.vmType ?? "cloud",
+        console_type: args.consoleType ?? "graphical",
+        requested_by: args.requestedBy ?? "api",
         user_id: args.userId,
       },
     });
