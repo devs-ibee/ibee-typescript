@@ -2377,3 +2377,694 @@ export function loadBalancerListQuery(args: {
   const includeDeleted = status === "deleted" ? true : args.includeDeleted;
   return { status, layer, protocol, include_deleted: includeDeleted, limit: args.limit, skip: args.skip };
 }
+
+// ======================================================================
+// Storage: Block Storage volumes, Object Storage buckets and S3
+// credentials, CDN distributions (portal parity). All throw
+// IbeeValidationError.
+// ======================================================================
+
+/** Exact-case enum check (trims strings). */
+const enumOf = <T extends string>(value: unknown, allowed: readonly T[], field: string, code = `invalid_${field}`): T => {
+  const v = trimStr(value);
+  if (!(allowed as readonly string[]).includes(v)) vfail(`${field} must be one of ${allowed.join(", ")}.`, code, field);
+  return v as T;
+};
+
+const optionalBool = (value: unknown, field: string): boolean | undefined => {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "boolean") vfail(`${field} must be a boolean.`, `invalid_${field}`, field);
+  return value as boolean;
+};
+
+/** Integer that is not a boolean (fractional values are rejected, never rounded). */
+const requireInt = (value: unknown, field: string, min: number, max: number, message?: string): number => {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < min || value > max) {
+    vfail(message ?? `${field} must be an integer between ${min} and ${max}.`, `invalid_${field}`, field);
+  }
+  return value as number;
+};
+
+// ----------------------------------------------------------- block storage
+
+/** Block volume IDs are 24-character hex document IDs. */
+export const BLOCK_VOLUME_ID_PATTERN = /^[0-9a-fA-F]{24}$/;
+/** Volume names: 3..255 lower-case letters, digits and hyphens (portal rule). */
+export const BLOCK_VOLUME_NAME_PATTERN = /^[a-z0-9-]{3,255}$/;
+/** Portal floor for a new volume (the backend allows 1). */
+export const BLOCK_VOLUME_MIN_SIZE_GB = 10;
+/** Backend ceiling for a volume. */
+export const BLOCK_VOLUME_MAX_SIZE_GB = 10_000;
+export const BLOCK_VOLUME_CLASSES = ["capacity", "balanced", "performance"] as const;
+export const BLOCK_VOLUME_VM_TYPES = ["cloud", "gpu"] as const;
+export const BLOCK_VOLUME_VM_STATES = ["running", "stopped", "suspended"] as const;
+export const BLOCK_VOLUME_ATTACH_MODES = ["single-writer", "multi-writer"] as const;
+/** States in which the backend refuses delete and resize. */
+export const BLOCK_VOLUME_TRANSIENT_STATES: ReadonlySet<string> = new Set([
+  "creating",
+  "attaching",
+  "detaching",
+  "resizing",
+  "deleting",
+]);
+/** Fields the public create must never carry (server-managed or internal). */
+export const BLOCK_VOLUME_FORBIDDEN_CREATE_FIELDS = [
+  "volume_kind",
+  "attach_to_node",
+  "attached_vm_id",
+  "attached_vm_name",
+  "attachment_mode",
+  "is_block_storage",
+  "billing_catalog",
+  "storage_performance",
+  "iops_limit",
+  "throughput_mibps",
+] as const;
+
+export type BlockVolumeVmType = (typeof BLOCK_VOLUME_VM_TYPES)[number];
+
+/** Validate a block volume ID (24 hex characters) and return it trimmed. */
+export function validateBlockVolumeId(value: unknown, field = "volume_id"): string {
+  const id = trimStr(value);
+  if (!BLOCK_VOLUME_ID_PATTERN.test(id)) {
+    vfail(`${field} must be a 24-character hexadecimal volume ID.`, "invalid_volume_id", field);
+  }
+  return id;
+}
+
+/**
+ * Portal volume-name rule. Returns the trimmed name; never renames. The error
+ * suggests the name the portal's input would have produced.
+ */
+export function validateBlockVolumeName(name: unknown): string {
+  const s = trimStr(name);
+  if (!s) vfail("Enter a volume name to continue", "invalid_volume_name", "name");
+  if (s.length < 3) vfail("Volume name must be at least 3 characters", "invalid_volume_name", "name");
+  if (!BLOCK_VOLUME_NAME_PATTERN.test(s)) {
+    const suggestion = s.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+    vfail(
+      `Lowercase letters, numbers, and hyphens only (try '${suggestion.slice(0, 255)}')`,
+      "invalid_volume_name",
+      "name",
+      { suggestion: suggestion.slice(0, 255) },
+    );
+  }
+  return s;
+}
+
+/** Validate a new volume size: an integer from 10 to 10000 GB. */
+export function validateBlockVolumeCreateSize(sizeGb: unknown): number {
+  return requireInt(
+    sizeGb,
+    "size_gb",
+    BLOCK_VOLUME_MIN_SIZE_GB,
+    BLOCK_VOLUME_MAX_SIZE_GB,
+    `size_gb must be a whole number from ${BLOCK_VOLUME_MIN_SIZE_GB} to ${BLOCK_VOLUME_MAX_SIZE_GB} GB.`,
+  );
+}
+
+/** Validate an optional `vm_type` (`cloud` or `gpu`). */
+export function validateVolumeVmType(value: unknown, field = "vm_type"): BlockVolumeVmType | undefined {
+  if (value === undefined || value === null) return undefined;
+  return enumOf(value, BLOCK_VOLUME_VM_TYPES, field, "invalid_vm_type");
+}
+
+/** Validate an optional `vm_state` (`running`, `stopped` or `suspended`). */
+export function validateVolumeVmState(value: unknown, field = "vm_state"): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  return enumOf(value, BLOCK_VOLUME_VM_STATES, field, "invalid_vm_state");
+}
+
+/** Validate an optional attach `mode` (default `single-writer`). */
+export function validateAttachMode(value: unknown): (typeof BLOCK_VOLUME_ATTACH_MODES)[number] {
+  if (value === undefined || value === null) return "single-writer";
+  return enumOf(value, BLOCK_VOLUME_ATTACH_MODES, "mode", "invalid_mode");
+}
+
+/** Validate an optional SKU code: trimmed, non-empty, upper-cased, not ROOTDISK-*. */
+export function validateVolumeSkuCode(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string" || !value.trim()) vfail("sku_code cannot be blank.", "invalid_sku_code", "sku_code");
+  const code = (value as string).trim().toUpperCase();
+  if (code.startsWith("ROOTDISK-")) {
+    vfail("VM root disk is included in the VM plan and must not have a separate SKU", "invalid_sku_code", "sku_code");
+  }
+  return code;
+}
+
+export interface BlockVolumeCreateInput {
+  name: unknown;
+  size_gb: unknown;
+  site_id: unknown;
+  site_name?: unknown;
+  sku_code?: unknown;
+  volume_class?: unknown;
+  replica_count?: unknown;
+  backup_enabled?: unknown;
+  vm_type?: unknown;
+  delete_on_termination?: unknown;
+  [key: string]: unknown;
+}
+
+/**
+ * Validate a volume create and build the public body (without the
+ * idempotency key). Server-managed fields (volume_kind, billing_*, storage
+ * performance, attachment fields) are refused.
+ */
+export function buildBlockVolumeCreateBody(input: BlockVolumeCreateInput): Record<string, unknown> {
+  if (!isRec(input)) vfail("request must be an object.", "invalid_request");
+  for (const key of Object.keys(input)) {
+    if (
+      input[key] !== undefined &&
+      ((BLOCK_VOLUME_FORBIDDEN_CREATE_FIELDS as readonly string[]).includes(key) || key.startsWith("billing_"))
+    ) {
+      vfail(`${key} is set by the server and cannot be sent on a volume create.`, "forbidden_field", key);
+    }
+  }
+  const body: Record<string, unknown> = {
+    name: validateBlockVolumeName(input.name),
+    size_gb: validateBlockVolumeCreateSize(input.size_gb),
+  };
+  const siteId = trimStr(input.site_id);
+  if (!siteId) vfail("Please select a location", "invalid_site_id", "site_id");
+  body.site_id = siteId;
+  if (input.site_name !== undefined && input.site_name !== null) {
+    const siteName = trimStr(input.site_name);
+    if (siteName) body.site_name = siteName;
+  }
+  const sku = validateVolumeSkuCode(input.sku_code);
+  if (sku !== undefined) body.sku_code = sku;
+  if (input.volume_class !== undefined && input.volume_class !== null) {
+    body.volume_class = enumOf(input.volume_class, BLOCK_VOLUME_CLASSES, "volume_class");
+  }
+  if (input.replica_count !== undefined && input.replica_count !== null) {
+    body.replica_count = requireInt(input.replica_count, "replica_count", 1, 5);
+  }
+  const backup = optionalBool(input.backup_enabled, "backup_enabled");
+  if (backup !== undefined) body.backup_enabled = backup;
+  const vmType = validateVolumeVmType(input.vm_type);
+  if (vmType !== undefined) body.vm_type = vmType;
+  const dot = optionalBool(input.delete_on_termination, "delete_on_termination");
+  if (dot !== undefined) body.delete_on_termination = dot;
+  return body;
+}
+
+/** Validate block-volume list filters and build the query. */
+export function blockVolumeListQuery(args: {
+  siteId?: string;
+  vmType?: string;
+  limit?: number;
+  offset?: number;
+}): Record<string, string | number | undefined> {
+  let siteId: string | undefined;
+  if (args.siteId !== undefined && args.siteId !== null) {
+    siteId = trimStr(args.siteId);
+    if (!siteId) vfail("siteId cannot be blank.", "invalid_site_id", "site_id");
+  }
+  validateLimitOffset(args, 1000);
+  return {
+    site_id: siteId,
+    vm_type: validateVolumeVmType(args.vmType),
+    limit: args.limit,
+    offset: args.offset,
+  };
+}
+
+interface VolumeLike {
+  id?: unknown;
+  name?: unknown;
+  state?: unknown;
+  site_id?: unknown;
+  site_name?: unknown;
+  vm_type?: unknown;
+  size_gb?: unknown;
+  attachments?: unknown;
+}
+
+const attachmentsOf = (vol: VolumeLike | null | undefined): Array<Record<string, unknown>> =>
+  Array.isArray(vol?.attachments) ? (vol!.attachments as unknown[]).filter(isRec) : [];
+
+/** The volume's VM type (`cloud` for legacy rows without one). */
+export function volumeVmType(vol: VolumeLike | null | undefined): BlockVolumeVmType {
+  return String(vol?.vm_type ?? "").trim().toLowerCase() === "gpu" ? "gpu" : "cloud";
+}
+
+/** Refuse a delete/resize while the volume is in a transient state. */
+export function assertVolumeNotTransient(vol: VolumeLike | null | undefined, action: "delete" | "resize"): void {
+  const state = String(vol?.state ?? "").trim().toLowerCase();
+  if (BLOCK_VOLUME_TRANSIENT_STATES.has(state)) {
+    vfail(`Volume is currently '${state}'. Retry ${action} once workflow completes.`, "volume_busy", "volume_id");
+  }
+}
+
+/**
+ * Portal and backend attach guards: the volume is unattached, was created
+ * for the target VM type, and (when the VM is known) is in the VM's site.
+ */
+export function assertVolumeAttachable(
+  vol: VolumeLike,
+  targetVmType: BlockVolumeVmType,
+  vm?: { site_id?: unknown } | null,
+): void {
+  if (attachmentsOf(vol).length > 0) {
+    vfail("Volume is already attached; detach it first", "volume_attached", "volume_id");
+  }
+  const volType = volumeVmType(vol);
+  if (volType !== targetVmType) {
+    vfail(
+      `Volume was created for ${volType} VMs and cannot attach to a ${targetVmType} VM`,
+      "vm_type_mismatch",
+      "vm_type",
+    );
+  }
+  const volSite = trimStr(vol.site_id);
+  const vmSite = trimStr(vm?.site_id);
+  if (vm && volSite && vmSite && volSite !== vmSite) {
+    vfail(`Select a server in ${trimStr(vol.site_name) || volSite}`, "site_mismatch", "vm_id");
+  }
+}
+
+/**
+ * Pick the attachment for a detach. With `vmId`/`nodeName` the matching
+ * attachment is required; otherwise the volume must have exactly one.
+ * `forVm` also requires the attachment to carry a VM ID.
+ */
+export function resolveSingleAttachment(
+  vol: VolumeLike,
+  opts: { vmId?: string; nodeName?: string; forVm?: boolean } = {},
+): Record<string, unknown> {
+  const atts = attachmentsOf(vol);
+  if (atts.length === 0) vfail("Volume is not attached to any server", "volume_not_attached", "volume_id");
+  let chosen: Record<string, unknown> | undefined;
+  if (opts.vmId) {
+    chosen = atts.find((a) => String(a.vm_id ?? "") === opts.vmId);
+    if (!chosen) vfail(`Volume is not attached to VM ${opts.vmId}`, "volume_not_attached", "vm_id");
+  } else if (opts.nodeName) {
+    chosen = atts.find((a) => String(a.node_name ?? "") === opts.nodeName);
+    if (!chosen) vfail("Volume is not attached to the requested node", "volume_not_attached", "node_name");
+  } else if (atts.length === 1) {
+    chosen = atts[0];
+  } else {
+    vfail(
+      opts.forVm ? "Volume is attached to several VMs; pass vmId" : "Volume is attached to several targets; pass vm_id/node_name",
+      "ambiguous_attachment",
+      opts.forVm ? "vm_id" : "node_name",
+    );
+  }
+  if (opts.forVm && !trimStr(chosen!.vm_id)) {
+    vfail(
+      "This attachment has no VM ID; use detachVolume with node_name",
+      "attachment_without_vm",
+      "vm_id",
+    );
+  }
+  return chosen!;
+}
+
+/** Node-level safe detach: force, confirm_unmounted, or a stopped/suspended VM. */
+export function validateNodeSafeDetach(req: { force?: unknown; confirm_unmounted?: unknown; vm_state?: unknown }): void {
+  const state = trimStr(req.vm_state);
+  if (req.force !== true && req.confirm_unmounted !== true && state !== "stopped" && state !== "suspended") {
+    vfail(
+      "Safe detach requires VM state or explicit unmount confirmation.",
+      "detach_not_confirmed",
+      "confirm_unmounted",
+    );
+  }
+}
+
+/** Resize is increase-only; an attached volume needs a stopped VM or allow_online. */
+export function validateVolumeResize(
+  req: { new_size_gb?: unknown; vm_state?: unknown; allow_online?: unknown },
+  vol?: VolumeLike | null,
+): void {
+  const size = requireInt(req.new_size_gb, "new_size_gb", 1, BLOCK_VOLUME_MAX_SIZE_GB);
+  validateVolumeVmState(req.vm_state);
+  optionalBool(req.allow_online, "allow_online");
+  if (!vol) return;
+  const current = Number(vol.size_gb);
+  if (Number.isFinite(current) && size < current) {
+    vfail("Shrink is not supported. Resize is increase-only.", "resize_shrink", "new_size_gb");
+  }
+  const state = trimStr(req.vm_state);
+  if (attachmentsOf(vol).length > 0 && req.allow_online !== true && state !== "stopped" && state !== "suspended") {
+    vfail(
+      "Attached volume resize requires vm_state=stopped/suspended or allow_online=true.",
+      "resize_attached",
+      "allow_online",
+    );
+  }
+}
+
+// ----------------------------------------------------------- object storage
+
+export const BUCKET_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/;
+export const BUCKET_RETENTION_MODES = ["GOVERNANCE", "COMPLIANCE"] as const;
+/** Region used when `region` is omitted, by API host (the portal's server default). */
+export const OBJECT_STORAGE_DEFAULT_REGIONS: Readonly<Record<string, string>> = Object.freeze({
+  "api.ibee.ai": "in-south-1",
+  "api.ibee.co.in": "in-south-2",
+});
+export const S3_PERMISSION_TYPES = ["admin_rw", "admin_ro", "object_rw", "object_ro"] as const;
+export const S3_BUCKET_SCOPES = ["all", "specific"] as const;
+export type S3PermissionType = (typeof S3_PERMISSION_TYPES)[number];
+export type S3BucketScope = (typeof S3_BUCKET_SCOPES)[number];
+
+/** Portal bucket-name rule for create. Returns the trimmed name; uppercase is rejected. */
+export function validateBucketName(name: unknown): string {
+  const n = trimStr(name);
+  if (n.length < 3) vfail("Bucket name must be at least 3 characters", "invalid_bucket_name", "name");
+  if (n.length > 63) vfail("Bucket name must be less than 63 characters", "invalid_bucket_name", "name");
+  if (!BUCKET_NAME_PATTERN.test(n)) {
+    vfail(
+      "Bucket name must start and end with a letter or number, and contain only lowercase letters, numbers, and hyphens",
+      "invalid_bucket_name",
+      "name",
+    );
+  }
+  return n;
+}
+
+/** A bucket name used in a path: non-blank (legacy names are not re-checked). */
+export function validateBucketPathName(name: unknown, field = "bucket_name"): string {
+  const n = trimStr(name);
+  if (!n) vfail(`${field} is required.`, "invalid_bucket_name", field);
+  return n;
+}
+
+/**
+ * The bucket region: an explicit value (trimmed) or the default for the
+ * client's API host (production `in-south-1`, development `in-south-2`).
+ */
+export function resolveObjectStorageRegion(region: unknown, baseUrl: string): string {
+  if (region !== undefined && region !== null) {
+    const r = trimStr(region);
+    if (!r) vfail("region cannot be blank.", "invalid_region", "region");
+    return r;
+  }
+  let host = "";
+  try {
+    host = new URL(baseUrl).hostname.toLowerCase();
+  } catch {
+    host = "";
+  }
+  const def = OBJECT_STORAGE_DEFAULT_REGIONS[host];
+  if (!def) vfail("region is required for this base URL", "region_required", "region");
+  return def;
+}
+
+export interface BucketCreateInput {
+  name: unknown;
+  region: string;
+  isPublic?: unknown;
+  objectLockEnabled?: unknown;
+  defaultRetention?: unknown;
+  tags?: unknown;
+}
+
+/**
+ * Validate a bucket create (name, retention and object-lock combination) and
+ * build the body. A default retention turns object lock on when it was not
+ * set; an explicit `objectLockEnabled: false` with a retention is refused.
+ */
+export function buildBucketCreateBody(input: BucketCreateInput): Record<string, unknown> {
+  const body: Record<string, unknown> = { name: validateBucketName(input.name), region: input.region };
+  const isPublic = optionalBool(input.isPublic, "is_public");
+  if (isPublic !== undefined) body.is_public = isPublic;
+  let lock = optionalBool(input.objectLockEnabled, "object_lock_enabled");
+  if (input.defaultRetention !== undefined && input.defaultRetention !== null) {
+    const r = input.defaultRetention;
+    if (!isRec(r)) vfail("default_retention must be an object.", "invalid_default_retention", "default_retention");
+    const rec = r as Record<string, unknown>;
+    const mode = enumOf(rec.mode, BUCKET_RETENTION_MODES, "default_retention.mode", "invalid_default_retention");
+    const hasDays = rec.days !== undefined && rec.days !== null;
+    const hasYears = rec.years !== undefined && rec.years !== null;
+    if (hasDays === hasYears) {
+      vfail("default_retention needs exactly one of days or years.", "invalid_default_retention", "default_retention");
+    }
+    const retention: Record<string, unknown> = { mode };
+    if (hasDays) retention.days = requireInt(rec.days, "default_retention.days", 1, 36_500);
+    else retention.years = requireInt(rec.years, "default_retention.years", 1, 100);
+    if (lock === false) {
+      vfail(
+        "object_lock_enabled must be true when default_retention is specified",
+        "invalid_default_retention",
+        "object_lock_enabled",
+      );
+    }
+    lock = true;
+    body.default_retention = retention;
+  }
+  if (lock !== undefined) body.object_lock_enabled = lock;
+  if (input.tags !== undefined && input.tags !== null) {
+    if (!Array.isArray(input.tags) || input.tags.some((t) => typeof t !== "string")) {
+      vfail("tags must be an array of strings.", "invalid_tags", "tags");
+    }
+    body.tags = input.tags;
+  }
+  return body;
+}
+
+/** Portal pre-checks before deleting a bucket. */
+export function assertBucketDeletable(
+  bucket: { bucket_lock_enabled?: unknown; object_lock_enabled?: unknown; object_count?: unknown } | null | undefined,
+  opts: { skipPreflight?: boolean } = {},
+): void {
+  if (bucket?.bucket_lock_enabled === true || bucket?.object_lock_enabled === true) {
+    vfail("Bucket cannot be deleted because Object Lock is enabled.", "bucket_object_lock", "bucket_name");
+  }
+  const count = Number(bucket?.object_count ?? 0);
+  if (!opts.skipPreflight && Number.isFinite(count) && count > 0) {
+    vfail(`Bucket is not empty (${count} objects). Delete all objects first.`, "bucket_not_empty", "bucket_name");
+  }
+}
+
+/**
+ * Portal S3 credential rules: name defaults to "Default Key" (1..100),
+ * permission defaults to `admin_rw`, admin permissions cover all buckets,
+ * and a `specific` scope needs at least one bucket.
+ */
+export function buildS3CredentialBody(input: {
+  name?: unknown;
+  permissionType?: unknown;
+  bucketScope?: unknown;
+  allowedBuckets?: unknown;
+}): { name: string; permission_type: S3PermissionType; bucket_scope: S3BucketScope; allowed_buckets: string[] } {
+  const name = input.name === undefined || input.name === null ? "Default Key" : trimStr(input.name);
+  if (!name) vfail("Please enter a credential name", "invalid_name", "name");
+  if (name.length > 100) vfail("Credential name must be 100 characters or fewer.", "invalid_name", "name");
+  const permission =
+    input.permissionType === undefined || input.permissionType === null
+      ? "admin_rw"
+      : enumOf(input.permissionType, S3_PERMISSION_TYPES, "permission_type");
+  let buckets: string[] = [];
+  if (input.allowedBuckets !== undefined && input.allowedBuckets !== null) {
+    if (!Array.isArray(input.allowedBuckets)) {
+      vfail("allowed_buckets must be an array of bucket names.", "invalid_allowed_buckets", "allowed_buckets");
+    }
+    for (const raw of input.allowedBuckets as unknown[]) {
+      const b = typeof raw === "string" ? raw.trim() : "";
+      if (b && !buckets.includes(b)) buckets.push(b);
+    }
+  }
+  const scopeGiven = input.bucketScope !== undefined && input.bucketScope !== null;
+  if (permission.startsWith("admin_")) {
+    const scope = scopeGiven ? enumOf(input.bucketScope, S3_BUCKET_SCOPES, "bucket_scope") : "all";
+    if (scope === "specific" || buckets.length > 0) {
+      vfail("bucket_scope and allowed_buckets apply only to object_rw/object_ro", "invalid_bucket_scope", "bucket_scope");
+    }
+    return { name, permission_type: permission, bucket_scope: "all", allowed_buckets: [] };
+  }
+  const scope = scopeGiven ? enumOf(input.bucketScope, S3_BUCKET_SCOPES, "bucket_scope") : "all";
+  if (scope === "specific" && buckets.length === 0) {
+    vfail("Please select at least one bucket", "invalid_allowed_buckets", "allowed_buckets");
+  }
+  if (scope === "all" && buckets.length > 0) {
+    vfail("allowed_buckets requires bucket_scope 'specific'.", "invalid_allowed_buckets", "allowed_buckets");
+  }
+  if (scope === "all") buckets = [];
+  return { name, permission_type: permission, bucket_scope: scope, allowed_buckets: buckets };
+}
+
+/** Portal display rule for a workspace's S3 endpoint (display only). */
+export function s3EndpointForWorkspace(workspaceId: string): string {
+  return `https://${validateWorkspaceId(workspaceId)}.blob.ibeestorage.com`;
+}
+
+// ----------------------------------------------------------------------- CDN
+
+/** Cache policies the portal offers (the API also lists `public-development`). */
+export const CDN_CACHE_POLICIES = ["static-assets", "media", "short", "no-cache"] as const;
+export const CDN_ORIGIN_TYPES = ["bucket", "custom"] as const;
+export const CDN_PURGE_MODES = ["url", "hostname", "tag", "prefix", "all"] as const;
+export const CDN_METRICS_RANGES = ["24h", "7d", "30d"] as const;
+export const CDN_URL_DISPOSITIONS = ["inline", "attachment"] as const;
+export type CdnCachePolicyId = (typeof CDN_CACHE_POLICIES)[number];
+export type CdnPurgeMode = (typeof CDN_PURGE_MODES)[number];
+const CDN_DOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/;
+const PURGE_SELECTOR: Record<CdnPurgeMode, string | undefined> = {
+  url: "paths",
+  hostname: "hostnames",
+  tag: "tags",
+  prefix: "prefixes",
+  all: undefined,
+};
+
+/** Distribution name: trimmed, 1..128 characters. */
+export function validateCdnDistributionName(name: unknown): string {
+  const n = trimStr(name);
+  if (!n) vfail("Please enter a name", "invalid_name", "name");
+  if (n.length > 128) vfail("name must be 128 characters or fewer.", "invalid_name", "name");
+  return n;
+}
+
+/** Validate distribution create/update fields and build the body. */
+export function validateCdnDistributionFields(
+  input: { name?: unknown; origin_id?: unknown; origin_type?: unknown; cache_policy?: unknown; enabled?: unknown },
+  opts: { update?: boolean } = {},
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  if (!opts.update || (input.name !== undefined && input.name !== null)) body.name = validateCdnDistributionName(input.name);
+  if (!opts.update) {
+    const originId = trimStr(input.origin_id);
+    if (!originId) vfail("Please select a bucket", "invalid_origin_id", "origin_id");
+    body.origin_type =
+      input.origin_type === undefined || input.origin_type === null
+        ? "bucket"
+        : enumOf(input.origin_type, CDN_ORIGIN_TYPES, "origin_type");
+    body.origin_id = originId;
+  }
+  if (input.cache_policy !== undefined && input.cache_policy !== null) {
+    body.cache_policy = enumOf(input.cache_policy, CDN_CACHE_POLICIES, "cache_policy");
+  } else if (!opts.update) {
+    body.cache_policy = "static-assets";
+  }
+  if (opts.update) {
+    const enabled = optionalBool(input.enabled, "enabled");
+    if (enabled !== undefined) body.enabled = enabled;
+    if (Object.keys(body).length === 0) {
+      vfail("Provide at least one of name, cache_policy, enabled", "no_changes");
+    }
+  }
+  return body;
+}
+
+/** Validate a CDN URL request (bucket, key, expiry, disposition). */
+export function validateCdnUrlRequest(input: {
+  bucket_name?: unknown;
+  object_key?: unknown;
+  expires_in?: unknown;
+  disposition?: unknown;
+}): Record<string, unknown> {
+  const bucket = trimStr(input.bucket_name);
+  if (!bucket) vfail("bucket_name is required.", "invalid_bucket_name", "bucket_name");
+  const key = typeof input.object_key === "string" ? input.object_key : "";
+  if (!key.trim()) vfail("object_key is required.", "invalid_object_key", "object_key");
+  const body: Record<string, unknown> = { bucket_name: bucket, object_key: key };
+  if (input.expires_in !== undefined && input.expires_in !== null) {
+    body.expires_in = requireInt(input.expires_in, "expires_in", 1, Number.MAX_SAFE_INTEGER, "expires_in must be an integer >= 1.");
+  }
+  if (input.disposition !== undefined && input.disposition !== null) {
+    body.disposition = enumOf(input.disposition, CDN_URL_DISPOSITIONS, "disposition");
+  }
+  return body;
+}
+
+/** Validate a static-website index document (default `index.html`). */
+export function validateCdnIndexDocument(value: unknown): string {
+  const v = value === undefined || value === null ? "index.html" : trimStr(value);
+  const bad = (why: string): never => vfail(`index_document ${why}.`, "invalid_index_document", "index_document");
+  if (!v) bad("cannot be blank");
+  if (new TextEncoder().encode(v).length > 1024) bad("must be at most 1024 bytes");
+  if (v.startsWith("/")) bad("must not start with '/'");
+  if (v.includes("\\")) bad("must not contain a backslash");
+  for (const ch of v) {
+    const code = ch.codePointAt(0)!;
+    if (code < 0x20 || code > 0x7e) bad("must contain printable ASCII characters only");
+  }
+  if (v.split("/").some((seg) => seg === "" || seg === "." || seg === "..")) {
+    bad("must not contain empty, '.' or '..' path segments");
+  }
+  return v;
+}
+
+/**
+ * Normalise a CDN custom domain (trim, lower-case). `create` applies the
+ * full hostname rule; path use only needs a non-blank value.
+ */
+export function normalizeCdnDomain(domain: unknown, opts: { create?: boolean } = {}): string {
+  const d = trimStr(domain).toLowerCase();
+  if (!d) vfail("domain is required.", "invalid_domain", "domain");
+  if (!opts.create) return d;
+  if (d.length < 3 || d.length > 253) vfail("domain must be 3-253 characters.", "invalid_domain", "domain");
+  if (!CDN_DOMAIN_PATTERN.test(d)) vfail(`'${d}' is not a valid domain name.`, "invalid_domain", "domain");
+  if (!d.includes(".")) {
+    vfail("Domain must include a subdomain (e.g., cdn.example.com)", "invalid_domain", "domain");
+  }
+  return d;
+}
+
+const splitList = (value: unknown, field: string): string[] => {
+  const items =
+    typeof value === "string"
+      ? value.split(/[,\n]/)
+      : Array.isArray(value)
+        ? value
+        : vfail(`${field} must be an array of strings.`, "invalid_purge_request", field);
+  return (items as unknown[]).map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean);
+};
+
+/**
+ * Validate a cache purge and build the body. Only the selector matching the
+ * mode may be given (`all` takes none): url -> paths (1..30, a leading `/`
+ * is added to relative paths, absolute URLs must be https without
+ * credentials or fragment), hostname -> hostnames (lower-cased), tag ->
+ * tags, prefix -> prefixes (no query or fragment); 1..100 each. Selector
+ * values may be arrays or comma/newline separated strings.
+ */
+export function buildCdnPurgeBody(input: {
+  mode?: unknown;
+  paths?: unknown;
+  hostnames?: unknown;
+  tags?: unknown;
+  prefixes?: unknown;
+}): Record<string, unknown> {
+  if (!isRec(input)) vfail("request must be an object.", "invalid_purge_request");
+  const mode = enumOf(input.mode, CDN_PURGE_MODES, "mode", "invalid_purge_request");
+  const selector = PURGE_SELECTOR[mode];
+  for (const key of ["paths", "hostnames", "tags", "prefixes"]) {
+    if (key !== selector && input[key as keyof typeof input] !== undefined && input[key as keyof typeof input] !== null) {
+      vfail(`${key} cannot be used with mode '${mode}'.`, "invalid_purge_request", key);
+    }
+  }
+  if (!selector) return { mode };
+  let values = splitList(input[selector as keyof typeof input], selector);
+  const max = mode === "url" ? 30 : 100;
+  if (values.length === 0) vfail(`mode '${mode}' requires at least one entry in ${selector}.`, "invalid_purge_request", selector);
+  if (values.length > max) vfail(`${selector} accepts at most ${max} entries.`, "invalid_purge_request", selector);
+  if (mode === "url") {
+    values = values.map((p) => {
+      if (!p.includes("://")) return p.startsWith("/") ? p : `/${p}`;
+      if (!p.toLowerCase().startsWith("https://")) vfail("Absolute purge URLs must use https://.", "invalid_purge_request", "paths");
+      if (p.includes("#")) vfail("Purge URLs must not contain a fragment (#).", "invalid_purge_request", "paths");
+      const authority = p.slice(p.indexOf("://") + 3).split("/")[0];
+      if (authority.includes("@")) vfail("Purge URLs must not contain credentials.", "invalid_purge_request", "paths");
+      return p;
+    });
+  } else if (mode === "hostname") {
+    values = values.map((h) => h.toLowerCase());
+  } else if (mode === "prefix") {
+    for (const p of values) {
+      if (p.includes("?") || p.includes("#")) {
+        vfail("Purge prefixes must not contain a query string or fragment.", "invalid_purge_request", "prefixes");
+      }
+    }
+  }
+  return { mode, [selector]: values };
+}
+
+/** Validate a CDN metrics range (default `24h`). */
+export function validateCdnMetricsRange(range: unknown): string {
+  if (range === undefined || range === null) return "24h";
+  return enumOf(range, CDN_METRICS_RANGES, "range", "invalid_range");
+}

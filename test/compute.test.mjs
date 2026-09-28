@@ -451,22 +451,22 @@ test("metrics, events, operation and console inputs are validated", async () => 
 
 test("attachVolume resolves the Block Storage SKU and checks the volume like the portal", async () => {
   let volume = {
-    id: "vol-1", name: "data", site_id: "site-1", site_name: "Chennai", state: "ready", attachments: [],
+    id: "64b0000000000000000000b1", name: "data", site_id: "site-1", site_name: "Chennai", state: "ready", attachments: [],
     metadata: { billing_catalog: { sku_id: 3, sku_code: "blk-std", product_code: "block_storage" } },
   };
   let vmSite = "site-1";
   const { calls, client } = router([
-    ["GET", /^\/block-storage\/volumes\/vol-1$/, () => volume],
+    ["GET", /^\/block-storage\/volumes\/64b0000000000000000000b1$/, () => volume],
     ["GET", new RegExp(`^/compute/cloud-vms/${VM1}$`), () => ({ _id: VM1, site_id: vmSite, status: "running" })],
     ["POST", /\/actions\/attach-volume$/, ACCEPTED],
     ["GET", /^\/compute\/operations\//, { ...ACCEPTED, status: "succeeded", action: "attach_volume", updated_at: "x" }],
   ]);
-  const attach = (extra = {}) => client.cloudVms.attachVolume({ workspaceId: WS, vmId: VM1, request: { volume_id: "vol-1" }, ...extra });
+  const attach = (extra = {}) => client.cloudVms.attachVolume({ workspaceId: WS, vmId: VM1, request: { volume_id: "64b0000000000000000000b1" }, ...extra });
   const res = await attach({ wait: true });
   assert.equal(res.operation.status, "succeeded");
   const post = calls.find((c) => c.path.endsWith("/attach-volume"));
   assert.deepEqual(post.body, {
-    volume_id: "vol-1",
+    volume_id: "64b0000000000000000000b1",
     mode: "single-writer",
     billing_catalog: { sku_id: 3, sku_code: "BLK-STD", product_code: "block_storage" },
   });
@@ -480,7 +480,7 @@ test("attachVolume resolves the Block Storage SKU and checks the volume like the
   volume = { ...volume, state: "ready", metadata: {} };
   await assert.rejects(attach(), isValidation("invalid_billing_catalog"));
   await assert.rejects(
-    client.cloudVms.attachVolume({ workspaceId: WS, vmId: VM1, request: { volume_id: "vol-1", mode: "rw" } }),
+    client.cloudVms.attachVolume({ workspaceId: WS, vmId: VM1, request: { volume_id: "64b0000000000000000000b1", mode: "rw" } }),
     isValidation("invalid_attach"),
   );
 });
@@ -488,10 +488,10 @@ test("attachVolume resolves the Block Storage SKU and checks the volume like the
 test("detachVolume requires confirm_unmounted or force", async () => {
   const { calls, client } = router([["POST", /\/actions\/detach-volume$/, ACCEPTED]]);
   await assert.rejects(
-    client.cloudVms.detachVolume({ workspaceId: WS, vmId: VM1, request: { volume_id: "vol-1" } }),
+    client.cloudVms.detachVolume({ workspaceId: WS, vmId: VM1, request: { volume_id: "64b0000000000000000000b1" } }),
     isValidation("detach_not_confirmed"),
   );
-  await client.cloudVms.detachVolume({ workspaceId: WS, vmId: VM1, request: { volume_id: "vol-1", force: true } });
+  await client.cloudVms.detachVolume({ workspaceId: WS, vmId: VM1, request: { volume_id: "64b0000000000000000000b1", force: true } });
   assert.equal(calls.length, 1);
 });
 

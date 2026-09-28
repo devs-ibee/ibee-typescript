@@ -93,7 +93,7 @@ test("createBucket requires a storage region and never sends a compute site", as
   const client = new Ibee({ token: "t", fetch: fetchImpl });
   await client.objectStorage.createBucket({
     workspaceId: "1",
-    name: "b",
+    name: "bkt",
     region: "in-south-1",
     objectLockEnabled: true,
     defaultRetention: { mode: "GOVERNANCE", days: 30 },
@@ -497,15 +497,15 @@ test("extended VM writes use canonical bodies and idempotency headers", async ()
     workspaceId: "710995",
     vmId: VM1,
     idempotencyKey: "attach-key",
-    request: { volume_id: "vol-1", mode: "single-writer", billing_catalog: { sku_id: 3, sku_code: "block-std" } },
+    request: { volume_id: "64b0000000000000000000b1", mode: "single-writer", billing_catalog: { sku_id: 3, sku_code: "block-std" } },
   });
   await client.cloudVms.detachVolume({
     workspaceId: "710995",
     vmId: VM1,
     idempotencyKey: "detach-key",
-    request: { volume_id: "vol-1", force: true, confirm_unmounted: true },
+    request: { volume_id: "64b0000000000000000000b1", force: true, confirm_unmounted: true },
   });
-  await client.cloudVms.acknowledgeMountGuidance({ workspaceId: "710995", vmId: VM1, volumeId: "vol-1" });
+  await client.cloudVms.acknowledgeMountGuidance({ workspaceId: "710995", vmId: VM1, volumeId: "64b0000000000000000000b1" });
 
   const writes = calls.filter((c) => c.method !== "GET");
   assert.deepEqual(
@@ -537,14 +537,14 @@ test("extended VM writes use canonical bodies and idempotency headers", async ()
   assert.deepEqual(JSON.parse(writes[5].body), { new_size_gb: 200, allow_online: false });
   assert.equal(writes[5].headers.get("x-idempotency-key"), "disk-key");
   assert.deepEqual(JSON.parse(writes[6].body), {
-    volume_id: "vol-1",
+    volume_id: "64b0000000000000000000b1",
     mode: "single-writer",
     billing_catalog: { sku_id: 3, sku_code: "BLOCK-STD" },
   });
   assert.equal(writes[6].headers.get("x-idempotency-key"), "attach-key");
-  assert.deepEqual(JSON.parse(writes[7].body), { volume_id: "vol-1", force: true, confirm_unmounted: true });
+  assert.deepEqual(JSON.parse(writes[7].body), { volume_id: "64b0000000000000000000b1", force: true, confirm_unmounted: true });
   assert.equal(writes[7].headers.get("x-idempotency-key"), "detach-key");
-  assert.deepEqual(JSON.parse(writes[8].body), { volume_id: "vol-1" });
+  assert.deepEqual(JSON.parse(writes[8].body), { volume_id: "64b0000000000000000000b1" });
   assert.equal(writes[8].headers.get("x-idempotency-key"), null);
 });
 
@@ -843,6 +843,7 @@ test("object storage bucket and S3 credential lifecycle uses canonical paths", a
   await client.objectStorage.createS3Credential({
     workspaceId: "1",
     name: "ci",
+    permissionType: "object_rw",
     bucketScope: "specific",
     allowedBuckets: ["assets"],
   });
@@ -862,11 +863,11 @@ test("Block Storage exposes all 8 operations with canonical paths and bodies", a
   const { calls, fetchImpl } = stub({ json: {} });
   const client = new Ibee({ token: "t", fetch: fetchImpl });
   const workspaceId = "710995";
-  const volumeId = "vol/1";
+  const volumeId = "64b0000000000000000000b1";
 
   await client.blockStorage.listVolumes({ workspaceId });
   await client.blockStorage.createVolume({
-    workspaceId, name: "database", size_gb: 100, site_id: "site-1",
+    workspaceId, name: "database", size_gb: 100, site_id: "site-1", site_name: "Chennai",
     volume_class: "balanced", replica_count: 2, backup_enabled: true,
   });
   await client.blockStorage.getVolume({ workspaceId, volumeId });
@@ -880,34 +881,36 @@ test("Block Storage exposes all 8 operations with canonical paths and bodies", a
     request: { node_name: "worker-1", confirm_unmounted: true },
   });
   await client.blockStorage.resizeVolume({
-    workspaceId, volumeId, request: { new_size_gb: 200, allow_online: false },
+    workspaceId, volumeId, request: { new_size_gb: 200, allow_online: false }, checkState: false,
   });
   await client.blockStorage.deleteVolume({ workspaceId, volumeId, force: true });
 
+  const p = `/v1/block-storage/volumes/${volumeId}`;
   assert.deepEqual(calls.map((call) => [call.method, new URL(call.url).pathname]), [
     ["GET", "/v1/block-storage/volumes"],
     ["POST", "/v1/block-storage/volumes"],
-    ["GET", "/v1/block-storage/volumes/vol%2F1"],
-    ["GET", "/v1/block-storage/volumes/vol%2F1/operations"],
-    ["POST", "/v1/block-storage/volumes/vol%2F1/attachments"],
-    ["POST", "/v1/block-storage/volumes/vol%2F1/detach"],
-    ["POST", "/v1/block-storage/volumes/vol%2F1/resize"],
-    ["DELETE", "/v1/block-storage/volumes/vol%2F1"],
+    ["GET", p],
+    ["GET", `${p}/operations`],
+    ["POST", `${p}/attachments`],
+    ["POST", `${p}/detach`],
+    ["POST", `${p}/resize`],
+    ["DELETE", p],
   ]);
   assert.equal(calls.every((call) => new URL(call.url).searchParams.get("workspace_id") === workspaceId), true);
   const { idempotency_key: createKey, ...createBody } = JSON.parse(calls[1].body);
   assert.deepEqual(createBody, {
-    name: "database", size_gb: 100, site_id: "site-1",
+    name: "database", size_gb: 100, site_id: "site-1", site_name: "Chennai",
     volume_class: "balanced", replica_count: 2, backup_enabled: true,
   });
-  assert.match(createKey, /^block-volume-create-database-[A-Za-z0-9_-]+$/);
+  assert.match(createKey, /^create-volume-database-[A-Za-z0-9_-]+$/);
+  assert.equal(calls[1].headers.get("x-idempotency-key"), createKey);
   const { idempotency_key: attachKey, ...attachBody } = JSON.parse(calls[4].body);
   assert.deepEqual(attachBody, {
     node_name: "worker-1", mode: "single-writer", vm_id: "vm-1",
   });
-  assert.match(attachKey, /^block-volume-attach-vol1-/);
+  assert.match(attachKey, new RegExp(`^attach-volume-${volumeId}-`));
   assert.equal(new URL(calls[7].url).searchParams.get("force"), "true");
-  assert.match(new URL(calls[7].url).searchParams.get("idempotency_key"), /^block-volume-delete-vol1-/);
+  assert.match(new URL(calls[7].url).searchParams.get("idempotency_key"), new RegExp(`^delete-volume-${volumeId}-`));
 });
 
 test("CDN exposes all 15 operations with encoded IDs and canonical bodies", async () => {
@@ -945,7 +948,7 @@ test("CDN exposes all 15 operations with encoded IDs and canonical bodies", asyn
     bucket_name: "assets", object_key: "images/logo.svg", disposition: "inline",
   });
   assert.deepEqual(JSON.parse(calls[2].body), {
-    name: "assets", origin_id: "assets", origin_type: "bucket",
+    name: "assets", origin_id: "assets", origin_type: "bucket", cache_policy: "static-assets",
   });
   assert.deepEqual(JSON.parse(calls[14].body), { mode: "prefix", prefixes: ["/images/"] });
 });

@@ -149,6 +149,64 @@
   - `LoadBalancer` gains `custom_domain`, `activated_at`, `deleted_at` and
     `deleted_by`.
 
+- Storage (Block Storage, Object Storage, CDN) follows the portal:
+  - `blockStorage.attachToVm` / `blockStorage.detachFromVm`: attach a volume
+    to (or detach it from) a cloud or GPU VM the way the portal does. The SDK
+    reads the volume, picks the VM endpoint from its `vm_type`, uses its
+    Block Storage SKU as `billing_catalog`, and with `wait` polls the
+    operation (every 2 s, up to 2 min) and re-reads the volume;
+  - `blockStorage.listAllVolumes` / `iterateVolumes`; `listVolumes` takes
+    `siteId`, `vmType`, `limit` (1..1000) and `offset`;
+  - `blockStorage.listVolumeOperations` takes `limit` (1..200);
+  - `blockStorage.createVolume` accepts `vm_type` and
+    `delete_on_termination`, and `resolveSiteName` (default true) fills
+    `site_name` from the compute sites (not yet part of the published API
+    contract; behaviour may change);
+  - `objectStorage.listAllBuckets` / `iterateBuckets` follow continuation
+    tokens;
+  - `objectStorage.deleteS3Credential`, an alias of `revokeS3Credential`
+    whose name matches what the API does (a permanent delete);
+  - `createBucket`, `createS3Credential`, `cdn.createDistribution` and
+    `cdn.createCustomDomain` accept `preflightBilling` (OBJECTST-STD,
+    CDN without a SKU, CUSTOMDO-STD with 19 900 minor units, as the portal
+    checks);
+  - `cdn.createDistribution({ checkOriginPublic: true })` refuses a private
+    origin bucket before creating;
+  - `cdn.listCachePolicies` and `cdn.getDistributionMetrics({ range })`
+    (`24h`, `7d`, `30d`). Not yet part of the published API contract;
+    behaviour may change;
+  - `cdn.waitForCustomDomain`: calls verify every 15 s until `active` or
+    `failed` (up to 10 min), else `CdnDomainVerificationTimeoutError`;
+  - `IbeeCdnPurgeError` (also exported as `CdnPurgeFailedError`) for a purge
+    the CDN reported as `success: false`;
+  - `cloudVms.attachVolume` / `gpuVms.attachVolume` accept `volume` (a
+    volume you already read) to skip the volume GET;
+  - constants `OBJECT_STORAGE_SKU_CODE`, `CDN_CUSTOM_DOMAIN_SKU_CODE`,
+    `CDN_CUSTOM_DOMAIN_ESTIMATED_COST_MINOR`, `CDN_CACHE_POLICIES`,
+    `CDN_PURGE_MODES`, `S3_PERMISSION_TYPES` and the other storage enums;
+  - validators and builders: `validateBlockVolumeName`,
+    `validateBlockVolumeCreateSize`, `validateBlockVolumeId`,
+    `buildBlockVolumeCreateBody`, `assertVolumeAttachable`,
+    `resolveSingleAttachment`, `validateVolumeResize`,
+    `validateNodeSafeDetach`, `validateBucketName`,
+    `resolveObjectStorageRegion`, `buildBucketCreateBody`,
+    `assertBucketDeletable`, `buildS3CredentialBody`,
+    `s3EndpointForWorkspace`, `validateCdnDistributionFields`,
+    `validateCdnIndexDocument`, `normalizeCdnDomain`, `buildCdnPurgeBody`,
+    `validateCdnUrlRequest`, `validateCdnMetricsRange`;
+  - types: `CdnCachePolicy`, `CdnCachePolicyList`, `CdnDistributionMetrics`,
+    `CdnDistributionDeleteResult`, `CdnCustomDomainDeleteResult`,
+    `AttachVolumeToVmArgs`, `DetachVolumeFromVmArgs`,
+    `VolumeVmActionResult`, `ListVolumesArgs`; `BlockVolume` gains
+    `vm_type`, `volume_kind`, `volume_name`, `attached_vm_id`,
+    `attached_vm_name` and metadata fields; `Bucket`/`BucketSummary` gain the
+    fields the API returns (`is_public`, `bucket_lock_enabled`,
+    `site_name`, `object_count`, `total_size`, `updated_at`, ...);
+    `S3Credential` gains `permission_type`, `bucket_scope`,
+    `allowed_buckets`, `organization_id`, `workspace_id`;
+    `CdnDistribution` gains `bucket_name`, `project_id`, `deleted_at`;
+    `CdnCustomDomain` gains `cf_custom_hostname_id` and `validation`.
+
 ### Changed
 
 - **Lists auto-page.** `cloudVms.list`, `gpuVms.list` and
@@ -291,6 +349,69 @@
   the API returns; the old `hourly`/`monthly` fields are deprecated.
   `VpcDetail.attached_nodes` is typed `VpcAttachedNode[]`.
 
+- **Block Storage checks run before sending:**
+  - volume IDs must be 24-character hex IDs;
+  - create: name 3..255 of lower-case letters, digits and hyphens (never
+    renamed; the error suggests one), size a whole number of GB from 10 to
+    10000, a non-blank `site_id`, `volume_class`, `replica_count` 1..5,
+    `vm_type` `cloud`/`gpu`; `sku_code` is upper-cased and `ROOTDISK-*` is
+    refused; server-managed fields (`volume_kind`, `billing_*`,
+    `storage_performance`, attachment fields) are refused;
+  - the create idempotency key is also sent as `X-Idempotency-Key`; generated
+    keys now use the portal prefixes (`create-volume-`, `attach-volume-`,
+    `detach-volume-`, `resize-volume-`, `delete-volume-`);
+  - `deleteVolume` reads the volume and refuses an attached ("Detach this
+    volume from all servers before deleting.") or busy volume unless
+    `force` (`checkAttachments: false` skips the read);
+  - `resizeVolume` reads the volume (`checkState`, default true) and refuses
+    a shrink, a busy volume, and an attached volume without `vm_state`
+    stopped/suspended or `allow_online: true`;
+  - node-level `detachVolume` needs `force`, `confirm_unmounted` or a
+    stopped/suspended `vm_state`; `node_name` is now optional and read from
+    the volume's single attachment;
+  - node-level `attachVolume` checks `mode`, `vm_state`, `vm_type` and, with
+    `vm_site_id`, the volume's site;
+  - a 403 on the pre-check read (no `block-storage.read`) skips the check.
+- **VM volume attach** (`cloudVms`/`gpuVms.attachVolume`) also refuses a
+  volume created for the other VM type (it would fail later with "Volume
+  not found"), and a 403 on the volume read asks for `billing_catalog`
+  instead of failing.
+- **Object Storage:**
+  - `createBucket`: the name follows the portal rule (uppercase is refused,
+    not lower-cased); `region` is now optional and defaults to `in-south-1`
+    on production and `in-south-2` on development (required for other base
+    URLs); a `defaultRetention` turns Object Lock on, needs exactly one of
+    `days` (1..36500) or `years` (1..100), and cannot be combined with
+    `objectLockEnabled: false`;
+  - `deleteBucket` reads the bucket first and refuses an Object Lock bucket
+    or one that still has objects (`skipPreflight` skips only the object
+    count). The API never deletes objects: a non-empty bucket gets 409;
+  - `updateBucket` requires a boolean `isPublic`. Making a bucket private
+    also disables its public URL and deletes any CDN distribution using it;
+  - `createS3Credential` always sends `permission_type` (default
+    `admin_rw`), `bucket_scope` and `allowed_buckets`; `name` defaults to
+    "Default Key" (1..100); admin permissions cannot be scoped to buckets;
+    `bucketScope: "specific"` needs an `object_*` permission and at least one
+    bucket;
+  - `listBuckets` checks `limit` (1..1000) and `continuationToken`.
+- **CDN:**
+  - `createDistribution` sends `origin_type: "bucket"` and
+    `cache_policy: "static-assets"` by default and checks the name
+    (1..128), origin and cache policy (`static-assets`, `media`, `short`,
+    `no-cache`);
+  - `updateDistribution` needs at least one field;
+  - `updateWebsiteConfig` sends `index_document` (default `index.html`) and
+    checks it;
+  - custom domains are trimmed and lower-cased; create requires a valid
+    hostname with a subdomain;
+  - `purgeCache` checks the mode and its selector (url 1..30 paths, https
+    only for absolute URLs; hostname/tag/prefix 1..100) and now **throws
+    `IbeeCdnPurgeError` when the API answers `success: false`**; pass
+    `raiseOnFailure: false` for the 0.3.0 behaviour;
+  - `generateUrl` checks `expires_in` (>= 1) and `disposition`;
+  - `deleteDistribution` / `deleteCustomDomain` return the API's JSON
+    result instead of `void`.
+
 ### Fixed
 
 - VM, GPU VM and firewall-group lists no longer silently stop at 10 items.
@@ -300,6 +421,16 @@
   lists (the flag is refused).
 - HTTPS / TLS-passthrough load balancers can be created without passing
   `tls`.
+
+- Attaching a block volume to a VM no longer fails with 422 (the volume's
+  Block Storage SKU is sent as `billing_catalog`).
+- `createS3Credential` without `permissionType` no longer fails with 422.
+- Block Storage idempotency keys now reach the backend (body/query), so
+  retries of creates, attaches, detaches, resizes and deletes are
+  de-duplicated.
+- CDN cache purges that failed upstream are no longer reported as success.
+- `Bucket` and `S3Credential` types now match the fields the API returns;
+  the 0.3.0 field names are kept as deprecated optional fields.
 
 ### Notes
 
@@ -331,3 +462,23 @@
 - VPC create with `nat_gateway` is not billing-admitted at the edge, so NAT
   gateways created that way are only metered when `natBillingCatalog` is
   sent.
+- Not available through the public API yet, so not in the SDK (storage):
+  - Block Storage plan, SKU, allowed-size and price discovery; the server
+    picks the SKU and enforces catalog sizes (400 when a size is not
+    offered, 502 `ambiguous_block_storage_plan` when a site has several
+    plans; `sku_code` cannot resolve that yet);
+  - the catalog-derived storage performance profile the portal sends;
+  - a replacement `billing_catalog` on volume resize;
+  - emptying a bucket, bucket CORS/lifecycle/notifications/object-lock
+    configuration, bucket metrics, usage, public dev URL and bucket custom
+    domains, object operations (use the S3 endpoint with S3 credentials),
+    Object Storage region discovery;
+  - the portal's soft revoke of S3 credentials (`revokeS3Credential` is a
+    permanent delete);
+  - CDN custom origins (`origin_type: "custom"` needs an origin ID you
+    cannot create through the public API) and custom-domain repair.
+- Node-level `blockStorage.attachVolume` / `detachVolume` only record a
+  storage-node attachment and do not attach the disk to a VM; use
+  `attachToVm` / `detachFromVm`.
+- `createBucket` and `createS3Credential` are never retried automatically
+  (a replay could report a name conflict or lose the one-time secret).

@@ -27,6 +27,7 @@ await client.objectStorage.createBucket({
 const s3Key = await client.objectStorage.createS3Credential({
   workspaceId: "710995",
   name: "application-key",
+  permissionType: "object_rw",
   bucketScope: "specific",
   allowedBuckets: ["my-bucket"],
 });
@@ -497,6 +498,113 @@ These are not yet part of the published API contract:
   `targetType`, `targetVmIds`, `requestedPrivateIp`, and the load balancer's
   `policy`, `healthCheck`, `observability` and `includeDeleted`.
 
+## Storage
+
+Block Storage, Object Storage and CDN calls apply the portal's rules before
+sending and throw `IbeeValidationError` (with `code` and `field`) when a
+request would be refused.
+
+**Block Storage**
+
+```ts
+const { volume } = await client.blockStorage.createVolume({
+  workspaceId: "710995",
+  name: "data-01",        // 3..255 of a-z, 0-9 and "-"
+  size_gb: 100,           // whole GB, 10..10000
+  site_id: "site_blr_01", // site_name is filled from the compute sites
+});
+
+// Attach to a VM like the portal: the SDK reads the volume, checks it is
+// free, in the VM's site and for the VM's type, and sends its SKU.
+await client.blockStorage.attachToVm({
+  workspaceId: "710995",
+  volumeId: volume.id,
+  vmId: "64b0c0ffee0000000000abcd",
+  wait: true, // poll every 2 s, up to 2 min, then re-read the volume
+});
+
+// Unmount it inside the server first.
+await client.blockStorage.detachFromVm({
+  workspaceId: "710995",
+  volumeId: volume.id,
+  confirmUnmounted: true,
+  wait: true,
+});
+```
+
+- A GPU VM can attach only a volume created with `vm_type: "gpu"`.
+- Attaching needs the volume's Block Storage SKU, which the SDK reads from
+  the volume (`block-storage.read`). Without that scope pass
+  `billingCatalog`.
+- `deleteVolume` refuses an attached or busy volume unless `force: true`
+  (which detaches it from every server and erases its data).
+- `resizeVolume` only grows. An attached volume needs `vm_state: "stopped"`
+  (or `"suspended"`) or `allow_online: true`. Grow the filesystem inside the
+  server afterwards.
+- `listVolumes` returns one page; `listAllVolumes` / `iterateVolumes` read
+  every volume.
+- `attachVolume` / `detachVolume` on `client.blockStorage` are advanced
+  node-level calls that do not attach the disk to a VM.
+
+**Object Storage**
+
+- Bucket names: 3..63 lower-case letters, digits and hyphens, starting and
+  ending with a letter or digit.
+- `region` defaults to `in-south-1` on production and `in-south-2` on
+  development.
+- `defaultRetention: { mode: "GOVERNANCE" | "COMPLIANCE", days | years }`
+  turns Object Lock on. Object Lock buckets cannot be deleted.
+- `deleteBucket` deletes only an empty bucket; the SDK checks first.
+- `updateBucket({ isPublic: false })` also disables the public URL and
+  deletes any CDN distribution that uses the bucket.
+- `createS3Credential` defaults to `permissionType: "admin_rw"` (all
+  buckets). To limit a key to some buckets use an object permission:
+
+```ts
+const key = await client.objectStorage.createS3Credential({
+  workspaceId: "710995",
+  name: "uploader",
+  permissionType: "object_rw",
+  bucketScope: "specific",
+  allowedBuckets: ["my-bucket"],
+});
+// key.secret_access_key is returned only once. S3 endpoint:
+// s3EndpointForWorkspace("710995") -> https://710995.blob.ibeestorage.com
+```
+
+- `revokeS3Credential` / `deleteS3Credential` permanently delete the
+  credential.
+
+**CDN**
+
+- `createDistribution` needs a public origin bucket
+  (`checkOriginPublic: true` checks it first). Creating again for the same
+  bucket returns the existing distribution.
+- `purgeCache` throws `IbeeCdnPurgeError` when the CDN reports
+  `success: false`:
+
+```ts
+import { IbeeCdnPurgeError } from "ibee-sdk";
+
+try {
+  await client.cdn.purgeCache({
+    workspaceId: "710995",
+    distributionId: "dist_123",
+    request: { mode: "url", paths: ["/index.html", "assets/app.js"] },
+  });
+} catch (err) {
+  if (err instanceof IbeeCdnPurgeError) console.error(err.mode, err.message);
+}
+```
+
+- `createCustomDomain` returns the CNAME record to add at your DNS
+  provider; `waitForCustomDomain` then verifies every 15 s until it is
+  `active` or `failed`.
+
+These are not yet part of the published API contract: `cdn.listCachePolicies`,
+`cdn.getDistributionMetrics`, the volume `vm_type` / `delete_on_termination`
+fields and the volume delete `idempotency_key` query parameter.
+
 ## Waiting for operations
 
 VM creates, deletes, power actions, resizes and volume changes return an
@@ -550,9 +658,9 @@ contract; behaviour may change.
 | Resource | Methods |
 |---|---|
 | `client.secretStore` | listSecretStores, createSecretStore, getSecretStore, updateSecretStore, archiveSecretStore, listSecrets, createSecret, getSecret, deleteSecret, getSecretValue, updateSecretValue |
-| `client.objectStorage` | bucket list/create/get/update/delete and S3 credential list/create/get/revoke |
-| `client.blockStorage` | volume list/create/get, operations, attach/detach, resize, and delete |
-| `client.cdn` | distributions, static website configuration, custom domains, URL generation, and cache purge |
+| `client.objectStorage` | bucket list/listAllBuckets/iterateBuckets/create/get/update/delete and S3 credential list/create/get/revoke/delete |
+| `client.blockStorage` | volume list/listAllVolumes/iterateVolumes/create/get, operations, attachToVm/detachFromVm, node-level attach/detach, resize, and delete |
+| `client.cdn` | distributions, cache policies, metrics, static website configuration, custom domains (waitForCustomDomain), URL generation, and cache purge |
 | `client.vpcs` | listSites, list, create, get, update, delete, subnet/node/NAT/port-forwarding lifecycle, replaceNatGatewayPublicIp, waitForNatGatewayAbsent, virtual IPs (list/get/create/delete) |
 | `client.reservedIps` | list, reserve, get, update, release, attach, move, detach, convert, attachVirtualIp |
 | `client.firewalls` | firewall group (auto-paged list, listAllGroups, iterateGroups, listGroupSummaries), rule, and VM attachment lifecycle |
