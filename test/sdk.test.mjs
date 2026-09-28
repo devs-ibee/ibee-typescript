@@ -74,13 +74,17 @@ test("DEVELOPMENT environment targets .co.in", async () => {
 
 test("sends bearer auth header", async () => {
   const { calls, fetchImpl } = stub();
-  const client = new Ibee({ token: "ibee_dev_key_abc", fetch: fetchImpl });
+  const client = new Ibee({
+    token: "ibee_dev_key_abc",
+    environment: IbeeEnvironment.DEVELOPMENT,
+    fetch: fetchImpl,
+  });
   await client.secretStore.listSecretStores({ workspaceId: "1" });
   assert.equal(calls[0].headers.get("authorization"), "Bearer ibee_dev_key_abc");
 });
 
 test("token does not leak via JSON.stringify of the client", () => {
-  const client = new Ibee({ token: "ibee_dev_key_secret" });
+  const client = new Ibee({ token: "ibee_dev_key_secret", environment: IbeeEnvironment.DEVELOPMENT });
   assert.ok(!JSON.stringify(client).includes("ibee_dev_key_secret"));
 });
 
@@ -377,7 +381,7 @@ test("cloud VM lifecycle uses canonical paths, methods, and idempotency", async 
     calls.map(({ method }) => method),
     ["GET", "POST", "GET", "POST", "POST", "POST", "GET", "DELETE", "GET"],
   );
-  assert.match(calls[0].url, /\/compute\/cloud-vms\?workspace_id=710995$/);
+  assert.match(calls[0].url, /\/compute\/cloud-vms\?workspace_id=710995&limit=100&offset=0$/);
   assert.match(calls[1].url, /\/compute\/cloud-vms\?workspace_id=710995$/);
   assert.equal(calls[1].headers.get("x-idempotency-key"), "create-key");
   assert.equal(JSON.parse(calls[1].body).site_id, "site-1");
@@ -893,14 +897,19 @@ test("Block Storage exposes all 8 operations with canonical paths and bodies", a
     ["DELETE", "/v1/block-storage/volumes/vol%2F1"],
   ]);
   assert.equal(calls.every((call) => new URL(call.url).searchParams.get("workspace_id") === workspaceId), true);
-  assert.deepEqual(JSON.parse(calls[1].body), {
+  const { idempotency_key: createKey, ...createBody } = JSON.parse(calls[1].body);
+  assert.deepEqual(createBody, {
     name: "database", size_gb: 100, site_id: "site-1",
     volume_class: "balanced", replica_count: 2, backup_enabled: true,
   });
-  assert.deepEqual(JSON.parse(calls[4].body), {
+  assert.match(createKey, /^block-volume-create-database-[A-Za-z0-9_-]+$/);
+  const { idempotency_key: attachKey, ...attachBody } = JSON.parse(calls[4].body);
+  assert.deepEqual(attachBody, {
     node_name: "worker-1", mode: "single-writer", vm_id: "vm-1",
   });
+  assert.match(attachKey, /^block-volume-attach-vol1-/);
   assert.equal(new URL(calls[7].url).searchParams.get("force"), "true");
+  assert.match(new URL(calls[7].url).searchParams.get("idempotency_key"), /^block-volume-delete-vol1-/);
 });
 
 test("CDN exposes all 15 operations with encoded IDs and canonical bodies", async () => {

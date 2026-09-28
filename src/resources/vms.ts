@@ -1,4 +1,14 @@
 import type { HttpClient } from "../core.js";
+import { buildIdempotencyKey } from "../idempotency.js";
+import { collect, paginateOffset } from "../pagination.js";
+import { pollUntil } from "../polling.js";
+import {
+  validateIdempotencyKey,
+  validateOperationId,
+  validateWaitOptions,
+  validateWorkspaceId,
+  vmListQuery,
+} from "../validation.js";
 import type {
   BackupPolicy,
   BackupPolicyDisableRequest,
@@ -36,16 +46,41 @@ import type {
   VmResizeRootDiskRequest,
 } from "../types.js";
 
-/** Cross-platform UUID (Node 18+ and browsers expose globalThis.crypto). */
-function randomUUID(): string {
-  const c = (globalThis as { crypto?: Crypto }).crypto;
-  if (c?.randomUUID) return c.randomUUID();
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (ch) => {
-    const r = (Math.random() * 16) | 0;
-    const v = ch === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+/** VM write actions that carry an `X-Idempotency-Key`. */
+type KeyedAction =
+  | "create"
+  | "delete"
+  | "start"
+  | "stop"
+  | "reboot"
+  | "access"
+  | "resize"
+  | "resize-plan"
+  | "resize-root-disk"
+  | "attach-volume"
+  | "detach-volume";
+
+/** VM list paging and filtering (not yet part of the published API contract). */
+export interface VmListArgs {
+  workspaceId: string;
+  /**
+   * Page size 1..100. When `limit` and `offset` are both omitted, `list`
+   * returns every VM by paging automatically.
+   * Not yet part of the published API contract; behaviour may change.
+   */
+  limit?: number;
+  /** Offset >= 0. Not yet part of the published API contract; behaviour may change. */
+  offset?: number;
+  /** Name search (max 120 characters). Not yet part of the published API contract; behaviour may change. */
+  search?: string;
+  /** Not yet part of the published API contract; behaviour may change. */
+  sortBy?: "created_at" | "name" | "status" | "os_type";
+  /** Not yet part of the published API contract; behaviour may change. */
+  sortDirection?: "asc" | "desc";
 }
+
+/** Page size used when auto-paging lists. */
+const AUTO_PAGE_SIZE = 100;
 
 /**
  * Shared implementation for Cloud VMs and GPU VMs — identical endpoints under
@@ -82,16 +117,50 @@ export class VmResource<
     return `/compute/${collection}`;
   }
 
-  /** The API returns a bare array of VMs. */
-  list(args: { workspaceId: string }): Promise<TVm[]> {
+  /**
+   * Resolve the idempotency key for a VM write: validate a caller-supplied
+   * key, or build one the way the portal does.
+   */
+  private key(action: KeyedAction, ident: string | undefined, supplied?: string): string {
+    if (supplied !== undefined) return validateIdempotencyKey(supplied);
+    return buildIdempotencyKey(`${this.vmType}-vm-${action}`, ident);
+  }
+
+  /**
+   * List VMs. With no `limit`/`offset` every page is fetched (100 per request)
+   * and de-duplicated; otherwise exactly one page is returned.
+   */
+  async list(args: VmListArgs): Promise<TVm[]> {
+    validateWorkspaceId(args.workspaceId);
+    const query = vmListQuery(args);
+    if (args.limit === undefined && args.offset === undefined) {
+      return collect(this.iterate(args));
+    }
     return this.http.request({
       method: "GET",
       path: this.base(),
       workspaceId: args.workspaceId,
+      query,
     });
   }
 
-  create(
+  /** Iterate every VM, fetching pages of 100 on demand. */
+  iterate(args: Omit<VmListArgs, "limit" | "offset">): AsyncIterable<TVm> {
+    validateWorkspaceId(args.workspaceId);
+    const query = vmListQuery(args);
+    return paginateOffset<TVm>(
+      (limit, offset) =>
+        this.http.request<TVm[]>({
+          method: "GET",
+          path: this.base(),
+          workspaceId: args.workspaceId,
+          query: { ...query, limit, offset },
+        }),
+      { pageSize: AUTO_PAGE_SIZE },
+    );
+  }
+
+  async create(
     args: { workspaceId: string; idempotencyKey?: string } & TCreate,
   ): Promise<OperationAccepted> {
     const { workspaceId, idempotencyKey, ...body } = args;
@@ -99,7 +168,7 @@ export class VmResource<
       method: "POST",
       path: this.base(),
       workspaceId,
-      idempotencyKey: idempotencyKey ?? randomUUID(),
+      idempotencyKey: this.key("create", (body as { name?: string }).name, idempotencyKey),
       body,
     });
   }
@@ -113,7 +182,7 @@ export class VmResource<
   }
 
   /** VM deletion is asynchronous — the API returns an OperationAccepted. */
-  delete(args: {
+  async delete(args: {
     workspaceId: string;
     vmId: string;
     idempotencyKey?: string;
@@ -122,11 +191,11 @@ export class VmResource<
       method: "DELETE",
       path: this.base(args.vmId),
       workspaceId: args.workspaceId,
-      idempotencyKey: args.idempotencyKey ?? randomUUID(),
+      idempotencyKey: this.key("delete", args.vmId, args.idempotencyKey),
     });
   }
 
-  private action(
+  private async action(
     workspaceId: string,
     vmId: string,
     action: "start" | "stop" | "reboot",
@@ -137,7 +206,7 @@ export class VmResource<
       method: "POST",
       path: `${this.base(vmId)}/actions/${action}`,
       workspaceId,
-      idempotencyKey: idempotencyKey ?? randomUUID(),
+      idempotencyKey: this.key(action, vmId, idempotencyKey),
       body: force === undefined ? undefined : { force },
     });
   }
@@ -177,7 +246,7 @@ export class VmResource<
     });
   }
 
-  updateAccess(args: {
+  async updateAccess(args: {
     workspaceId: string;
     vmId: string;
     request: VmAccessUpdateRequest;
@@ -187,7 +256,7 @@ export class VmResource<
       method: "PATCH",
       path: `${this.base(args.vmId)}/actions/access`,
       workspaceId: args.workspaceId,
-      idempotencyKey: args.idempotencyKey ?? randomUUID(),
+      idempotencyKey: this.key("access", args.vmId, args.idempotencyKey),
       body: args.request,
     });
   }
@@ -205,7 +274,7 @@ export class VmResource<
     });
   }
 
-  resize(args: {
+  async resize(args: {
     workspaceId: string;
     vmId: string;
     request: VmResizeRequest;
@@ -215,12 +284,12 @@ export class VmResource<
       method: "POST",
       path: `${this.base(args.vmId)}/actions/resize`,
       workspaceId: args.workspaceId,
-      idempotencyKey: args.idempotencyKey ?? randomUUID(),
+      idempotencyKey: this.key("resize", args.vmId, args.idempotencyKey),
       body: args.request,
     });
   }
 
-  resizePlan(args: {
+  async resizePlan(args: {
     workspaceId: string;
     vmId: string;
     request: VmResizePlanRequest;
@@ -230,12 +299,12 @@ export class VmResource<
       method: "PATCH",
       path: `${this.base(args.vmId)}/actions/resize-plan`,
       workspaceId: args.workspaceId,
-      idempotencyKey: args.idempotencyKey ?? randomUUID(),
+      idempotencyKey: this.key("resize-plan", args.vmId, args.idempotencyKey),
       body: args.request,
     });
   }
 
-  resizeRootDisk(args: {
+  async resizeRootDisk(args: {
     workspaceId: string;
     vmId: string;
     request: VmResizeRootDiskRequest;
@@ -245,12 +314,12 @@ export class VmResource<
       method: "PATCH",
       path: `${this.base(args.vmId)}/actions/resize-root-disk`,
       workspaceId: args.workspaceId,
-      idempotencyKey: args.idempotencyKey ?? randomUUID(),
+      idempotencyKey: this.key("resize-root-disk", args.vmId, args.idempotencyKey),
       body: args.request,
     });
   }
 
-  attachVolume(args: {
+  async attachVolume(args: {
     workspaceId: string;
     vmId: string;
     request: VmAttachVolumeRequest;
@@ -260,12 +329,12 @@ export class VmResource<
       method: "POST",
       path: `${this.base(args.vmId)}/actions/attach-volume`,
       workspaceId: args.workspaceId,
-      idempotencyKey: args.idempotencyKey ?? randomUUID(),
+      idempotencyKey: this.key("attach-volume", args.vmId, args.idempotencyKey),
       body: args.request,
     });
   }
 
-  detachVolume(args: {
+  async detachVolume(args: {
     workspaceId: string;
     vmId: string;
     request: VmDetachVolumeRequest;
@@ -275,7 +344,7 @@ export class VmResource<
       method: "POST",
       path: `${this.base(args.vmId)}/actions/detach-volume`,
       workspaceId: args.workspaceId,
-      idempotencyKey: args.idempotencyKey ?? randomUUID(),
+      idempotencyKey: this.key("detach-volume", args.vmId, args.idempotencyKey),
       body: args.request,
     });
   }
@@ -541,14 +610,61 @@ export type GpuVmResource = VmResource<CreateGpuVmRequest, GpuVm>;
 export class OperationsResource {
   constructor(private readonly http: HttpClient) {}
 
-  get(args: {
+  async get(args: {
     workspaceId: string;
     operationId: string;
+    signal?: AbortSignal;
   }): Promise<OperationStatus> {
+    validateWorkspaceId(args.workspaceId);
+    const operationId = validateOperationId(args.operationId);
     return this.http.request({
       method: "GET",
-      path: `/compute/operations/${encodeURIComponent(args.operationId)}`,
+      path: `/compute/operations/${encodeURIComponent(operationId)}`,
       workspaceId: args.workspaceId,
+      signal: args.signal,
     });
   }
+
+  /**
+   * Poll an async compute operation until it is terminal.
+   *
+   * Success: `succeeded` (`completed` is accepted as a legacy alias).
+   * Failure: `failed`, `cancelled`, `timed_out` -> OperationFailedError
+   * (or the final status when `raiseOnFailure` is false).
+   * Deadline passed while still running -> OperationTimeoutError.
+   * Up to 3 consecutive transient poll failures (429/502/503/504 or network)
+   * are tolerated; 404 and other API errors are thrown at once.
+   */
+  async wait(args: WaitForOperationArgs): Promise<OperationStatus> {
+    validateWorkspaceId(args.workspaceId);
+    const operationId = validateOperationId(args.operationId);
+    const { timeoutMs, pollIntervalMs } = validateWaitOptions(args.timeoutMs, args.pollIntervalMs);
+    return pollUntil<OperationStatus>(
+      () => this.get({ workspaceId: args.workspaceId, operationId, signal: args.signal }),
+      (op) => op?.status,
+      {
+        operationId,
+        timeoutMs,
+        pollIntervalMs,
+        raiseOnFailure: args.raiseOnFailure ?? true,
+        onUpdate: args.onUpdate,
+        signal: args.signal,
+      },
+    );
+  }
+}
+
+export interface WaitForOperationArgs {
+  workspaceId: string;
+  operationId: string;
+  /** Client deadline, 1000..7200000 ms (default 1200000 = 20 min). */
+  timeoutMs?: number;
+  /** Poll interval, 1000..60000 ms and <= timeoutMs (default 5000). */
+  pollIntervalMs?: number;
+  /** Throw OperationFailedError on failed/cancelled/timed_out (default true). */
+  raiseOnFailure?: boolean;
+  /** Aborts the wait; the promise rejects with the signal's reason. */
+  signal?: AbortSignal;
+  /** Called after every successful poll. */
+  onUpdate?: (operation: OperationStatus) => void;
 }
