@@ -1356,6 +1356,8 @@ export interface NetworkingSite {
   message?: string;
 }
 
+export type VpcConnectivity = "public" | "private" | "nat_gateway";
+
 export interface Vpc {
   vpc_id: string;
   organization_id: string;
@@ -1364,7 +1366,8 @@ export interface Vpc {
   name: string;
   cidr: string;
   status: string;
-  connectivity_type: "public" | "nat_gateway";
+  /** `private` is the portal default; `public` is legacy. */
+  connectivity_type: VpcConnectivity | (string & {});
   account_id?: string;
   description?: string;
   region?: string;
@@ -1376,13 +1379,28 @@ export interface Vpc {
 
 export interface VpcSummary extends Vpc {
   node_count?: number;
+  /** Environment pricing metadata; not a billing quote. */
   nat_pricing?: NatPricing;
 }
 
-export interface VpcDetail extends Vpc {
+export interface VpcDetail extends VpcSummary {
   subnets?: Subnet[];
   nat_gateways?: NatGateway[];
-  attached_nodes?: NetworkAllocation[];
+  attached_nodes?: VpcAttachedNode[];
+}
+
+/** A VM attached to a VPC (as listed in the VPC detail). */
+export interface VpcAttachedNode {
+  allocation_id: string;
+  vm_id: string;
+  subnet_id: string;
+  private_ip: string;
+  connectivity: "private" | "public_ip" | "nat";
+  public_ip?: string | null;
+  nat_public_ip?: string | null;
+  status: string;
+  attached_at?: string;
+  [key: string]: unknown;
 }
 
 export interface Subnet {
@@ -1391,8 +1409,11 @@ export interface Subnet {
   name: string;
   cidr: string;
   status: string;
+  site_id?: string;
   dns?: string[];
+  /** First usable host, assigned by the server. */
   gateway?: string;
+  error_message?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -1403,27 +1424,53 @@ export interface NetworkAllocation {
   subnet_id?: string;
   vm_id?: string;
   private_ip?: string;
-  public_ip?: string;
+  prefix_length?: number;
+  subnet_mask?: string;
+  gateway?: string;
+  dns?: string[];
+  public_ip_id?: string | null;
+  public_ip?: string | null;
+  nat_gateway_id?: string | null;
+  nat_public_ip?: string | null;
   connectivity?: "private" | "public_ip" | "nat";
   status?: string;
   created_at?: string;
   updated_at?: string;
 }
 
+/**
+ * NAT pricing metadata returned with VPCs. It is an environment setting, not
+ * a billing quote.
+ */
 export interface NatPricing {
   currency?: string;
+  price_per_hour?: number;
+  data_price_per_gb?: number;
+  billing_enforced?: boolean;
+  /** @deprecated Never returned by the API; use `price_per_hour`. */
   hourly?: number;
+  /** @deprecated Never returned by the API. */
   monthly?: number;
 }
 
 export interface NatGateway {
   nat_gateway_id: string;
   vpc_id: string;
-  subnet_id?: string;
+  subnet_id?: string | null;
   reserved_public_ip_id?: string;
+  public_ip_id?: string;
   name?: string;
   public_ip?: string;
+  /** `reserved` (customer Reserved IP), `automatic` (platform address) or null (legacy). */
+  public_ip_source?: "reserved" | "automatic" | null | (string & {});
   status: string;
+  pricing?: NatPricing;
+  billing_catalog?: Record<string, unknown>;
+  billing_started_at?: string | null;
+  billing_ended_at?: string | null;
+  deleted_at?: string | null;
+  error_message?: string | null;
+  account_id?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -1431,16 +1478,52 @@ export interface NatGateway {
 export type TransportProtocol = "tcp" | "udp";
 
 export interface NatPortForwardingRule {
+  /** Rule ID as returned by the API. */
+  port_forward_rule_id?: string;
+  /** @deprecated Use `port_forward_rule_id`. */
   rule_id?: string;
+  /** @deprecated Use `port_forward_rule_id`. */
   port_forwarding_rule_id?: string;
+  vpc_id?: string;
   nat_gateway_id?: string;
   name: string;
   protocol: TransportProtocol;
   external_port: number;
   internal_ip: string;
   internal_port: number;
+  /** `vm` or `vip` (MetalLB virtual IP). */
+  target_type?: "vm" | "vip";
+  /** VIP announcer VMs (VIP targets only). */
+  target_vm_ids?: string[];
+  network_allocation_id?: string | null;
+  vm_id?: string | null;
   note?: string;
   enabled?: boolean;
+  status?: string;
+  error_message?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * A private virtual IP reserved in a VPC subnet (MetalLB or custom).
+ * Not yet part of the published API contract; behaviour may change.
+ */
+export interface VpcVirtualIp {
+  virtual_ip_id: string;
+  vpc_id: string;
+  subnet_id: string;
+  private_ip: string;
+  purpose: "metallb" | "custom";
+  announcer_vm_ids: string[];
+  public_ip_id?: string | null;
+  public_ip?: string | null;
+  status: string;
+  error_message?: string | null;
+  account_id?: string;
+  organization_id?: string;
+  workspace_id?: string;
+  site_id?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -1463,6 +1546,15 @@ export interface ReservedIp {
   updated_at?: string;
   /** Reserved IP SKU (not yet part of the published contract). */
   billing_catalog?: BillingCatalogSelection | null;
+  /** The fields below are not yet part of the published API contract. */
+  allocation_method?: "provider_assigned" | "converted" | (string & {});
+  attached_allocation_id?: string | null;
+  attached_network_id?: string | null;
+  provider_profile?: string | null;
+  purpose?: string;
+  billing_started_at?: string | null;
+  billing_ended_at?: string | null;
+  deleted_at?: string | null;
   [key: string]: unknown;
 }
 
@@ -1476,7 +1568,8 @@ export interface FirewallRuleInput {
   protocol?: FirewallProtocol;
   portStart?: number;
   portEnd?: number;
-  remoteTargets?: string[];
+  /** IPv4 addresses or CIDRs (a comma-separated string is accepted too). */
+  remoteTargets?: string[] | string;
   action?: FirewallAction;
   priority?: number;
 }
@@ -1492,6 +1585,10 @@ export interface FirewallRule {
   remote_targets?: string[];
   action?: FirewallAction;
   priority?: number;
+  /** Platform baseline rule; cannot be updated or deleted. */
+  system_managed?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface FirewallGroup {
@@ -1509,10 +1606,36 @@ export interface FirewallGroup {
   updated_at?: string;
 }
 
+/**
+ * Firewall group list row returned with `summary=true`.
+ * Not yet part of the published API contract; behaviour may change.
+ */
+export interface FirewallGroupSummary {
+  firewall_group_id: string;
+  name: string;
+  description?: string | null;
+  status: string;
+  is_default: boolean;
+  linked_instance_count?: number;
+  rule_count?: number;
+  organization_id?: string;
+  workspace_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface FirewallAttachment {
   vm_id: string;
   network_id?: string;
   attached_at?: string;
+  vm_name?: string;
+  vm_type?: string;
+  private_ip?: string;
+  public_ip?: string;
+  status?: string;
+  network_provider?: string;
+  attached_firewall_group_ids?: string[];
+  [key: string]: unknown;
 }
 
 export type LoadBalancerLayer = "l4" | "l7";
@@ -1533,9 +1656,51 @@ export interface LoadBalancerRouting {
 
 export interface LoadBalancerTls {
   mode: "terminate" | "passthrough";
-  certificate_source?: string;
+  /** Only `managed` is supported (custom certificates are rejected). */
+  certificate_source?: "managed" | (string & {});
+  /** @deprecated Custom certificates are not supported; the SDK rejects this. */
   cert_pem?: string;
+  /** @deprecated Custom certificates are not supported; the SDK rejects this. */
   key_pem?: string;
+}
+
+/** Load-balancer request policy. Not yet part of the published API contract. */
+export interface LoadBalancerPolicy {
+  /** 100..300000 (default 30000). */
+  timeout_ms?: number;
+  retries?: {
+    /** 1..10 (portal default 3). */
+    attempts?: number;
+    /** Default ["5xx", "reset", "connect-failure"]. */
+    on?: string[];
+    /** 100..120000 (portal default 5000). */
+    per_retry_timeout_ms?: number;
+  };
+  proxy_protocol_enabled?: boolean;
+}
+
+/** Load-balancer health checks. Not yet part of the published API contract. */
+export interface LoadBalancerHealthCheck {
+  active?: {
+    type?: "http" | "https" | "tcp";
+    /** Not allowed for tcp; the server defaults http/https to /health. */
+    path?: string;
+    interval_ms?: number;
+    timeout_ms?: number;
+    healthy_threshold?: number;
+    unhealthy_threshold?: number;
+  };
+  passive?: {
+    enabled?: boolean;
+    consecutive_5xx?: number;
+    interval_ms?: number;
+    base_ejection_time_ms?: number;
+  };
+}
+
+/** Load-balancer observability. Not yet part of the published API contract. */
+export interface LoadBalancerObservability {
+  logs_enabled?: boolean;
 }
 
 export interface LoadBalancerRule {
@@ -1561,6 +1726,11 @@ export interface LoadBalancer {
   routing?: LoadBalancerRouting;
   tls?: LoadBalancerTls;
   rules?: LoadBalancerRule[];
+  /** L7 https custom domain; `cname_target` is where the CNAME must point. */
+  custom_domain?: { hostname: string; cname_target?: string } | null;
+  activated_at?: string | null;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
   created_at?: string;
   updated_at?: string;
 }

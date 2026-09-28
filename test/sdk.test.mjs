@@ -778,6 +778,7 @@ test("port forwarding, Reserved IP, firewall, and load balancer bodies are mappe
     externalPort: 443,
     internalIp: "10.0.0.10",
     internalPort: 8443,
+    checkState: false,
   });
   assert.match(calls[0].url, /\/nat-gateways\/nat1\/port-forwarding-rules\?/);
   assert.equal(JSON.parse(calls[0].body).internal_ip, "10.0.0.10");
@@ -787,6 +788,7 @@ test("port forwarding, Reserved IP, firewall, and load balancer bodies are mappe
     reservedIpId: "ip1",
     vmId: "vm1",
     vpcId: "vpc1",
+    checkState: false,
   });
   assert.deepEqual(JSON.parse(calls[1].body), {
     vm_id: "vm1",
@@ -798,6 +800,7 @@ test("port forwarding, Reserved IP, firewall, and load balancer bodies are mappe
     reservedIpId: "ip1",
     vmId: "vm2",
     vpcId: "vpc1",
+    checkState: false,
   });
   assert.match(calls[2].url, /\/networking\/reserved-ips\/ip1\/move\?/);
   assert.equal(JSON.parse(calls[2].body).vm_id, "vm2");
@@ -1036,7 +1039,9 @@ const billableCreates = [
   {
     name: "NAT gateway",
     productPath: "/networking/vpcs/vpc1/nat-gateways?",
-    run: (client) => client.vpcs.createNatGateway({ workspaceId: "1", vpcId: "vpc1" }),
+    run: (client) => client.vpcs.createNatGateway({
+      workspaceId: "1", vpcId: "vpc1", validateVpc: false, billingCatalog: { sku_code: "NAT-GATEWAY" },
+    }),
   },
   {
     name: "Reserved IP",
@@ -1047,14 +1052,14 @@ const billableCreates = [
     name: "L4 load balancer",
     productPath: "/networking/load-balancers/l4?",
     run: (client) => client.loadBalancers.createL4({
-      workspaceId: "1", name: "edge", protocol: "tcp", backends: [],
+      workspaceId: "1", name: "edge", protocol: "tcp", backends: [{ target: "edge-svc", port: 443 }],
     }),
   },
   {
     name: "L7 load balancer",
     productPath: "/networking/load-balancers/l7?",
     run: (client) => client.loadBalancers.createL7({
-      workspaceId: "1", name: "web", protocol: "http", backends: [],
+      workspaceId: "1", name: "web", protocol: "http", backends: [{ target: "web-svc", port: 80 }],
     }),
   },
   {

@@ -388,6 +388,115 @@ For `new_vm` restores the SDK fills in the rest:
 Two methods are not yet part of the published API contract:
 `listAllBackupRuns` (workspace-wide) and `deleteBackupRun`.
 
+## Networking
+
+Networking calls apply the portal's rules before sending and throw
+`IbeeValidationError` (with `code` and `field`) when a request would be
+refused.
+
+**VPCs and subnets**
+
+- `vpcs.create` accepts `connectivityType: "private"` (the portal default) or
+  `"nat_gateway"`. `"public"` still works but is deprecated.
+- A custom `cidr` must be RFC1918, aligned and between /22 and /28.
+  `auto_cidr: false` is then sent for you. A misaligned CIDR fails with the
+  aligned network in `err.details.suggestion`.
+- `checkSite: true` confirms the site is VPC-enabled first.
+- `vpcs.createSubnet` reads the VPC (`checkVpc`, default true). The CIDR must
+  be a sub-range of the VPC that does not overlap other subnets, and a VPC
+  holds at most 10 subnets.
+- `vpcs.delete({ checkDependencies: true, deleteNatGateway: true })` works
+  like the portal's delete dialog. Attached nodes and virtual IPs block the
+  delete. The NAT gateway is deleted first, and the SDK waits for it to go.
+
+**NAT gateways and port forwarding**
+
+- `createNatGateway` needs a `nat_gateway` VPC (`validateVpc`, default true).
+  It accepts `billingCatalog` (NAT-GATEWAY SKU) and `preflightBilling`.
+- `deleteNatGateway` accepts `publicIpAction` (`reserve`/`release`),
+  `billingCatalog` and `wait`. Reserving a platform address needs the
+  RESERVED-IP catalog. `defaultNatDeleteIpAction` returns the portal
+  default.
+- `replaceNatGatewayPublicIp` swaps the gateway's public IP to a Reserved IP.
+- Port-forwarding rules take single ports (1..65535) and `targetType`
+  `vm`/`vip`. With `checkState` (default true) the SDK checks four things:
+  - the gateway is available;
+  - no other rule uses the same protocol and external port;
+  - a `vm` target is a NAT-connected VM on this gateway;
+  - a `vip` target is an available MetalLB virtual IP. Its announcers fill
+    `targetVmIds` when you omit them.
+
+**Virtual IPs and nodes**
+
+- `listVirtualIps`, `getVirtualIp`, `createVirtualIp` and `deleteVirtualIp`
+  manage MetalLB virtual IPs.
+- `reservedIps.attachVirtualIp` gives a virtual IP a public address.
+- `attachNode` accepts `requestedPrivateIp`. It must be a usable host in the
+  subnet: not the network, broadcast or gateway address.
+
+```ts
+const vpc = await client.vpcs.create({
+  workspaceId: "710995",
+  name: "app",
+  siteId: "site-1",
+  connectivityType: "nat_gateway",
+  cidr: "10.20.0.0/24",
+  natBillingCatalog,          // NAT-GATEWAY SKU; without it the NAT gateway is not metered
+});
+const nat = vpc.nat_gateways![0];
+await client.vpcs.createPortForwardingRule({
+  workspaceId: "710995", vpcId: vpc.vpc_id, natGatewayId: nat.nat_gateway_id,
+  name: "ssh", externalPort: 2222, internalIp: "10.20.0.10", internalPort: 22,
+});
+```
+
+The public API cannot list the NAT-GATEWAY / RESERVED-IP catalogs yet.
+`networkBillingCatalog(price)` builds the portal's catalog object from a
+price entry you already have. Without a catalog the SDK emits an
+`IbeeBillingWarning`. The SKU codes are exported as `NAT_GATEWAY_SKU_CODE`,
+`RESERVED_IP_SKU_CODE` and `LOAD_BALANCER_SKU_CODE`.
+
+**Reserved IPs**
+
+- `reserve` validates the site and label, and accepts `billingCatalog` and
+  `checkBilling`.
+- `update` validates reverse DNS. An empty string clears it.
+- `release`, `attach`, `move` and `detach` read the IP first and refuse the
+  cases the portal blocks. To attach an IP that sits on a NAT gateway or
+  virtual IP, pass `detachFromService: true`.
+- A VM without a VPC attachment raises `ReservedIpTargetUnsupportedError`.
+  `reservedIps.convert` turns such a VM's current public IP into a Reserved
+  IP. It runs the RESERVED-IP billing preflight by default (`billingCheck`).
+
+**Firewalls**
+
+- `createGroup` trims the name (1..120) and rejects duplicate names
+  case-insensitively. It no longer sends `is_default`.
+- Rules default to tcp, ingress, allow and `0.0.0.0/0`. TCP/UDP need
+  `portStart`. Remote targets must be IPv4 and are normalised, so a bare IP
+  becomes `/32`.
+- System-managed rules are refused on update and delete.
+- `listGroupSummaries` / `iterateGroupSummaries` return the portal list view.
+
+**Load balancers**
+
+- Create and update accept `policy`, `healthCheck` and `observability`.
+- Managed TLS is filled in for `https` and `tls_passthrough`. Custom
+  certificates, and sticky sessions on L4, are rejected.
+- `customDomain` works on L7 https only; `updateL7({ customDomain: null })`
+  removes it.
+- `list`/`get` accept `includeDeleted`, and `checkBilling` runs the
+  LOADBALA-STD preflight.
+
+These are not yet part of the published API contract:
+
+- **Methods:** `replaceNatGatewayPublicIp`, the virtual-IP methods,
+  `reservedIps.convert`, `reservedIps.attachVirtualIp` and
+  `firewalls.listGroupSummaries`.
+- **Fields:** `natBillingCatalog`, NAT `billingCatalog`, `publicIpAction`,
+  `targetType`, `targetVmIds`, `requestedPrivateIp`, and the load balancer's
+  `policy`, `healthCheck`, `observability` and `includeDeleted`.
+
 ## Waiting for operations
 
 VM creates, deletes, power actions, resizes and volume changes return an
@@ -444,9 +553,9 @@ contract; behaviour may change.
 | `client.objectStorage` | bucket list/create/get/update/delete and S3 credential list/create/get/revoke |
 | `client.blockStorage` | volume list/create/get, operations, attach/detach, resize, and delete |
 | `client.cdn` | distributions, static website configuration, custom domains, URL generation, and cache purge |
-| `client.vpcs` | listSites, list, create, get, update, delete, subnet/node/NAT/port-forwarding lifecycle |
-| `client.reservedIps` | list, reserve, get, update, release, attach, move, detach |
-| `client.firewalls` | firewall group (auto-paged list, iterateGroups), rule, and VM attachment lifecycle |
+| `client.vpcs` | listSites, list, create, get, update, delete, subnet/node/NAT/port-forwarding lifecycle, replaceNatGatewayPublicIp, waitForNatGatewayAbsent, virtual IPs (list/get/create/delete) |
+| `client.reservedIps` | list, reserve, get, update, release, attach, move, detach, convert, attachVirtualIp |
+| `client.firewalls` | firewall group (auto-paged list, listAllGroups, iterateGroups, listGroupSummaries), rule, and VM attachment lifecycle |
 | `client.loadBalancers` | list, createL4, createL7, get, updateL4, updateL7, delete, getStatus |
 | `client.computeCatalog` | typed site, plan, and image discovery |
 | `client.billing` | checkResourceEligibility, requireResourceEligibility (portal preflight) |

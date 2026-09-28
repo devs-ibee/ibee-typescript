@@ -1070,3 +1070,1310 @@ export function validateDetachConfirmation(req: { confirm_unmounted?: boolean; f
 }
 
 export const VM_VOLUME_MODES = ["single-writer", "multi-writer"] as const;
+
+// ======================================================================
+// Networking: VPCs, subnets, NAT, virtual IPs, Reserved IPs, firewalls
+// and load balancers (portal parity). All throw IbeeValidationError.
+// ======================================================================
+
+/**
+ * The IP/target has no VPC network allocation (the API answered 404 with
+ * "require a VPC network allocation"). Attaching a held Reserved IP to a
+ * non-VPC VM is not available through the public API yet.
+ */
+export class ReservedIpTargetUnsupportedError extends IbeeValidationError {
+  readonly statusCode = 404;
+  readonly cause?: unknown;
+  constructor(message: string, cause?: unknown) {
+    super(message, "reserved_ip_target_unsupported", "vm_id");
+    this.name = "ReservedIpTargetUnsupportedError";
+    if (cause !== undefined) this.cause = cause;
+  }
+}
+
+/** Marker used in JSDoc for routes/fields outside the published contract. */
+export const UNCONTRACTED_NOTE = "Not yet part of the published API contract; behaviour may change.";
+
+const trimStr = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+
+/** Parse a dotted-quad IPv4 address (portal rules) into an integer, or null. */
+export function parseIpv4(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const parts = value.trim().split(".");
+  if (parts.length !== 4) return null;
+  let n = 0;
+  for (const part of parts) {
+    if (!/^\d{1,3}$/.test(part)) return null;
+    const octet = Number(part);
+    if (octet > 255) return null;
+    n = n * 256 + octet;
+  }
+  return n;
+}
+
+/** Format an integer as a dotted-quad IPv4 address. */
+export function formatIpv4(n: number): string {
+  return [24, 16, 8, 0].map((shift) => Math.floor(n / 2 ** shift) % 256).join(".");
+}
+
+export interface ParsedIpv4Cidr {
+  /** Address exactly as written (may have host bits set). */
+  address: number;
+  prefix: number;
+  size: number;
+  /** Network start (host bits cleared). */
+  start: number;
+  end: number;
+  /** True when the written address is the network address. */
+  aligned: boolean;
+}
+
+/** Parse `A.B.C.D/P` (P 0..32), or return null when the format is invalid. */
+export function parseIpv4Cidr(value: unknown): ParsedIpv4Cidr | null {
+  if (typeof value !== "string") return null;
+  const parts = value.trim().split("/");
+  if (parts.length !== 2 || !/^\d{1,2}$/.test(parts[1].trim())) return null;
+  const address = parseIpv4(parts[0]);
+  const prefix = Number(parts[1].trim());
+  if (address === null || prefix > 32) return null;
+  const size = 2 ** (32 - prefix);
+  const start = Math.floor(address / size) * size;
+  return { address, prefix, size, start, end: start + size - 1, aligned: start === address };
+}
+
+/** RFC1918 blocks as inclusive integer ranges. */
+export const RFC1918_BLOCKS: ReadonlyArray<readonly [number, number]> = [
+  [parseIpv4("10.0.0.0")!, parseIpv4("10.255.255.255")!],
+  [parseIpv4("172.16.0.0")!, parseIpv4("172.31.255.255")!],
+  [parseIpv4("192.168.0.0")!, parseIpv4("192.168.255.255")!],
+];
+export const RFC1918_MESSAGE =
+  "Use private RFC1918 space: 10.0.0.0/8, 172.16.0.0/12, or 192.168.0.0/16.";
+
+const inRfc1918 = (start: number, end: number) =>
+  RFC1918_BLOCKS.some(([a, b]) => start >= a && end <= b);
+
+/** Non-routable IPv4 ranges (what the API treats as a private address). */
+const PRIVATE_IPV4_RANGES: ReadonlyArray<readonly [string, number]> = [
+  ["0.0.0.0", 8], ["10.0.0.0", 8], ["127.0.0.0", 8], ["169.254.0.0", 16],
+  ["172.16.0.0", 12], ["192.0.0.0", 29], ["192.0.0.170", 31], ["192.0.2.0", 24],
+  ["192.168.0.0", 16], ["198.18.0.0", 15], ["198.51.100.0", 24], ["203.0.113.0", 24],
+  ["240.0.0.0", 4], ["255.255.255.255", 32],
+];
+
+/** True when an IPv4 address is private (non-globally-routable). */
+export function isPrivateIpv4(value: unknown): boolean {
+  const n = parseIpv4(value);
+  if (n === null) return false;
+  return PRIVATE_IPV4_RANGES.some(([base, prefix]) => {
+    const size = 2 ** (32 - prefix);
+    const start = parseIpv4(base)!;
+    return n >= start && n < start + size;
+  });
+}
+
+const cidrOrFail = (cidr: unknown, field: string): ParsedIpv4Cidr => {
+  const p = parseIpv4Cidr(cidr);
+  if (!p) vfail(`${field} must be an IPv4 CIDR like 10.20.0.0/24.`, "invalid_cidr", field);
+  return p as ParsedIpv4Cidr;
+};
+
+/** True when `inner` lies entirely inside `outer` (both IPv4 CIDRs). */
+export function cidrContains(outer: string, inner: string): boolean {
+  const o = cidrOrFail(outer, "cidr");
+  const i = cidrOrFail(inner, "cidr");
+  return i.start >= o.start && i.end <= o.end;
+}
+
+/** True when two IPv4 CIDRs share any address. */
+export function cidrOverlaps(a: string, b: string): boolean {
+  const x = cidrOrFail(a, "cidr");
+  const y = cidrOrFail(b, "cidr");
+  return x.start <= y.end && y.start <= x.end;
+}
+
+/**
+ * Validate a private IPv4 CIDR: format, prefix range, alignment (host bits
+ * zero; the error suggests the aligned network) and RFC1918 containment.
+ * Returns the trimmed CIDR.
+ */
+export function validatePrivateCidr(
+  cidr: unknown,
+  opts: { minPrefix: number; maxPrefix: number; field?: string; prefixMessage?: string },
+): string {
+  const field = opts.field ?? "cidr";
+  const p = parseIpv4Cidr(cidr);
+  if (!p) vfail("Enter a valid IPv4 network address (A.B.C.D/P).", "invalid_cidr", field);
+  const c = p as ParsedIpv4Cidr;
+  if (c.prefix < opts.minPrefix || c.prefix > opts.maxPrefix) {
+    vfail(
+      opts.prefixMessage ?? `Enter a valid private network range (/${opts.minPrefix} to /${opts.maxPrefix}).`,
+      "invalid_cidr",
+      field,
+    );
+  }
+  if (!c.aligned) {
+    const suggestion = `${formatIpv4(c.start)}/${c.prefix}`;
+    vfail(
+      `The address is not aligned to a /${c.prefix} boundary. Use ${suggestion}.`,
+      "invalid_cidr",
+      field,
+      { suggestion },
+    );
+  }
+  if (!inRfc1918(c.start, c.end)) vfail(RFC1918_MESSAGE, "invalid_cidr", field);
+  return `${formatIpv4(c.start)}/${c.prefix}`;
+}
+
+/** VPC CIDR rule: RFC1918, aligned, /22../28. */
+export const VPC_CIDR_PREFIX_RANGE = { min: 22, max: 28 } as const;
+/** Subnets must leave room for the gateway and VMs (/29 or larger). */
+export const SUBNET_MAX_PREFIX = 29;
+/** Subnets per VPC. */
+export const MAX_SUBNETS_PER_VPC = 10;
+
+/** Validate a VPC CIDR (`/22`..`/28`, RFC1918, aligned). */
+export function validateVpcCidr(cidr: unknown, field = "cidr"): string {
+  return validatePrivateCidr(cidr, {
+    minPrefix: VPC_CIDR_PREFIX_RANGE.min,
+    maxPrefix: VPC_CIDR_PREFIX_RANGE.max,
+    field,
+  });
+}
+
+/**
+ * Validate a usable host address inside a subnet (portal
+ * `validateRequestedPrivateIp`): inside the CIDR, not the network/broadcast
+ * address and not the subnet gateway. Returns the trimmed address.
+ */
+export function validateHostInSubnet(
+  ip: unknown,
+  subnetCidr: string,
+  gateway?: string | null,
+  field = "private_ip",
+): string {
+  const address = trimStr(ip);
+  if (!address) vfail("Enter a private IPv4 address.", "invalid_private_ip", field);
+  const n = parseIpv4(address);
+  if (n === null) vfail("Enter a valid IPv4 address.", "invalid_private_ip", field);
+  const c = parseIpv4Cidr(subnetCidr);
+  if (!c) vfail("The selected subnet has an invalid CIDR.", "invalid_private_ip", field);
+  const { start, end } = c as ParsedIpv4Cidr;
+  if ((n as number) < start || (n as number) > end) {
+    vfail(`Address must be inside ${subnetCidr}.`, "invalid_private_ip", field);
+  }
+  if (n === start || n === end) {
+    vfail("Choose a usable host address, not the network or broadcast address.", "invalid_private_ip", field);
+  }
+  if (gateway && address === String(gateway).trim()) {
+    vfail("This address is reserved for the subnet gateway.", "invalid_private_ip", field);
+  }
+  return address;
+}
+
+/** Trim a name and require 1..max characters. */
+export function validateResourceName(value: unknown, field: string, max: number, label = field): string {
+  const v = trimStr(value);
+  if (!v) vfail(`${label} is required.`, `invalid_${field}`, field);
+  if (v.length > max) vfail(`${label} must be ${max} characters or fewer.`, `invalid_${field}`, field);
+  return v;
+}
+
+/** Trim optional text and require at most `max` characters. */
+export function validateOptionalText(value: unknown, field: string, max: number): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string") vfail(`${field} must be a string.`, `invalid_${field}`, field);
+  const v = (value as string).trim();
+  if (v.length > max) vfail(`${field} must be ${max} characters or fewer.`, `invalid_${field}`, field);
+  return v;
+}
+
+/** Trim an ID and require 1..max characters. */
+export function validateBoundedId(value: unknown, field: string, max = 160): string {
+  const v = trimStr(value);
+  if (!v) vfail(`${field} is required.`, `invalid_${field}`, field);
+  if (v.length > max) vfail(`${field} must be ${max} characters or fewer.`, `invalid_${field}`, field);
+  return v;
+}
+
+/** Optional ID: undefined when absent, else trimmed and non-empty. */
+function optionalId(value: unknown, field: string, max = 160): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  return validateBoundedId(value, field, max);
+}
+
+/**
+ * Normalise a VM ID list (announcers / VIP targets): trim, reject blanks,
+ * de-duplicate (order kept), at most `maxItems`.
+ */
+export function normaliseVmIdList(values: unknown, field = "vm_ids", maxItems = 32): string[] {
+  if (values === undefined || values === null) return [];
+  if (!Array.isArray(values)) vfail(`${field} must be an array of strings.`, `invalid_${field}`, field);
+  const out: string[] = [];
+  for (const raw of values as unknown[]) {
+    const v = String(raw ?? "").trim();
+    if (!v) vfail(`${field} cannot contain blank IDs.`, `invalid_${field}`, field);
+    if (!out.includes(v)) out.push(v);
+  }
+  if (out.length > maxItems) vfail(`${field} accepts at most ${maxItems} IDs.`, `invalid_${field}`, field);
+  return out;
+}
+
+export const PORT_MESSAGE = "Ports must be whole numbers from 1 to 65535.";
+
+/** Validate a single TCP/UDP port (integer 1..65535; no ranges). */
+export function validatePort(value: unknown, field: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 65535) {
+    vfail(PORT_MESSAGE, "invalid_port", field);
+  }
+  return value as number;
+}
+
+/** Validate a DNS server list (at least one IPv4 address). */
+export function validateDnsList(dns: unknown, field = "dns"): string[] {
+  if (!Array.isArray(dns) || dns.length === 0) {
+    vfail("At least one DNS server is required.", "invalid_dns", field);
+  }
+  return (dns as unknown[]).map((d) => {
+    const v = trimStr(d);
+    if (parseIpv4(v) === null) vfail(`DNS server '${String(d)}' is not a valid IPv4 address.`, "invalid_dns", field);
+    return v;
+  });
+}
+
+/** Require at least one defined field in a PATCH body. */
+export function requireAtLeastOneField(body: Record<string, unknown>, message: string): void {
+  if (!Object.values(body).some((v) => v !== undefined)) vfail(message, "no_changes");
+}
+
+// ------------------------------------------------------------ billing SKUs
+
+/** Keys the portal sends in a network billing catalog. */
+export const NETWORK_BILLING_CATALOG_KEYS = [
+  "source", "product_id", "product_code", "sku_id", "sku_code", "display_name",
+  "plan_id", "plan_version", "unit_price_minor", "price_currency", "billing_interval",
+  "billing_period_hours",
+] as const;
+
+/** Portal network price entry (from the IBEE billing catalog). */
+export interface NetworkCatalogPrice {
+  source?: string;
+  productId?: string;
+  productCode?: string;
+  skuId?: string | number;
+  skuCode: string;
+  displayName?: string;
+  planId?: string;
+  planVersion?: string | number | null;
+  amountMinor?: number;
+  currency?: string;
+  billingInterval?: string;
+  billingPeriodHours?: number;
+}
+
+/**
+ * Build the NAT-GATEWAY / RESERVED-IP billing catalog the portal sends from a
+ * price entry obtained from the IBEE billing catalog. Returns `{}` for null.
+ */
+export function networkBillingCatalog(price: NetworkCatalogPrice | null | undefined): Record<string, unknown> {
+  if (!price) return {};
+  return {
+    source: price.source,
+    product_id: price.productId,
+    product_code: price.productCode,
+    sku_id: price.skuId,
+    sku_code: price.skuCode,
+    display_name: price.displayName ?? price.skuCode,
+    plan_id: price.planId,
+    plan_version: price.planVersion,
+    unit_price_minor: price.amountMinor,
+    price_currency: price.currency,
+    billing_interval: price.billingInterval,
+    billing_period_hours: price.billingPeriodHours,
+  };
+}
+
+/**
+ * Validate a network billing catalog: an object with a non-empty `sku_code`
+ * (or `code`). With `requireSkuId`, `sku_id` must be present too and only the
+ * portal keys are kept. `unit_price_minor`, when present, is an integer >= 0.
+ */
+export function validateNetworkBillingCatalog(
+  catalog: unknown,
+  field = "billing_catalog",
+  opts: { requireSkuId?: boolean; portalKeysOnly?: boolean } = {},
+): Record<string, unknown> {
+  if (!isRec(catalog)) vfail(`${field} must be an object.`, "invalid_billing_catalog", field);
+  const c = catalog as Record<string, unknown>;
+  const code = trimStr(c.sku_code) || trimStr(c.code);
+  if (!code) vfail(`${field} needs a non-empty sku_code.`, "invalid_billing_catalog", field);
+  if (opts.requireSkuId) {
+    const id = c.sku_id;
+    const ok = (typeof id === "string" && id.trim() !== "") || (typeof id === "number" && Number.isFinite(id));
+    if (!ok) vfail(`${field} needs a non-empty sku_id.`, "invalid_billing_catalog", field);
+  }
+  if (c.unit_price_minor !== undefined && c.unit_price_minor !== null) {
+    if (!isInt(c.unit_price_minor) || (c.unit_price_minor as number) < 0) {
+      vfail(`${field}.unit_price_minor must be an integer >= 0.`, "invalid_billing_catalog", field);
+    }
+  }
+  if (!opts.portalKeysOnly) return { ...c };
+  const out: Record<string, unknown> = {};
+  for (const key of NETWORK_BILLING_CATALOG_KEYS) if (c[key] !== undefined) out[key] = c[key];
+  return out;
+}
+
+// -------------------------------------------------------------------- VPCs
+
+export const VPC_CONNECTIVITY_TYPES = ["private", "nat_gateway", "public"] as const;
+export type VpcConnectivityType = (typeof VPC_CONNECTIVITY_TYPES)[number];
+
+export interface VpcCreateInput {
+  name: string;
+  siteId: string;
+  description?: string;
+  region?: string;
+  cidr?: string;
+  autoCidr?: boolean;
+  createDefaultSubnet?: boolean;
+  defaultSubnetCidr?: string;
+  isDefault?: boolean;
+  connectivityType?: VpcConnectivityType | (string & {});
+  natBillingCatalog?: Record<string, unknown>;
+}
+
+/** Validate a VPC create request and build the API body (portal rules). */
+export function buildVpcCreateBody(args: VpcCreateInput): Record<string, unknown> {
+  const name = trimStr(args.name);
+  const siteId = trimStr(args.siteId);
+  if (!name || !siteId) vfail("Name and location are required.", "invalid_vpc", !name ? "name" : "site_id");
+  if (name.length > 80) vfail("name must be 1-80 characters.", "invalid_name", "name");
+  if (siteId.length > 120) vfail("site_id must be 120 characters or fewer.", "invalid_site_id", "site_id");
+  const description = validateOptionalText(args.description, "description", 500);
+  const region = validateOptionalText(args.region, "region", 120);
+
+  let connectivity: string | undefined;
+  if (args.connectivityType !== undefined && args.connectivityType !== null) {
+    connectivity = trimStr(args.connectivityType).toLowerCase();
+    if (!(VPC_CONNECTIVITY_TYPES as readonly string[]).includes(connectivity)) {
+      vfail(
+        `connectivityType must be one of ${VPC_CONNECTIVITY_TYPES.join(", ")}.`,
+        "invalid_connectivity_type",
+        "connectivity_type",
+      );
+    }
+  }
+
+  const cidrRaw = args.cidr === undefined || args.cidr === null ? "" : trimStr(args.cidr);
+  let cidr: string | undefined;
+  let autoCidr = args.autoCidr;
+  if (cidrRaw) {
+    if (autoCidr === true) vfail("cidr requires auto_cidr=false.", "invalid_cidr_mode", "auto_cidr");
+    cidr = validateVpcCidr(cidrRaw, "cidr");
+    autoCidr = false;
+  } else if (autoCidr === false) {
+    vfail("cidr is required when auto_cidr is false.", "invalid_cidr_mode", "cidr");
+  }
+
+  let defaultSubnetCidr: string | undefined;
+  if (args.defaultSubnetCidr !== undefined && args.defaultSubnetCidr !== null && trimStr(args.defaultSubnetCidr)) {
+    if (args.createDefaultSubnet === false) {
+      vfail("default_subnet_cidr requires create_default_subnet=true.", "invalid_cidr_mode", "default_subnet_cidr");
+    }
+    defaultSubnetCidr = validateVpcCidr(args.defaultSubnetCidr, "default_subnet_cidr");
+    if (cidr && !cidrContains(cidr, defaultSubnetCidr)) {
+      vfail(`default_subnet_cidr must be inside ${cidr}.`, "invalid_cidr", "default_subnet_cidr");
+    }
+  }
+
+  let natBillingCatalog: Record<string, unknown> | undefined;
+  if (args.natBillingCatalog !== undefined && args.natBillingCatalog !== null) {
+    if (connectivity !== "nat_gateway") {
+      vfail(
+        "nat_billing_catalog is only allowed with connectivity_type 'nat_gateway'.",
+        "invalid_billing_catalog",
+        "nat_billing_catalog",
+      );
+    }
+    natBillingCatalog = validateNetworkBillingCatalog(args.natBillingCatalog, "nat_billing_catalog");
+  }
+
+  return {
+    name,
+    ...(description ? { description } : {}),
+    site_id: siteId,
+    ...(region ? { region } : {}),
+    ...(connectivity ? { connectivity_type: connectivity } : {}),
+    ...(natBillingCatalog ? { nat_billing_catalog: natBillingCatalog } : {}),
+    ...(autoCidr === undefined ? {} : { auto_cidr: autoCidr }),
+    ...(cidr ? { cidr } : {}),
+    ...(args.createDefaultSubnet === undefined ? {} : { create_default_subnet: args.createDefaultSubnet }),
+    ...(defaultSubnetCidr ? { default_subnet_cidr: defaultSubnetCidr } : {}),
+    ...(args.isDefault === undefined ? {} : { is_default: args.isDefault }),
+  };
+}
+
+/** Validate a VPC PATCH (name 1..80, description <= 500, at least one field). */
+export function buildVpcUpdateBody(args: { name?: string; description?: string }): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  if (args.name !== undefined && args.name !== null) body.name = validateResourceName(args.name, "name", 80, "name");
+  if (args.description !== undefined && args.description !== null) {
+    body.description = validateOptionalText(args.description, "description", 500);
+  }
+  requireAtLeastOneField(body, "At least one VPC field must be provided.");
+  return body;
+}
+
+export interface SubnetCreateInput {
+  name: string;
+  cidr?: string;
+  autoCidr?: boolean;
+  prefixLength?: number;
+  dns?: string[];
+}
+
+/**
+ * Validate a subnet create and build the body. With `vpc` (the VPC detail),
+ * also enforce containment in the VPC CIDR, no overlap with existing subnets,
+ * the 10-subnet quota and `prefixLength >= ` the VPC prefix.
+ */
+export function buildSubnetCreateBody(
+  args: SubnetCreateInput,
+  vpc?: { cidr?: string; subnets?: Array<{ cidr?: string; name?: string }> } | null,
+): Record<string, unknown> {
+  const name = validateResourceName(args.name, "name", 80, "Subnet name");
+  const cidrRaw = args.cidr === undefined || args.cidr === null ? "" : trimStr(args.cidr);
+  let cidr: string | undefined;
+  let autoCidr = args.autoCidr;
+  if (cidrRaw) {
+    cidr = validatePrivateCidr(cidrRaw, {
+      minPrefix: 0,
+      maxPrefix: SUBNET_MAX_PREFIX,
+      field: "cidr",
+      prefixMessage: "Subnet must contain room for gateway and VM addresses (/29 or larger).",
+    });
+    if (args.prefixLength !== undefined && args.prefixLength !== null) {
+      vfail("prefix_length is only valid with automatic CIDR allocation.", "invalid_cidr_mode", "prefix_length");
+    }
+    autoCidr = false;
+  } else if (autoCidr === false) {
+    vfail("cidr is required when auto_cidr is false.", "invalid_cidr_mode", "cidr");
+  }
+  if (args.prefixLength !== undefined && args.prefixLength !== null) {
+    validateIntRange(args.prefixLength, "prefix_length", 22, SUBNET_MAX_PREFIX);
+  }
+  const dns = args.dns === undefined || args.dns === null ? undefined : validateDnsList(args.dns);
+
+  if (vpc) {
+    const subnets = Array.isArray(vpc.subnets) ? vpc.subnets : [];
+    if (subnets.length >= MAX_SUBNETS_PER_VPC) {
+      vfail(`Subnet quota exceeded; limit is ${MAX_SUBNETS_PER_VPC} per VPC.`, "subnet_quota_exceeded");
+    }
+    const vpcCidr = parseIpv4Cidr(vpc.cidr);
+    if (vpcCidr && cidr) {
+      if (!cidrContains(String(vpc.cidr), cidr)) {
+        vfail(
+          `Must be a sub-range of ${vpc.cidr} that does not overlap other subnets.`,
+          "invalid_cidr",
+          "cidr",
+        );
+      }
+      for (const s of subnets) {
+        if (s.cidr && parseIpv4Cidr(s.cidr) && cidrOverlaps(s.cidr, cidr)) {
+          vfail(
+            `Must be a sub-range of ${vpc.cidr} that does not overlap other subnets (overlaps ${s.cidr}).`,
+            "invalid_cidr",
+            "cidr",
+          );
+        }
+      }
+    }
+    if (vpcCidr && args.prefixLength !== undefined && args.prefixLength !== null && args.prefixLength < vpcCidr.prefix) {
+      vfail(`prefix_length must be /${vpcCidr.prefix} or smaller for this VPC.`, "invalid_prefix_length", "prefix_length");
+    }
+  }
+
+  return {
+    name,
+    ...(cidr ? { cidr } : {}),
+    ...(autoCidr === undefined ? {} : { auto_cidr: autoCidr }),
+    ...(args.prefixLength === undefined || args.prefixLength === null ? {} : { prefix_length: args.prefixLength }),
+    ...(dns ? { dns } : {}),
+  };
+}
+
+/** Validate a subnet PATCH (name 1..80, DNS list, at least one field). */
+export function buildSubnetUpdateBody(args: { name?: string; dns?: string[] }): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  if (args.name !== undefined && args.name !== null) body.name = validateResourceName(args.name, "name", 80, "Subnet name");
+  if (args.dns !== undefined && args.dns !== null) body.dns = validateDnsList(args.dns);
+  requireAtLeastOneField(body, "At least one subnet field must be provided.");
+  return body;
+}
+
+// ------------------------------------------------------- node attachments
+
+export type NodeConnectivity = (typeof NETWORK_CONNECTIVITY_MODES)[number];
+
+/**
+ * Portal default connectivity when attaching a VM: `nat` for a NAT Gateway
+ * VPC with an available gateway when the VM has no primary network (or the
+ * caller routes internet through the VPC), otherwise `private`.
+ */
+export function resolveNodeConnectivity(args: {
+  vpcConnectivityType: unknown;
+  natGatewayAvailable: boolean;
+  hasPrimaryNetwork?: boolean;
+  useVpcForInternet?: boolean;
+}): "nat" | "private" {
+  return normaliseVpcConnectivityType(args.vpcConnectivityType) === "nat_gateway" &&
+    args.natGatewayAvailable &&
+    (!args.hasPrimaryNetwork || Boolean(args.useVpcForInternet))
+    ? "nat"
+    : "private";
+}
+
+const isAvailable = (s: unknown) => String(s ?? "").trim().toLowerCase() === "available";
+
+/**
+ * Connectivity rules for a node attach against the VPC detail: `nat` needs a
+ * NAT Gateway VPC with an available gateway; `public_ip` is not allowed in NAT
+ * Gateway VPCs and needs a Reserved IP in private VPCs.
+ */
+export function validateNodeConnectivity(
+  vpc: { connectivity_type?: unknown; nat_gateways?: Array<{ status?: unknown }> | null },
+  connectivity: string | undefined,
+  reservedPublicIpId?: string,
+): void {
+  if (!connectivity) return;
+  const type = normaliseVpcConnectivityType(vpc.connectivity_type);
+  if (connectivity === "nat") {
+    if (type !== "nat_gateway") {
+      vfail("NAT connectivity is available only in NAT Gateway VPCs.", "invalid_network", "connectivity");
+    }
+    if (!(vpc.nat_gateways ?? []).some((g) => isAvailable(g.status))) {
+      vfail("This VPC has no available NAT gateway.", "invalid_network", "connectivity");
+    }
+  }
+  if (connectivity === "public_ip") {
+    if (type === "nat_gateway") {
+      vfail("Dedicated public IPs are not available for nat_gateway VPCs.", "invalid_network", "connectivity");
+    }
+    if (type === "private" && !reservedPublicIpId) {
+      vfail(
+        "A public IP on a private VPC needs a Reserved IP (reservedPublicIpId).",
+        "invalid_network",
+        "reserved_public_ip_id",
+      );
+    }
+  }
+}
+
+// --------------------------------------------------------------------- NAT
+
+export const NAT_DELETE_IP_ACTIONS = ["reserve", "release"] as const;
+export type NatDeleteIpAction = (typeof NAT_DELETE_IP_ACTIONS)[number];
+
+/**
+ * Portal default for `public_ip_action` on NAT delete: `reserve` when the
+ * gateway uses a Reserved IP or a RESERVED-IP catalog is available, else
+ * `release`.
+ */
+export function defaultNatDeleteIpAction(
+  gateway: { public_ip_source?: unknown } | null | undefined,
+  hasReservedIpCatalog = false,
+): NatDeleteIpAction {
+  return String(gateway?.public_ip_source ?? "") === "reserved" || hasReservedIpCatalog ? "reserve" : "release";
+}
+
+/**
+ * Portal Reserved IP eligibility for a NAT gateway / VIP: same site (or no
+ * site), unattached, status `reserved`, and customer-reserved.
+ */
+export function validateReservedIpEligibleForService(
+  rip: Record<string, unknown>,
+  siteId: string | undefined,
+  field = "reserved_public_ip_id",
+): void {
+  const ripSite = trimStr(rip.site_id);
+  if (siteId && ripSite && ripSite !== siteId) {
+    vfail("The Reserved IP is in a different site from the VPC.", "reserved_ip_not_eligible", field);
+  }
+  if (trimStr(rip.attached_resource_id) || trimStr(rip.attached_resource_type)) {
+    vfail("That Reserved IP is not available; choose an unattached address.", "reserved_ip_not_eligible", field);
+  }
+  const status = trimStr(rip.status).toLowerCase();
+  if (status && status !== "reserved") {
+    vfail(`The Reserved IP is ${status}; choose a reserved address.`, "reserved_ip_not_eligible", field);
+  }
+  const type = trimStr(rip.reservation_type).toLowerCase();
+  if (type && type !== "user_reserved") {
+    vfail("Only customer Reserved IPs can be used here.", "reserved_ip_not_eligible", field);
+  }
+}
+
+// ---------------------------------------------------- port-forwarding rules
+
+export const PF_PROTOCOLS = ["tcp", "udp"] as const;
+export const PF_TARGET_TYPES = ["vm", "vip"] as const;
+
+export interface PortForwardingRuleInput {
+  name?: string;
+  protocol?: string;
+  externalPort?: number;
+  internalIp?: string;
+  internalPort?: number;
+  targetType?: string;
+  targetVmIds?: string[];
+  note?: string;
+  enabled?: boolean;
+}
+
+function pfProtocol(v: unknown): string {
+  const p = trimStr(v).toLowerCase();
+  if (!(PF_PROTOCOLS as readonly string[]).includes(p)) vfail("protocol must be tcp or udp.", "invalid_protocol", "protocol");
+  return p;
+}
+
+function pfTargetType(v: unknown): string {
+  const t = trimStr(v).toLowerCase();
+  if (!(PF_TARGET_TYPES as readonly string[]).includes(t)) vfail("target_type must be vm or vip.", "invalid_target_type", "target_type");
+  return t;
+}
+
+function pfInternalIp(v: unknown): string {
+  const ip = trimStr(v);
+  if (parseIpv4(ip) === null) vfail("internal_ip must be a valid IPv4 address.", "invalid_internal_ip", "internal_ip");
+  if (!isPrivateIpv4(ip)) vfail("Internal IP must be a private IPv4 address.", "invalid_internal_ip", "internal_ip");
+  return ip;
+}
+
+/** Validate a port-forwarding create and build the body (portal defaults). */
+export function buildPortForwardingCreateBody(args: PortForwardingRuleInput): Record<string, unknown> {
+  const name = trimStr(args.name);
+  const internalIpRaw = trimStr(args.internalIp);
+  if (!name || !internalIpRaw) vfail("Rule name and internal IP are required.", "invalid_port_forwarding_rule", !name ? "name" : "internal_ip");
+  if (name.length > 80) vfail("name must be 80 characters or fewer.", "invalid_name", "name");
+  const protocol = args.protocol === undefined || args.protocol === null ? "tcp" : pfProtocol(args.protocol);
+  const externalPort = validatePort(args.externalPort, "external_port");
+  const internalPort = validatePort(args.internalPort, "internal_port");
+  const internalIp = pfInternalIp(internalIpRaw);
+  const targetType = args.targetType === undefined || args.targetType === null ? "vm" : pfTargetType(args.targetType);
+  const targetVmIds = normaliseVmIdList(args.targetVmIds, "target_vm_ids");
+  if (targetType === "vm" && targetVmIds.length) {
+    vfail("target_vm_ids is only supported for VIP targets.", "invalid_target_vm_ids", "target_vm_ids");
+  }
+  const note = validateOptionalText(args.note, "note", 500) ?? "";
+  if (args.enabled !== undefined && typeof args.enabled !== "boolean") vfail("enabled must be a boolean.", "invalid_enabled", "enabled");
+  return {
+    name,
+    protocol,
+    external_port: externalPort,
+    internal_ip: internalIp,
+    internal_port: internalPort,
+    target_type: targetType,
+    target_vm_ids: targetVmIds,
+    note,
+    enabled: args.enabled ?? true,
+  };
+}
+
+/** Validate a port-forwarding PATCH and build the body. */
+export function buildPortForwardingUpdateBody(args: PortForwardingRuleInput): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  if (args.name !== undefined && args.name !== null) body.name = validateResourceName(args.name, "name", 80, "Rule name");
+  if (args.protocol !== undefined && args.protocol !== null) body.protocol = pfProtocol(args.protocol);
+  if (args.externalPort !== undefined && args.externalPort !== null) body.external_port = validatePort(args.externalPort, "external_port");
+  if (args.internalIp !== undefined && args.internalIp !== null) body.internal_ip = pfInternalIp(args.internalIp);
+  if (args.internalPort !== undefined && args.internalPort !== null) body.internal_port = validatePort(args.internalPort, "internal_port");
+  if (args.targetVmIds !== undefined && args.targetVmIds !== null && (args.targetType === undefined || args.targetType === null)) {
+    vfail("target_vm_ids requires target_type in the same update.", "invalid_target_vm_ids", "target_vm_ids");
+  }
+  if (args.targetType !== undefined && args.targetType !== null) {
+    const t = pfTargetType(args.targetType);
+    body.target_type = t;
+    const ids = normaliseVmIdList(args.targetVmIds, "target_vm_ids");
+    if (t === "vm" && ids.length) vfail("target_vm_ids is only supported for VIP targets.", "invalid_target_vm_ids", "target_vm_ids");
+    if (t === "vip" && args.targetVmIds !== undefined && args.targetVmIds !== null && !ids.length) {
+      vfail("Select at least one MetalLB announcer node.", "invalid_target_vm_ids", "target_vm_ids");
+    }
+    if (t === "vm") body.target_vm_ids = [];
+    else if (args.targetVmIds !== undefined && args.targetVmIds !== null) body.target_vm_ids = ids;
+  }
+  if (args.note !== undefined && args.note !== null) body.note = validateOptionalText(args.note, "note", 500);
+  if (args.enabled !== undefined && args.enabled !== null) {
+    if (typeof args.enabled !== "boolean") vfail("enabled must be a boolean.", "invalid_enabled", "enabled");
+    body.enabled = args.enabled;
+  }
+  requireAtLeastOneField(body, "At least one port forwarding field must be provided.");
+  return body;
+}
+
+/** Reject a duplicate (protocol, external_port) on the same NAT gateway. */
+export function assertNoDuplicateExternalPort(
+  rules: Array<Record<string, unknown>>,
+  protocol: string,
+  externalPort: number,
+  excludeRuleId?: string,
+): void {
+  for (const r of rules) {
+    const id = String(r.port_forward_rule_id ?? r.port_forwarding_rule_id ?? r.rule_id ?? "");
+    if (excludeRuleId && id === excludeRuleId) continue;
+    if (String(r.protocol ?? "").toLowerCase() === protocol && Number(r.external_port) === externalPort) {
+      vfail(
+        `${protocol.toUpperCase()} external port ${externalPort} already exists on this NAT gateway.`,
+        "duplicate_external_port",
+        "external_port",
+      );
+    }
+  }
+}
+
+// ------------------------------------------------------------ virtual IPs
+
+export const VIRTUAL_IP_PURPOSES = ["metallb", "custom"] as const;
+const UNUSABLE_NODE_STATES = new Set(["deleting", "deleted", "error", "failed"]);
+
+/** True when a VPC node can announce a MetalLB VIP (NAT-connected, usable, same subnet). */
+export function isEligibleVipAnnouncer(node: Record<string, unknown>, subnetId: string): boolean {
+  return (
+    String(node.connectivity ?? "") === "nat" &&
+    String(node.subnet_id ?? "") === subnetId &&
+    !UNUSABLE_NODE_STATES.has(String(node.status ?? "").trim().toLowerCase())
+  );
+}
+
+// ------------------------------------------------------------ Reserved IPs
+
+/** Validate a Reserved IP location (`site_id`, 1..120). */
+export function validateReservedIpSiteId(siteId: unknown): string {
+  const s = trimStr(siteId);
+  if (!s) vfail("Choose a location for the Reserved IP.", "invalid_site_id", "site_id");
+  if (s.length > 120) vfail("site_id must be 120 characters or fewer.", "invalid_site_id", "site_id");
+  return s;
+}
+
+const HOST_LABEL = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
+
+/**
+ * Validate reverse DNS (empty clears it; otherwise a hostname of at most 253
+ * characters, optional trailing dot, LDH labels). Returns the trimmed value.
+ */
+export function validateReverseDns(value: unknown): string {
+  if (typeof value !== "string") vfail("reverse_dns must be a string.", "invalid_reverse_dns", "reverse_dns");
+  const v = (value as string).trim();
+  if (!v) return "";
+  const fail = () =>
+    vfail(
+      "Enter a valid FQDN for reverse DNS (for example, mail.example.com). Leave blank to clear.",
+      "invalid_reverse_dns",
+      "reverse_dns",
+    );
+  if (v.length > 253) fail();
+  const host = v.endsWith(".") ? v.slice(0, -1) : v;
+  if (!host || /[\s/?#@:\\[\]]/.test(host)) fail();
+  let ascii = host;
+  if (/[^\x00-\x7f]/.test(host)) {
+    try {
+      ascii = new URL(`http://${host}`).hostname;
+    } catch {
+      fail();
+    }
+  }
+  if (ascii.length > 253 || ascii.split(".").some((label) => !HOST_LABEL.test(label))) fail();
+  return v;
+}
+
+/** How a Reserved IP is attached, classified the way the portal does. */
+export type ReservedIpAttachmentKind =
+  | "none"
+  | "nat_gateway"
+  | "vpc_virtual_ip"
+  | "direct"
+  | "converted_active"
+  | "vpc";
+
+/** Classify a Reserved IP's current attachment. */
+export function reservedIpAttachmentKind(ip: Record<string, unknown>): ReservedIpAttachmentKind {
+  if (!trimStr(ip.attached_resource_id)) return "none";
+  const type = trimStr(ip.attached_resource_type);
+  if (type === "nat_gateway" || type === "vpc_virtual_ip") return type;
+  const allocation = trimStr(ip.attached_allocation_id);
+  const network = trimStr(ip.attached_network_id);
+  if ((type === "vm" || !type) && network && !allocation && !trimStr(ip.attached_vpc_id)) return "direct";
+  if (trimStr(ip.allocation_method) === "converted" && !allocation && !network) return "converted_active";
+  return "vpc";
+}
+
+/** Message for releasing an attached Reserved IP (portal wording). */
+export function reservedIpReleaseBlockMessage(ip: Record<string, unknown>): string | undefined {
+  if (!trimStr(ip.attached_resource_id)) return undefined;
+  return trimStr(ip.attached_resource_type) === "nat_gateway"
+    ? "Change or delete the NAT Gateway before releasing this IP."
+    : "Detach this IP before releasing it.";
+}
+
+export const RESERVED_IP_TARGET_UNSUPPORTED_MESSAGE =
+  "This VM has no VPC attachment. Use reservedIps.convert to keep its current public IP; attaching a held Reserved IP to a non-VPC VM is not yet available in the public API.";
+
+// --------------------------------------------------------------- firewalls
+
+export const FIREWALL_PROTOCOLS = ["tcp", "udp", "icmp", "any"] as const;
+export const FIREWALL_DIRECTIONS = ["ingress", "egress"] as const;
+export const FIREWALL_ACTIONS = ["allow", "drop"] as const;
+export const ANYWHERE_IPV4_CIDR = "0.0.0.0/0";
+
+/**
+ * Validate and normalise firewall remote targets: IPv4 address or CIDR
+ * (host bits allowed), bare IPs become /32, CIDRs become their network,
+ * duplicates are dropped. Empty input returns `["0.0.0.0/0"]`. A string is
+ * split on commas (portal input).
+ */
+export function normaliseRemoteTargets(values: unknown): string[] {
+  const list =
+    typeof values === "string"
+      ? values.split(",")
+      : Array.isArray(values)
+        ? (values as unknown[])
+        : values === undefined || values === null
+          ? []
+          : vfail("remote_targets must be a list of IPv4 addresses or CIDRs.", "invalid_remote_targets", "remote_targets");
+  const out: string[] = [];
+  for (const raw of list as unknown[]) {
+    const text = String(raw ?? "").trim();
+    if (!text) {
+      if (typeof values === "string") continue;
+      vfail("Remote target cannot be empty.", "invalid_remote_targets", "remote_targets");
+    }
+    let normalised: string;
+    if (text.includes(":")) {
+      vfail("Only IPv4 remote targets are supported.", "invalid_remote_targets", "remote_targets");
+    }
+    if (text.includes("/")) {
+      const c = parseIpv4Cidr(text);
+      if (!c) vfail(`'${text}' is not a valid IPv4 CIDR.`, "invalid_remote_targets", "remote_targets");
+      normalised = `${formatIpv4((c as ParsedIpv4Cidr).start)}/${(c as ParsedIpv4Cidr).prefix}`;
+    } else {
+      if (parseIpv4(text) === null) vfail(`'${text}' is not a valid IPv4 address.`, "invalid_remote_targets", "remote_targets");
+      normalised = `${formatIpv4(parseIpv4(text) as number)}/32`;
+    }
+    if (!out.includes(normalised)) out.push(normalised);
+  }
+  if (!out.length) {
+    if (typeof values === "string") {
+      vfail("Enter at least one CIDR or IP address for the selected source.", "invalid_remote_targets", "remote_targets");
+    }
+    if (Array.isArray(values) && values.length === 0) {
+      vfail("Enter at least one CIDR or IP address for the selected source.", "invalid_remote_targets", "remote_targets");
+    }
+    return [ANYWHERE_IPV4_CIDR];
+  }
+  return out;
+}
+
+/** Parse the portal port input: `22` or `8000-8080`. */
+export function parsePortRange(value: string): { start: number; end: number } {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) vfail("Port is required for TCP and UDP rules.", "invalid_port", "port_start");
+  if (!/^\s*\d{1,5}\s*(-\s*\d{1,5}\s*)?$/.test(trimmed)) {
+    vfail("Use a single port like 22 or a range like 8000-8080.", "invalid_port", "port_start");
+  }
+  const [a, b] = trimmed.split("-").map((p) => Number(p.trim()));
+  const end = b === undefined ? a : b;
+  if (a < 1 || a > 65535 || end < 1 || end > 65535) vfail("Ports must be between 1 and 65535.", "invalid_port", "port_start");
+  if (end < a) vfail("Port range end must be greater than or equal to the start.", "invalid_port", "port_end");
+  return { start: a, end };
+}
+
+export interface FirewallRuleFields {
+  description?: string;
+  direction?: string;
+  protocol?: string;
+  portStart?: number;
+  portEnd?: number;
+  remoteTargets?: string[] | string;
+  action?: string;
+  priority?: number;
+  enabled?: boolean;
+}
+
+const oneOf = (value: unknown, allowed: readonly string[], field: string): string => {
+  const v = trimStr(value).toLowerCase();
+  if (!allowed.includes(v)) vfail(`${field} must be one of ${allowed.join(", ")}.`, `invalid_${field}`, field);
+  return v;
+};
+
+/**
+ * Validate a firewall rule and build the create (or PATCH, `update: true`)
+ * body. TCP/UDP need `portStart` (1..65535) and `portEnd` defaults to it;
+ * ICMP/any take no ports; remote targets are normalised (create defaults to
+ * `0.0.0.0/0`).
+ */
+export function buildFirewallRuleBody(args: FirewallRuleFields, opts: { update?: boolean } = {}): Record<string, unknown> {
+  const update = Boolean(opts.update);
+  const body: Record<string, unknown> = {};
+  let protocol: string | undefined;
+  if (args.protocol !== undefined && args.protocol !== null) {
+    const p = trimStr(args.protocol).toLowerCase();
+    if (p === "gre" || p === "esp" || p === "ah") {
+      vfail("The current firewall API supports Any, TCP, UDP, and ICMP rules only.", "invalid_protocol", "protocol");
+    }
+    protocol = oneOf(p, FIREWALL_PROTOCOLS, "protocol");
+    body.protocol = protocol;
+  } else if (!update) {
+    protocol = "tcp";
+  }
+  const hasStart = args.portStart !== undefined && args.portStart !== null;
+  const hasEnd = args.portEnd !== undefined && args.portEnd !== null;
+  const portOk = (v: unknown, field: string) => {
+    if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > 65535) {
+      vfail("Port must be between 1 and 65535.", "invalid_port", field);
+    }
+    return v as number;
+  };
+  if (protocol === "icmp" || protocol === "any") {
+    if (hasStart || hasEnd) vfail("Ports apply only to TCP and UDP rules.", "invalid_port", "port_start");
+  } else {
+    if ((protocol === "tcp" || protocol === "udp") && !hasStart) {
+      vfail("Port is required for TCP and UDP rules.", "invalid_port", "port_start");
+    }
+    if (hasStart) body.port_start = portOk(args.portStart, "port_start");
+    if (hasEnd) body.port_end = portOk(args.portEnd, "port_end");
+    else if (hasStart && protocol) body.port_end = body.port_start;
+    if (body.port_start !== undefined && body.port_end !== undefined && (body.port_end as number) < (body.port_start as number)) {
+      vfail("Port range end must be greater than or equal to the start.", "invalid_port", "port_end");
+    }
+  }
+  if (args.remoteTargets !== undefined && args.remoteTargets !== null) {
+    body.remote_targets = normaliseRemoteTargets(args.remoteTargets);
+  } else if (!update) {
+    body.remote_targets = [ANYWHERE_IPV4_CIDR];
+  }
+  if (args.direction !== undefined && args.direction !== null) body.direction = oneOf(args.direction, FIREWALL_DIRECTIONS, "direction");
+  else if (!update) body.direction = "ingress";
+  if (args.action !== undefined && args.action !== null) body.action = oneOf(args.action, FIREWALL_ACTIONS, "action");
+  else if (!update) body.action = "allow";
+  if (args.description !== undefined && args.description !== null) {
+    const d = validateOptionalText(args.description, "description", Number.MAX_SAFE_INTEGER);
+    if (d) body.description = d;
+  }
+  if (args.priority !== undefined && args.priority !== null) {
+    if (!isInt(args.priority)) vfail("priority must be an integer.", "invalid_priority", "priority");
+    body.priority = args.priority;
+  }
+  if (update && args.enabled !== undefined && args.enabled !== null) {
+    if (typeof args.enabled !== "boolean") vfail("enabled must be a boolean.", "invalid_enabled", "enabled");
+    body.enabled = args.enabled;
+  }
+  if (!update) body.protocol = protocol;
+  if (update) requireAtLeastOneField(body, "At least one firewall rule field must be provided.");
+  return body;
+}
+
+// ---------------------------------------------------------- load balancers
+
+export const LB_STATUSES = ["provisioning", "active", "failed", "deleting", "deleted"] as const;
+export const LB_ALGORITHMS = ["round_robin", "least_request", "random", "consistent_hash"] as const;
+export const LB_BACKEND_TYPES = ["service", "ip", "hostname"] as const;
+export const LB_HEALTH_CHECK_TYPES = ["http", "https", "tcp"] as const;
+export const LB_PROTOCOLS_BY_LAYER = {
+  l4: ["tcp", "tls_passthrough"],
+  l7: ["http", "https"],
+} as const;
+export const LB_DEFAULT_RETRY_ON = ["5xx", "reset", "connect-failure"] as const;
+
+const isIpv6 = (v: string): boolean => {
+  if (!v.includes(":")) return false;
+  try {
+    new URL(`http://[${v}]`);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+function intIn(value: unknown, field: string, min: number, max: number): number {
+  if (!isInt(value) || (value as number) < min || (value as number) > max) {
+    vfail(`${field} must be an integer between ${min} and ${max}.`, `invalid_${field.replace(/\W+/g, "_")}`, field);
+  }
+  return value as number;
+}
+
+/** Validate one load-balancer backend and return the normalised item. */
+export function validateLbBackend(item: unknown, field = "backends"): Record<string, unknown> {
+  if (!isRec(item)) vfail(`Each ${field} item must be an object.`, "invalid_backend", field);
+  const b = item as Record<string, unknown>;
+  const type = b.type === undefined || b.type === null ? "service" : oneOf(b.type, LB_BACKEND_TYPES, "type");
+  const target = trimStr(b.target);
+  if (!target) vfail("Each backend target is required.", "invalid_backend", `${field}.target`);
+  if (type === "ip" && parseIpv4(target) === null && !isIpv6(target)) {
+    vfail("IP backends must use a valid IPv4 or IPv6 address.", "invalid_backend", `${field}.target`);
+  }
+  if (type === "hostname" && (!target.includes(".") || target.startsWith(".") || target.endsWith("."))) {
+    vfail("Hostname backends must use a valid fully qualified hostname.", "invalid_backend", `${field}.target`);
+  }
+  if (type === "service" && (target.includes("/") || target.includes(":"))) {
+    vfail("Service backends must use a Kubernetes service name without a slash or port.", "invalid_backend", `${field}.target`);
+  }
+  const out: Record<string, unknown> = { ...(b.type === undefined ? {} : { type }), target, port: intIn(b.port, `${field}.port`, 1, 65535) };
+  if (b.weight !== undefined && b.weight !== null) out.weight = intIn(b.weight, `${field}.weight`, 1, 1000);
+  if (b.tls !== undefined && b.tls !== null) {
+    if (typeof b.tls !== "boolean") vfail("backend tls must be a boolean.", "invalid_backend", `${field}.tls`);
+    out.tls = b.tls;
+  }
+  return out;
+}
+
+function validateLbBackends(list: unknown, field = "backends"): Record<string, unknown>[] {
+  if (!Array.isArray(list) || list.length === 0) vfail("Add at least one backend.", "invalid_backend", field);
+  return (list as unknown[]).map((b) => validateLbBackend(b, field));
+}
+
+function validateLbRouting(routing: unknown, layer: "l4" | "l7"): Record<string, unknown> {
+  if (!isRec(routing)) vfail("routing must be an object.", "invalid_routing", "routing");
+  const r = routing as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  if (r.algorithm !== undefined && r.algorithm !== null) out.algorithm = oneOf(r.algorithm, LB_ALGORITHMS, "algorithm");
+  if (r.sticky_header !== undefined && r.sticky_header !== null) {
+    if (layer === "l4") vfail("Sticky sessions are only available for L7 load balancers.", "invalid_routing", "routing.sticky_header");
+    const h = trimStr(r.sticky_header);
+    if (!h) vfail("Sticky header name is required.", "invalid_routing", "routing.sticky_header");
+    out.sticky_header = h;
+  }
+  return out;
+}
+
+function validateLbPolicy(policy: unknown): Record<string, unknown> {
+  if (!isRec(policy)) vfail("policy must be an object.", "invalid_policy", "policy");
+  const p = policy as Record<string, unknown>;
+  for (const key of Object.keys(p)) {
+    if (!["timeout_ms", "retries", "proxy_protocol_enabled"].includes(key)) {
+      vfail(`policy.${key} is not supported.`, "invalid_policy", `policy.${key}`);
+    }
+  }
+  const out: Record<string, unknown> = {};
+  if (p.timeout_ms !== undefined && p.timeout_ms !== null) out.timeout_ms = intIn(p.timeout_ms, "policy.timeout_ms", 100, 300_000);
+  if (p.proxy_protocol_enabled !== undefined && p.proxy_protocol_enabled !== null) {
+    if (typeof p.proxy_protocol_enabled !== "boolean") vfail("policy.proxy_protocol_enabled must be a boolean.", "invalid_policy", "policy.proxy_protocol_enabled");
+    out.proxy_protocol_enabled = p.proxy_protocol_enabled;
+  }
+  if (p.retries !== undefined && p.retries !== null) {
+    if (!isRec(p.retries)) vfail("policy.retries must be an object.", "invalid_policy", "policy.retries");
+    const r = p.retries as Record<string, unknown>;
+    for (const key of Object.keys(r)) {
+      if (!["attempts", "on", "per_retry_timeout_ms"].includes(key)) {
+        vfail(`policy.retries.${key} is not supported.`, "invalid_policy", `policy.retries.${key}`);
+      }
+    }
+    const retries: Record<string, unknown> = {};
+    if (r.attempts !== undefined && r.attempts !== null) retries.attempts = intIn(r.attempts, "policy.retries.attempts", 1, 10);
+    if (r.per_retry_timeout_ms !== undefined && r.per_retry_timeout_ms !== null) {
+      retries.per_retry_timeout_ms = intIn(r.per_retry_timeout_ms, "policy.retries.per_retry_timeout_ms", 100, 120_000);
+    }
+    if (r.on !== undefined && r.on !== null) {
+      if (!Array.isArray(r.on) || r.on.length === 0 || r.on.some((x) => !trimStr(x))) {
+        vfail("policy.retries.on must be a non-empty list of retry conditions.", "invalid_policy", "policy.retries.on");
+      }
+      retries.on = (r.on as unknown[]).map((x) => trimStr(x));
+    }
+    out.retries = retries;
+  }
+  return out;
+}
+
+function validateLbHealthCheck(hc: unknown): Record<string, unknown> {
+  if (!isRec(hc)) vfail("health_check must be an object.", "invalid_health_check", "health_check");
+  const h = hc as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...h };
+  if (h.active !== undefined && h.active !== null) {
+    if (!isRec(h.active)) vfail("health_check.active must be an object.", "invalid_health_check", "health_check.active");
+    const a = { ...(h.active as Record<string, unknown>) };
+    const type = a.type === undefined || a.type === null ? "http" : oneOf(a.type, LB_HEALTH_CHECK_TYPES, "type");
+    if (a.type !== undefined && a.type !== null) a.type = type;
+    if (a.path !== undefined && a.path !== null) {
+      const path = trimStr(a.path);
+      if (type === "tcp" && path) vfail("path is not supported for tcp active health checks.", "invalid_health_check", "health_check.active.path");
+      if (path) a.path = path;
+      else delete a.path;
+    }
+    if (a.interval_ms !== undefined && a.interval_ms !== null) intIn(a.interval_ms, "health_check.active.interval_ms", 100, 120_000);
+    if (a.timeout_ms !== undefined && a.timeout_ms !== null) intIn(a.timeout_ms, "health_check.active.timeout_ms", 100, 120_000);
+    if (a.healthy_threshold !== undefined && a.healthy_threshold !== null) intIn(a.healthy_threshold, "health_check.active.healthy_threshold", 1, 20);
+    if (a.unhealthy_threshold !== undefined && a.unhealthy_threshold !== null) intIn(a.unhealthy_threshold, "health_check.active.unhealthy_threshold", 1, 20);
+    out.active = a;
+  }
+  if (h.passive !== undefined && h.passive !== null) {
+    if (!isRec(h.passive)) vfail("health_check.passive must be an object.", "invalid_health_check", "health_check.passive");
+    const p = h.passive as Record<string, unknown>;
+    if (p.enabled !== undefined && p.enabled !== null && typeof p.enabled !== "boolean") {
+      vfail("health_check.passive.enabled must be a boolean.", "invalid_health_check", "health_check.passive.enabled");
+    }
+    if (p.consecutive_5xx !== undefined && p.consecutive_5xx !== null) intIn(p.consecutive_5xx, "health_check.passive.consecutive_5xx", 1, 100);
+    if (p.interval_ms !== undefined && p.interval_ms !== null) intIn(p.interval_ms, "health_check.passive.interval_ms", 100, 120_000);
+    if (p.base_ejection_time_ms !== undefined && p.base_ejection_time_ms !== null) {
+      intIn(p.base_ejection_time_ms, "health_check.passive.base_ejection_time_ms", 1000, 600_000);
+    }
+  }
+  return out;
+}
+
+function validateLbTls(tls: unknown, mode: "terminate" | "passthrough"): Record<string, unknown> {
+  if (!isRec(tls)) vfail("tls must be an object.", "invalid_tls", "tls");
+  const t = tls as Record<string, unknown>;
+  if (t.cert_pem !== undefined || t.key_pem !== undefined ||
+    (t.certificate_source !== undefined && t.certificate_source !== null && trimStr(t.certificate_source) !== "managed")) {
+    vfail("Custom certificates are not supported; use certificate_source=managed.", "invalid_tls", "tls.certificate_source");
+  }
+  const m = trimStr(t.mode) || mode;
+  if (m !== mode) vfail(`This load balancer requires tls.mode=${mode}.`, "invalid_tls", "tls.mode");
+  return { mode, certificate_source: "managed" };
+}
+
+/** Default TLS block for a protocol (managed certificate), or undefined. */
+export function defaultLbTls(protocol: string): { mode: "terminate" | "passthrough"; certificate_source: "managed" } | undefined {
+  if (protocol === "https") return { mode: "terminate", certificate_source: "managed" };
+  if (protocol === "tls_passthrough") return { mode: "passthrough", certificate_source: "managed" };
+  return undefined;
+}
+
+/** Normalise an L7 custom domain hostname (lower-case, no trailing dot). */
+export function normaliseCustomDomainHostname(hostname: unknown): string {
+  const h = trimStr(hostname).toLowerCase().replace(/\.+$/, "");
+  if (!h || h.length > 253 || !h.includes(".") || h.startsWith(".")) {
+    vfail("custom_domain.hostname must be a valid fully qualified domain name.", "invalid_custom_domain", "custom_domain.hostname");
+  }
+  return h;
+}
+
+function validateLbRules(rules: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(rules)) vfail("rules must be a list.", "invalid_rules", "rules");
+  return (rules as unknown[]).map((rule) => {
+    if (!isRec(rule)) vfail("Each rule must be an object.", "invalid_rules", "rules");
+    const r = rule as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    if (r.priority !== undefined && r.priority !== null) {
+      if (!isInt(r.priority) || (r.priority as number) < 1) {
+        vfail("Each L7 rule priority must be a positive number.", "invalid_rules", "rules.priority");
+      }
+      out.priority = r.priority;
+    }
+    if (r.path_prefix !== undefined && r.path_prefix !== null) {
+      const p = trimStr(r.path_prefix) || "/";
+      if (!p.startsWith("/")) vfail("Each rule path_prefix must start with '/'.", "invalid_rules", "rules.path_prefix");
+      out.path_prefix = p;
+    }
+    if (r.headers !== undefined && r.headers !== null) {
+      if (!isRec(r.headers)) vfail("rule headers must be an object.", "invalid_rules", "rules.headers");
+      const headers: Record<string, string> = {};
+      for (const [k, v] of Object.entries(r.headers as Record<string, unknown>)) {
+        const name = k.trim();
+        const value = trimStr(v);
+        if (!name || !value) vfail("Each rule header needs a name and a value.", "invalid_rules", "rules.headers");
+        headers[name] = value;
+      }
+      out.headers = headers;
+    }
+    if (r.backends !== undefined && r.backends !== null) out.backends = validateLbBackends(r.backends, "rules.backends");
+    return out;
+  });
+}
+
+export interface LoadBalancerBodyInput {
+  name?: string;
+  protocol?: string;
+  backends?: unknown[];
+  routing?: object;
+  policy?: object;
+  healthCheck?: object;
+  tls?: object;
+  observability?: { logs_enabled?: boolean };
+  customDomain?: { hostname: string } | null;
+  rules?: unknown[];
+}
+
+/**
+ * Validate and build an L4/L7 create or update body with the portal's
+ * defaults (managed TLS for https/tls_passthrough). Health checks are never
+ * injected.
+ */
+export function buildLoadBalancerBody(
+  layer: "l4" | "l7",
+  mode: "create" | "update",
+  args: LoadBalancerBodyInput,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  const create = mode === "create";
+  if (create || (args.name !== undefined && args.name !== null)) {
+    body.name = validateResourceName(args.name, "name", 128, "Name");
+  }
+  let protocol: string | undefined;
+  if (create) {
+    protocol = trimStr(args.protocol).toLowerCase();
+    const allowed = LB_PROTOCOLS_BY_LAYER[layer] as readonly string[];
+    if (!allowed.includes(protocol)) {
+      vfail(`${layer.toUpperCase()} load balancers support ${allowed.join(" or ")}.`, "invalid_protocol", "protocol");
+    }
+    body.protocol = protocol;
+  }
+  if (create || (args.backends !== undefined && args.backends !== null)) body.backends = validateLbBackends(args.backends);
+  if (args.routing !== undefined && args.routing !== null) body.routing = validateLbRouting(args.routing, layer);
+  if (args.policy !== undefined && args.policy !== null) body.policy = validateLbPolicy(args.policy);
+  if (args.healthCheck !== undefined && args.healthCheck !== null) body.health_check = validateLbHealthCheck(args.healthCheck);
+  if (args.observability !== undefined && args.observability !== null) {
+    if (!isRec(args.observability) || (args.observability.logs_enabled !== undefined && typeof args.observability.logs_enabled !== "boolean")) {
+      vfail("observability.logs_enabled must be a boolean.", "invalid_observability", "observability");
+    }
+    body.observability = { ...(args.observability.logs_enabled === undefined ? {} : { logs_enabled: args.observability.logs_enabled }) };
+  }
+  const tlsMode = layer === "l4" ? "passthrough" : "terminate";
+  if (create) {
+    const needsTls = protocol === "https" || protocol === "tls_passthrough";
+    if (!needsTls && args.tls !== undefined && args.tls !== null) {
+      vfail(`tls is not supported for ${protocol} load balancers.`, "invalid_tls", "tls");
+    }
+    if (needsTls) body.tls = args.tls ? validateLbTls(args.tls, tlsMode) : defaultLbTls(protocol as string);
+  } else if (args.tls !== undefined && args.tls !== null) {
+    body.tls = validateLbTls(args.tls, tlsMode);
+  }
+  if (layer === "l4") {
+    if (args.customDomain !== undefined || args.rules !== undefined) {
+      vfail("custom_domain and rules are only supported for L7 load balancers.", "invalid_l4_field", args.rules !== undefined ? "rules" : "custom_domain");
+    }
+  } else {
+    if (args.rules !== undefined && args.rules !== null) body.rules = validateLbRules(args.rules);
+    if (args.customDomain === null && !create) body.custom_domain = null;
+    else if (args.customDomain !== undefined && args.customDomain !== null) {
+      if (create && protocol !== "https") {
+        vfail("custom_domain is only supported for l7 https load balancers.", "invalid_custom_domain", "custom_domain");
+      }
+      if (!isRec(args.customDomain)) vfail("custom_domain must be an object with a hostname.", "invalid_custom_domain", "custom_domain");
+      body.custom_domain = { hostname: normaliseCustomDomainHostname(args.customDomain.hostname) };
+    }
+  }
+  if (!create) requireAtLeastOneField(body, "At least one load balancer field must be provided.");
+  return body;
+}
+
+/** Validate load-balancer list filters and build the query. */
+export function loadBalancerListQuery(args: {
+  status?: string;
+  layer?: string;
+  protocol?: string;
+  includeDeleted?: boolean;
+  limit?: number;
+  skip?: number;
+}): Record<string, string | number | boolean | undefined> {
+  const status = args.status === undefined || args.status === null ? undefined : oneOf(args.status, LB_STATUSES, "status");
+  const layer = args.layer === undefined || args.layer === null ? undefined : oneOf(args.layer, ["l4", "l7"], "layer");
+  const protocol =
+    args.protocol === undefined || args.protocol === null
+      ? undefined
+      : oneOf(args.protocol, ["http", "https", "tcp", "tls_passthrough"], "protocol");
+  if (layer && protocol && !(LB_PROTOCOLS_BY_LAYER[layer as "l4" | "l7"] as readonly string[]).includes(protocol)) {
+    vfail(`protocol ${protocol} is not valid for layer ${layer}.`, "invalid_protocol", "protocol");
+  }
+  if (args.limit !== undefined) validateIntRange(args.limit, "limit", 1, 500);
+  if (args.skip !== undefined && (!isInt(args.skip) || args.skip < 0)) vfail("skip must be an integer >= 0.", "invalid_skip", "skip");
+  const includeDeleted = status === "deleted" ? true : args.includeDeleted;
+  return { status, layer, protocol, include_deleted: includeDeleted, limit: args.limit, skip: args.skip };
+}
