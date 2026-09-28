@@ -329,7 +329,7 @@ test("unkeyed POST is not retried; keyed VM write is retried with the same key a
       { status: 503, json: {}, headers: { "retry-after": "0" } },
       { json: {} },
     );
-    await client(fetchImpl).blockStorage.resizeVolume({ workspaceId: WS, volumeId: "v1", request: { new_size_gb: 20 } });
+    await client(fetchImpl).blockStorage.resizeVolume({ workspaceId: WS, volumeId: "64b0000000000000000000b1", request: { new_size_gb: 20 }, checkState: false });
     assert.equal(calls.length, 2);
     assert.equal(calls[0].body, calls[1].body);
   }
@@ -413,17 +413,17 @@ test("caller-supplied idempotency keys are validated", async () => {
       (err) => err instanceof IbeeValidationError && err.code === "invalid_idempotency_key",
     );
     await assert.rejects(
-      c.blockStorage.deleteVolume({ workspaceId: WS, volumeId: "v", idempotencyKey: bad }),
+      c.blockStorage.deleteVolume({ workspaceId: WS, volumeId: "64b0000000000000000000b1", idempotencyKey: bad }),
       IbeeValidationError,
     );
   }
   assert.equal(calls.length, 0);
   await c.blockStorage.detachVolume({
-    workspaceId: WS, volumeId: "v", request: { node_name: "n", idempotency_key: "from-body" },
+    workspaceId: WS, volumeId: "64b0000000000000000000b1", request: { node_name: "n", confirm_unmounted: true, idempotency_key: "from-body" },
   });
   assert.equal(JSON.parse(calls[0].body).idempotency_key, "from-body");
   await c.blockStorage.detachVolume({
-    workspaceId: WS, volumeId: "v", idempotencyKey: "explicit", request: { node_name: "n", idempotency_key: "from-body" },
+    workspaceId: WS, volumeId: "64b0000000000000000000b1", idempotencyKey: "explicit", request: { node_name: "n", confirm_unmounted: true, idempotency_key: "from-body" },
   });
   assert.equal(JSON.parse(calls[1].body).idempotency_key, "explicit");
 });
@@ -443,8 +443,8 @@ test("every VM write auto-fills a scoped key", async () => {
   await c.gpuVms.resize({ ...vm, request: { cpu: 2 } });
   await c.gpuVms.resizePlan({ ...vm, request: { cpu: 2, ram_mb: 4096 } });
   await c.gpuVms.resizeRootDisk({ ...vm, request: { new_size_gb: 20 } });
-  await c.gpuVms.attachVolume({ ...vm, request: { volume_id: "vol1", billing_catalog: { sku_id: 2, sku_code: "BLOCK-STD" } } });
-  await c.gpuVms.detachVolume({ ...vm, request: { volume_id: "vol1", confirm_unmounted: true } });
+  await c.gpuVms.attachVolume({ ...vm, volume: { vm_type: "gpu", attachments: [] }, request: { volume_id: "64b0000000000000000000b1", billing_catalog: { sku_id: 2, sku_code: "BLOCK-STD" } } });
+  await c.gpuVms.detachVolume({ ...vm, request: { volume_id: "64b0000000000000000000b1", confirm_unmounted: true } });
   const scopes = calls
     .map((call) => call.headers.get("x-idempotency-key"))
     .filter(Boolean)
@@ -452,7 +452,9 @@ test("every VM write auto-fills a scoped key", async () => {
   assert.deepEqual(scopes, [
     "gpu-vm-create-trainer", `gpu-vm-delete-${VM1}`, `gpu-vm-stop-${VM1}`, `gpu-vm-access-${VM1}`,
     `gpu-vm-resize-${VM1}`, `gpu-vm-resize-plan-${VM1}`, `gpu-vm-resize-root-disk-${VM1}`,
-    `gpu-vm-attach-volume-vol1-${VM1}`, `gpu-vm-detach-volume-vol1-${VM1}`,
+    // Long parts are trimmed to 48 characters with a hash suffix.
+    "gpu-vm-attach-volume-64b0000000000000000000b1-64b0000000000000-418jzp",
+    "gpu-vm-detach-volume-64b0000000000000000000b1-64b0000000000000-418jzp",
   ]);
 });
 

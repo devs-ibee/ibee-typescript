@@ -451,7 +451,7 @@ export function createTypeForPath(path: string | undefined): BillingCreateType |
   if (/^\/compute\/gpu-vms\/?$/.test(p)) return "gpu_vm";
   if (/^\/compute\/cloud-vms\/?$/.test(p)) return "vm";
   if (/^\/block-storage\/volumes\/?$/.test(p)) return "block_storage";
-  if (/^\/object-storage\/buckets\/?$/.test(p)) return "object_storage";
+  if (/^\/object-storage\/(buckets|credentials)\/?$/.test(p)) return "object_storage";
   if (/^\/networking\/load-balancers\//.test(p)) return "load_balancer";
   if (/^\/networking\/reserved-ips(\/convert)?\/?$/.test(p)) return "reserved_ip";
   if (/^\/networking\/vpcs\/[^/]+\/nat-gateways\/?$/.test(p)) return "nat_gateway";
@@ -656,5 +656,44 @@ export class RecoveryRestoreFailedError extends RecoveryFailedError {
   constructor(resource: Record<string, unknown>, restoreId?: string) {
     super("restore", resource, restoreId);
     this.name = "RecoveryRestoreFailedError";
+  }
+}
+
+/**
+ * A CDN cache purge was accepted (HTTP 200) but the CDN reported
+ * `success: false` (common for tag and prefix purges on plans without them).
+ * Nothing was purged; `mode` and `body` carry the API result.
+ */
+export class IbeeCdnPurgeError extends ApiError {
+  readonly mode?: string;
+  constructor(body: Record<string, unknown>) {
+    const message = typeof body?.message === "string" && body.message.trim() ? body.message : "Cache purge failed";
+    super(200, body, message, { code: "cdn_purge_failed" });
+    this.name = "IbeeCdnPurgeError";
+    this.mode = typeof body?.mode === "string" ? body.mode : undefined;
+  }
+}
+/** Python SDK name for `IbeeCdnPurgeError`. */
+export const CdnPurgeFailedError = IbeeCdnPurgeError;
+
+/** A CDN custom domain was still pending when the client-side wait ended. */
+export class CdnDomainVerificationTimeoutError extends IbeeError {
+  readonly domain: string;
+  readonly lastStatus?: string;
+  readonly timeoutMs: number;
+  /** Last verification result. */
+  readonly result?: Record<string, unknown>;
+  constructor(domain: string, timeoutMs: number, result?: Record<string, unknown>) {
+    const lastStatus = typeof result?.status === "string" ? result.status : undefined;
+    const detail = typeof result?.message === "string" && result.message ? ` ${result.message}` : "";
+    super(
+      `Custom domain ${domain} is still ${lastStatus ?? "pending"} after ${Math.round(timeoutMs / 1000)}s.${detail}`,
+      "cdn_domain_wait_timeout",
+    );
+    this.name = "CdnDomainVerificationTimeoutError";
+    this.domain = domain;
+    this.lastStatus = lastStatus;
+    this.timeoutMs = timeoutMs;
+    this.result = result;
   }
 }

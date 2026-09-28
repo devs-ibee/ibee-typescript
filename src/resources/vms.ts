@@ -8,7 +8,7 @@ import {
   withAttachedBillingSkus,
 } from "../billingCatalog.js";
 import { estimateEligibilityCostMinor } from "../billingHelpers.js";
-import { NotFoundError, RecoveryFailedError, RecoveryRestoreFailedError } from "../errors.js";
+import { ForbiddenError, NotFoundError, RecoveryFailedError, RecoveryRestoreFailedError } from "../errors.js";
 import { buildIdempotencyKey } from "../idempotency.js";
 import { collect, paginateOffset } from "../pagination.js";
 import { pollUntil } from "../polling.js";
@@ -26,6 +26,7 @@ import {
   IbeeValidationError,
   VM_VOLUME_MODES,
   assertVmActionAllowed,
+  assertVolumeAttachable,
   isWindowsVm,
   normaliseBackupReason,
   normaliseFirewallGroupIds,
@@ -38,6 +39,7 @@ import {
   validateBackupRetention,
   validateBackupSchedule,
   validateBandwidthMonth,
+  validateBlockVolumeId,
   validateDetachConfirmation,
   validateIdempotencyKey,
   validateIntRange,
@@ -1021,50 +1023,78 @@ export class VmResource<
 
   /**
    * Attach a block volume. Like the portal, the SDK reads the volume first:
-   * it must be unattached, not busy, and in the VM's site; its Block Storage
-   * SKU becomes `billing_catalog` when you do not pass one. With `wait` the
-   * operation is polled every 2 s for up to 2 minutes.
+   * it must be unattached, not busy, created for this VM type (`vm_type`),
+   * and in the VM's site; its Block Storage SKU becomes `billing_catalog`
+   * when you do not pass one. With `wait` the operation is polled every 2 s
+   * for up to 2 minutes.
+   *
+   * Reading the volume needs `block-storage.read`. Without that scope, pass
+   * `billing_catalog` yourself (the volume checks are then skipped and the
+   * server decides). Pass `volume` when you already read it to skip the GET.
    */
   async attachVolume(args: {
     workspaceId: string;
     vmId: string;
     request: VmAttachVolumeRequest;
     idempotencyKey?: string;
+    /** The volume, when you already read it (skips the volume GET). */
+    volume?: BlockVolume;
   } & VmActionOptions): Promise<OperationAcceptedResult> {
     validateWorkspaceId(args.workspaceId);
     const vmId = validateVmId(args.vmId);
     const req = args.request;
     if (!isRecord(req)) fail("request must be an object.", "invalid_attach", "request");
-    const volumeId = validateRequiredId(req.volume_id, "volume_id");
+    const volumeId = validateBlockVolumeId(req.volume_id);
     const mode = req.mode ?? "single-writer";
     if (!(VM_VOLUME_MODES as readonly string[]).includes(mode)) {
       fail("mode must be 'single-writer' or 'multi-writer'.", "invalid_attach", "mode");
     }
     validateRequestedBy(req.requested_by);
-    const volume = await this.http.request<BlockVolume>({
-      method: "GET",
-      path: `/block-storage/volumes/${encodeURIComponent(volumeId)}`,
-      workspaceId: args.workspaceId,
-    });
-    if (Array.isArray(volume?.attachments) && volume.attachments.length > 0) {
-      fail("Volume is already attached.", "volume_attached", "volume_id");
-    }
-    const state = String(volume?.state ?? "").toLowerCase();
-    if (VOLUME_BUSY_STATES.has(state)) {
-      fail(`Volume is currently ${state}. Retry attach once workflow completes.`, "volume_busy", "volume_id");
-    }
-    const volumeSite = String(volume?.site_id ?? "").trim();
-    if (volumeSite || args.checkState) {
-      const vm = await this.fetchVm(args.workspaceId, vmId);
-      const vmSite = String(vm.site_id ?? "").trim();
-      if (volumeSite && vmSite && volumeSite !== vmSite) {
-        fail(`Select a server in ${volume.site_name || volumeSite}.`, "site_mismatch", "vm_id");
+    let volume: BlockVolume | undefined = args.volume;
+    if (!volume) {
+      try {
+        volume = await this.http.request<BlockVolume>({
+          method: "GET",
+          path: `/block-storage/volumes/${encodeURIComponent(volumeId)}`,
+          workspaceId: args.workspaceId,
+        });
+      } catch (err) {
+        if (!(err instanceof ForbiddenError)) throw err;
+        if (!req.billing_catalog) {
+          fail(
+            "billing_catalog is required; grant block-storage.read or pass billing_catalog",
+            "invalid_billing_catalog",
+            "billing_catalog",
+          );
+        }
       }
-      if (args.checkState) assertVmActionAllowed(vm, "resize");
+    }
+    if (volume) {
+      const state = String(volume?.state ?? "").toLowerCase();
+      if (Array.isArray(volume?.attachments) && volume.attachments.length > 0) {
+        fail("Volume is already attached; detach it first", "volume_attached", "volume_id");
+      }
+      if (VOLUME_BUSY_STATES.has(state)) {
+        fail(`Volume is currently ${state}. Retry attach once workflow completes.`, "volume_busy", "volume_id");
+      }
+      let vm: TVm | undefined;
+      if (String(volume?.site_id ?? "").trim() || args.checkState) {
+        try {
+          vm = await this.fetchVm(args.workspaceId, vmId);
+        } catch (err) {
+          if (!(err instanceof ForbiddenError) || args.checkState) throw err;
+        }
+      }
+      assertVolumeAttachable({ ...volume, attachments: [] }, this.vmType, vm);
+      if (vm && args.checkState) assertVmActionAllowed(vm, "resize");
     }
     const rawCatalog = req.billing_catalog ?? volume?.billing_catalog ?? volume?.metadata?.billing_catalog;
     if (!rawCatalog) {
-      fail(`Block volume ${volume?.name ?? volumeId} is missing Billing catalog data`, "invalid_billing_catalog", "billing_catalog");
+      fail(
+        `Volume ${volume?.name ?? volumeId} has no billing catalog; pass billing_catalog explicitly`,
+        "invalid_billing_catalog",
+        "billing_catalog",
+      );
     }
     const billingCatalog = validateBillingCatalog(rawCatalog, {
       context: `Block volume ${volume?.name ?? volumeId}`,
@@ -1083,9 +1113,9 @@ export class VmResource<
   }
 
   /**
-   * Detach a block volume. Confirm it is unmounted in the guest
-   * (`confirm_unmounted: true`) or pass `force: true`. With `checkState` the
-   * volume must be attached to this VM.
+   * Detach a block volume. Unmount it inside the server first and pass
+   * `confirm_unmounted: true` (the portal's mandatory tick), or pass
+   * `force: true`. With `checkState` the volume must be attached to this VM.
    */
   async detachVolume(args: {
     workspaceId: string;
@@ -1097,7 +1127,7 @@ export class VmResource<
     const vmId = validateVmId(args.vmId);
     const req = args.request;
     if (!isRecord(req)) fail("request must be an object.", "invalid_detach", "request");
-    const volumeId = validateRequiredId(req.volume_id, "volume_id");
+    const volumeId = validateBlockVolumeId(req.volume_id);
     validateDetachConfirmation(req);
     validateRequestedBy(req.requested_by);
     if (args.checkState) {

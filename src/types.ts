@@ -151,8 +151,18 @@ export interface SecretIdentityActionStatus {
 
 export interface BucketSummary {
   name?: string;
+  is_public?: boolean;
+  region?: string;
+  plan?: string;
+  status?: string;
+  site_id?: string;
+  site_name?: string;
+  bucket_lock_enabled?: boolean;
   object_count?: number;
   total_size?: number;
+  created_at?: string;
+  updated_at?: string;
+  [key: string]: unknown;
 }
 
 export interface BucketList {
@@ -169,24 +179,40 @@ export interface DefaultRetention {
   years?: number;
 }
 
+/**
+ * A bucket as the API returns it. `object_count`/`total_size` are present on
+ * get and list (not on the create response).
+ */
 export interface Bucket {
-  bucket_name?: string;
-  minio_id?: string;
-  public?: boolean;
+  name?: string;
+  is_public?: boolean;
   region?: string;
   plan?: string;
   status?: string;
   site_id?: string;
-  site?: string;
+  site_name?: string;
+  /** True when Object Lock is on (such buckets cannot be deleted). */
+  bucket_lock_enabled?: boolean;
+  object_count?: number;
+  total_size?: number;
   tags?: string[];
-  metadata?: Record<string, unknown>;
-  stats?: BucketStats;
   created_at?: string;
+  updated_at?: string;
+  /** @deprecated 0.3.0 field name; the API returns `name`. */
+  bucket_name?: string;
+  /** @deprecated Not returned by the API. */
+  minio_id?: string;
+  /** @deprecated 0.3.0 field name; the API returns `is_public`. */
+  public?: boolean;
+  /** @deprecated 0.3.0 field name; the API returns `site_name`. */
+  site?: string;
+  /** @deprecated Not returned by the API. */
+  metadata?: Record<string, unknown>;
+  /** @deprecated 0.3.0 field; the API returns `object_count`/`total_size` at the top level. */
+  stats?: BucketStats;
+  /** @deprecated 0.3.0 field name; the API returns `updated_at`. */
   last_modified?: string;
-  /** @deprecated Legacy aliases retained for source compatibility. */
-  name?: string;
-  /** @deprecated Use `public`. */
-  is_public?: boolean;
+  [key: string]: unknown;
 }
 
 export interface BucketStats {
@@ -198,11 +224,19 @@ export interface BucketStats {
 
 export interface S3Credential {
   access_key_id: string;
-  project_id?: string;
+  organization_id?: string;
+  workspace_id?: string;
   name: string;
-  status: "active" | "revoked";
+  status: "active" | "revoked" | (string & {});
+  permission_type?: "admin_rw" | "admin_ro" | "object_rw" | "object_ro" | (string & {});
+  bucket_scope?: "all" | "specific" | (string & {});
+  allowed_buckets?: string[];
+  created_by_user_id?: string | null;
   created_at: string;
   last_used_at?: string;
+  /** @deprecated Not returned by the API. */
+  project_id?: string;
+  [key: string]: unknown;
 }
 
 export interface S3CredentialCreated extends S3Credential {
@@ -560,6 +594,8 @@ export interface BillingEligibility {
 }
 
 export interface DeleteResponse {
+  /** Confirmation message, e.g. "Bucket deleted". */
+  detail?: string;
   deleted?: boolean;
   id?: string;
 }
@@ -584,6 +620,17 @@ export interface CreateBlockVolumeRequest {
   volume_class?: BlockVolumeClass;
   replica_count?: number;
   backup_enabled?: boolean;
+  /**
+   * VM type the volume is for (default `cloud`). A GPU VM can attach only a
+   * volume created with `vm_type: "gpu"`. Not yet part of the published API
+   * contract; behaviour may change.
+   */
+  vm_type?: VmType;
+  /**
+   * Delete the volume when the VM it is attached to is deleted (default
+   * false). Not yet part of the published API contract; behaviour may change.
+   */
+  delete_on_termination?: boolean;
   idempotency_key?: string | null;
 }
 
@@ -593,6 +640,7 @@ export interface BlockVolumeAttachment {
   device_path: string;
   vm_id?: string | null;
   vm_name?: string | null;
+  vm_type?: VmType | null;
   attached_at: string;
 }
 
@@ -612,7 +660,19 @@ export interface BlockVolume {
   created_at: string;
   updated_at: string;
   billing_catalog?: BillingCatalogSelection | null;
-  metadata?: { billing_catalog?: BillingCatalogSelection | null; [key: string]: unknown } | null;
+  /** Read-only fields below are returned by the API but not in the published contract. */
+  volume_name?: string | null;
+  vm_type?: VmType | null;
+  volume_kind?: string | null;
+  attached_vm_id?: string | null;
+  attached_vm_name?: string | null;
+  metadata?: {
+    display_name?: string | null;
+    delete_on_termination?: boolean | null;
+    billing_catalog?: BillingCatalogSelection | null;
+    storage_performance?: Record<string, unknown> | null;
+    [key: string]: unknown;
+  } | null;
 }
 
 export interface BlockVolumeOperation {
@@ -651,7 +711,8 @@ export interface AttachBlockVolumeRequest {
 }
 
 export interface DetachBlockVolumeRequest {
-  node_name: string;
+  /** Storage node to detach from. Read from the volume's single attachment when omitted. */
+  node_name?: string;
   force?: boolean;
   confirm_unmounted?: boolean;
   vm_state?: "running" | "stopped" | "suspended" | null;
@@ -697,8 +758,12 @@ export interface UpdateCdnDistributionRequest {
 export interface CdnDistribution {
   id: string;
   name: string;
+  project_id?: string;
   origin_type: CdnOriginType;
   origin_id: string;
+  /** Origin bucket name for bucket origins. */
+  bucket_name?: string | null;
+  deleted_at?: string | null;
   cache_policy: string;
   enabled: boolean;
   status: "active" | "deploying" | "disabled" | "failed" | "deleted";
@@ -730,8 +795,48 @@ export interface CdnCustomDomain {
   domain: string;
   status: "pending_validation" | "pending_tls" | "active" | "failed";
   tls_status?: string | null;
+  cf_custom_hostname_id?: string | null;
+  /** DNS record to create at your DNS provider (create response). */
+  validation?: { cname_record?: { type: string; name: string; value: string } | null } | null;
   created_at: string;
   instructions?: string[] | null;
+}
+
+/** Result of deleting a CDN distribution. */
+export type CdnDistributionDeleteResult = Record<string, unknown>;
+
+/** Result of removing a CDN custom domain. */
+export interface CdnCustomDomainDeleteResult {
+  message?: string;
+  domain?: string;
+  [key: string]: unknown;
+}
+
+export interface CdnCachePolicy {
+  id: string;
+  name: string;
+  description: string;
+  headers: Record<string, string>;
+}
+
+export interface CdnCachePolicyList {
+  policies: CdnCachePolicy[];
+}
+
+/** CDN distribution metrics (traffic, cache, origin, responses, time series). */
+export interface CdnDistributionMetrics {
+  distribution_id: string;
+  distribution_name: string;
+  origin_type: CdnOriginType;
+  range: "24h" | "7d" | "30d";
+  granularity: "15m" | "1h" | "1d";
+  range_start: string;
+  range_end: string;
+  data_available_from?: string | null;
+  data_through?: string | null;
+  points?: Array<Record<string, unknown>>;
+  warnings?: string[];
+  [key: string]: unknown;
 }
 
 export interface CdnCustomDomainList {
