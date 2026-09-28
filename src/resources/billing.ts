@@ -40,6 +40,8 @@ export const NAT_GATEWAY_SKU_CODE = "NAT-GATEWAY";
 export const RESERVED_IP_SKU_CODE = "RESERVED-IP";
 /** SKU the edge admits L4/L7 load-balancer creates against. */
 export const LOAD_BALANCER_SKU_CODE = "LOADBALA-STD";
+/** SKU the edge admits Secret Store store and secret creates against. */
+export const SECRET_MANAGER_SKU_CODE = "SECRETMA-STD";
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   Boolean(v) && typeof v === "object" && !Array.isArray(v);

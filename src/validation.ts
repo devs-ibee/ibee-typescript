@@ -27,10 +27,26 @@ export const WORKSPACE_ID_PATTERN = /^[1-9][0-9]*$/;
 export const WORKSPACE_ID_ERROR =
   "workspace_id must be a positive numeric string (for example, '710995').";
 
-/** Validate a workspace ID (`^[1-9][0-9]*$`, string only) and return it. */
-export function validateWorkspaceId(workspaceId: unknown): string {
+/** Secret Store workspace IDs: 2..128 digits, no leading zero. */
+export const SECRET_STORE_WORKSPACE_ID_PATTERN = /^[1-9][0-9]{1,127}$/;
+export const SECRET_STORE_WORKSPACE_ID_ERROR =
+  "workspace_id must be a numeric string of 2 to 128 digits without a leading zero for Secret Store requests.";
+
+/**
+ * Validate a workspace ID (`^[1-9][0-9]*$`, string only) and return it.
+ * With `service: "secret-store"` the Secret Store rule applies as well
+ * (2..128 digits; single-digit workspace IDs are refused by that service).
+ */
+export function validateWorkspaceId(workspaceId: unknown, service?: "secret-store"): string {
   if (typeof workspaceId !== "string" || !WORKSPACE_ID_PATTERN.test(workspaceId)) {
     throw new IbeeValidationError(WORKSPACE_ID_ERROR, "invalid_workspace_id", "workspace_id");
+  }
+  if (service === "secret-store" && !SECRET_STORE_WORKSPACE_ID_PATTERN.test(workspaceId)) {
+    throw new IbeeValidationError(
+      SECRET_STORE_WORKSPACE_ID_ERROR,
+      "invalid_workspace_id",
+      "workspace_id",
+    );
   }
   return workspaceId;
 }
@@ -162,13 +178,25 @@ export function isBillableCreate(method: string, path: string): boolean {
   return BILLABLE_CREATE_PATHS.some((re) => re.test(p));
 }
 
-/** Enforce the 64 KiB edge limit on billable create bodies. */
+/** True for any Secret Store path (all bodies are limited to 64 KiB). */
+export function isSecretStorePath(path: string): boolean {
+  return /^\/secret-store(\/|$)/.test(normalisePath(path));
+}
+
+/**
+ * Enforce the 64 KiB edge limit on billable create bodies and on every
+ * Secret Store request body (the gateway buffers at most 64 KiB there).
+ */
 export function assertBillableBodySize(method: string, path: string, serialized: string | undefined): void {
-  if (!isBillableCreate(method, path) || serialized === undefined) return;
+  if (serialized === undefined) return;
+  const billable = isBillableCreate(method, path);
+  if (!billable && !isSecretStorePath(path)) return;
   const size = new TextEncoder().encode(serialized).length;
   if (size > MAX_BILLABLE_BODY_BYTES) {
     throw new IbeeValidationError(
-      `Request body is ${size} bytes; billable create requests are limited to ${MAX_BILLABLE_BODY_BYTES} bytes.`,
+      billable
+        ? `Request body is ${size} bytes; billable create requests are limited to ${MAX_BILLABLE_BODY_BYTES} bytes.`
+        : `Request body is ${size} bytes; Secret Store requests are limited to ${MAX_BILLABLE_BODY_BYTES} bytes.`,
       "request_body_too_large",
     );
   }
@@ -3067,4 +3095,366 @@ export function buildCdnPurgeBody(input: {
 export function validateCdnMetricsRange(range: unknown): string {
   if (range === undefined || range === null) return "24h";
   return enumOf(range, CDN_METRICS_RANGES, "range", "invalid_range");
+}
+
+// ======================================================================
+// Secret Store (portal parity). All throw IbeeValidationError.
+// ======================================================================
+
+/** Secret names: lower-case letters, digits and `-`, 2..64 chars. */
+export const SECRET_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{1,63}$/;
+export const SECRET_STORE_NAME_MAX_LENGTH = 128;
+export const SECRET_IDENTITY_NAME_MAX_LENGTH = 128;
+export const SECRET_SEARCH_QUERY_MAX_LENGTH = 128;
+export const SECRET_STORE_MAX_PAGE_LIMIT = 200;
+export const MAX_SECRET_BATCH_SIZE = 500;
+export const MAX_SECRET_VERSIONS_PER_REQUEST = 100;
+export const SECRET_IDENTITY_AUTH_METHODS = ["approle", "kubernetes"] as const;
+export const SECRET_POLICY_MODES = ["read_only", "read_write"] as const;
+/** Secret Store request bodies are limited to 64 KiB at the gateway. */
+export const MAX_SECRET_STORE_BODY_BYTES = MAX_BILLABLE_BODY_BYTES;
+
+export type SecretIdentityAuthMethodInput = (typeof SECRET_IDENTITY_AUTH_METHODS)[number];
+export type SecretPolicyModeInput = (typeof SECRET_POLICY_MODES)[number];
+
+// eslint-disable-next-line no-control-regex
+const UNSAFE_ID_CHARS = /[/?#\u0000-\u001f\u007f]/;
+
+/**
+ * Validate a Secret Store path ID (store, secret, identity or scope ID):
+ * non-blank after trimming, without `/`, `?`, `#` or control characters.
+ * Returns the trimmed value (callers URL-encode it).
+ */
+export function validateResourceId(field: string, value: unknown): string {
+  const id = typeof value === "string" ? value.trim() : "";
+  if (!id) vfail(`${field} is required.`, `invalid_${field}`, field);
+  if (UNSAFE_ID_CHARS.test(id)) {
+    vfail(`${field} must not contain '/', '?', '#' or control characters.`, `invalid_${field}`, field);
+  }
+  return id;
+}
+
+const isStrictInt = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v);
+
+/** Validate Secret Store paging: page >= 1, limit 1..200 (integers). */
+export function validatePagination(args: { page?: unknown; limit?: unknown }): void {
+  if (args.page !== undefined && args.page !== null && (!isStrictInt(args.page) || args.page < 1)) {
+    vfail("page must be an integer >= 1.", "invalid_page", "page");
+  }
+  if (
+    args.limit !== undefined &&
+    args.limit !== null &&
+    (!isStrictInt(args.limit) || args.limit < 1 || args.limit > SECRET_STORE_MAX_PAGE_LIMIT)
+  ) {
+    vfail(`limit must be an integer between 1 and ${SECRET_STORE_MAX_PAGE_LIMIT}.`, "invalid_limit", "limit");
+  }
+}
+
+/** Trim a secret search query; `undefined` when blank; max 128 chars. */
+export function normalizeSearchQuery(q: unknown): string | undefined {
+  if (q === undefined || q === null) return undefined;
+  if (typeof q !== "string") vfail("q must be a string.", "invalid_query", "q");
+  const s = (q as string).trim();
+  if (!s) return undefined;
+  if (s.length > SECRET_SEARCH_QUERY_MAX_LENGTH) {
+    vfail(`q must be at most ${SECRET_SEARCH_QUERY_MAX_LENGTH} characters.`, "invalid_query", "q");
+  }
+  return s;
+}
+
+/**
+ * Trim and validate a store name (1..128). On create the name must also
+ * contain a letter or digit, because the store key is generated from it.
+ */
+export function normalizeStoreName(name: unknown, options: { creating: boolean }): string {
+  const n = typeof name === "string" ? name.trim() : "";
+  if (!n) vfail("Store name is required.", "invalid_store_name", "name");
+  if (n.length > SECRET_STORE_NAME_MAX_LENGTH) {
+    vfail(`Store name must be at most ${SECRET_STORE_NAME_MAX_LENGTH} characters.`, "invalid_store_name", "name");
+  }
+  if (options.creating && !/[A-Za-z0-9]/.test(n)) {
+    vfail(
+      "Store name must contain at least one letter or number to generate a store key.",
+      "invalid_store_name",
+      "name",
+    );
+  }
+  return n;
+}
+
+/** Trim an optional store description (no length limit). */
+export function normalizeStoreDescription(description: unknown): string | undefined {
+  if (description === undefined || description === null) return undefined;
+  if (typeof description !== "string") {
+    vfail("description must be a string.", "invalid_description", "description");
+  }
+  return (description as string).trim();
+}
+
+/**
+ * Normalise a secret name the way the portal does (trim, lower-case) and
+ * check it: 2..64 characters, starting with a letter or digit, then only
+ * lower-case letters, digits or `-`.
+ */
+export function normalizeSecretName(name: unknown, field = "secret_name"): string {
+  const n = typeof name === "string" ? name.trim().toLowerCase() : "";
+  if (!n) vfail("Secret name is required.", "invalid_secret_name", field);
+  if (!SECRET_NAME_PATTERN.test(n)) {
+    vfail(
+      "Secret name must be 2-64 characters: lower-case letters, digits and '-', starting with a letter or digit.",
+      "invalid_secret_name",
+      field,
+    );
+  }
+  return n;
+}
+
+/**
+ * Validate a secret value: a plain JSON object with at least one entry.
+ * Keys are trimmed and must be non-blank and unique after trimming. String
+ * values must not be blank (the portal never sends empty entries). Other
+ * JSON types are allowed. With `allowNullValues` (patch), `null` deletes
+ * that key.
+ */
+export function normalizeSecretValue(
+  value: unknown,
+  options: { allowNullValues?: boolean; field?: string } = {},
+): Record<string, unknown> {
+  const field = options.field ?? "value";
+  const proto = isRec(value) ? Object.getPrototypeOf(value) : undefined;
+  if (!isRec(value) || (proto !== Object.prototype && proto !== null)) {
+    vfail("Secret value must be an object of key/value entries.", "invalid_secret_value", field);
+  }
+  const out: Record<string, unknown> = {};
+  for (const [rawKey, v] of Object.entries(value as Record<string, unknown>)) {
+    const key = rawKey.trim();
+    if (!key) vfail("Secret value keys must not be blank.", "invalid_secret_value", field);
+    if (Object.prototype.hasOwnProperty.call(out, key)) {
+      vfail(`Secret value key '${key}' is duplicated after trimming.`, "invalid_secret_value", field);
+    }
+    if (v === undefined) {
+      vfail(`Secret value for '${key}' is missing.`, "invalid_secret_value", field);
+    }
+    if (v === null && !options.allowNullValues) {
+      vfail(`Secret value for '${key}' must not be null.`, "invalid_secret_value", field);
+    }
+    if (typeof v === "string" && v.trim() === "") {
+      vfail(`Secret value for '${key}' must not be blank.`, "invalid_secret_value", field);
+    }
+    out[key] = v;
+  }
+  if (Object.keys(out).length === 0) {
+    vfail("Secret value needs at least one key/value pair.", "invalid_secret_value", field);
+  }
+  return out;
+}
+
+/** Validate a secret version number (integer >= 1). */
+export function validateVersion(version: unknown, field = "version"): number {
+  if (!isStrictInt(version) || version < 1) {
+    vfail(`${field} must be an integer >= 1.`, "invalid_version", field);
+  }
+  return version as number;
+}
+
+/** Validate a version list (1..100 integers >= 1), de-duplicated in order. */
+export function validateVersions(versions: unknown): number[] {
+  if (!Array.isArray(versions) || versions.length === 0) {
+    vfail("versions must be a non-empty array of version numbers.", "invalid_versions", "versions");
+  }
+  const out: number[] = [];
+  for (const v of versions as unknown[]) {
+    if (!isStrictInt(v) || v < 1) vfail("Every version must be an integer >= 1.", "invalid_versions", "versions");
+    if (!out.includes(v as number)) out.push(v as number);
+  }
+  if (out.length > MAX_SECRET_VERSIONS_PER_REQUEST) {
+    vfail(
+      `versions accepts at most ${MAX_SECRET_VERSIONS_PER_REQUEST} entries.`,
+      "invalid_versions",
+      "versions",
+    );
+  }
+  return out;
+}
+
+/** Validate a check-and-set version: `undefined`/`null` or an integer >= 0. */
+export function validateCas(cas: unknown): number | undefined {
+  if (cas === undefined || cas === null) return undefined;
+  if (!isStrictInt(cas) || cas < 0) vfail("cas must be an integer >= 0.", "invalid_cas", "cas");
+  return cas as number;
+}
+
+function policyModeOf(value: unknown, field: string, fallback?: SecretPolicyModeInput): SecretPolicyModeInput {
+  if ((value === undefined || value === null) && fallback) return fallback;
+  if (typeof value !== "string" || !(SECRET_POLICY_MODES as readonly string[]).includes(value)) {
+    vfail(`${field} must be one of ${SECRET_POLICY_MODES.join(", ")}.`, `invalid_${field}`, field);
+  }
+  return value as SecretPolicyModeInput;
+}
+
+/** Validate a token policy / scope access mode (`read_only` or `read_write`). */
+export function validatePolicyMode(value: unknown, field = "token_policy_mode"): SecretPolicyModeInput {
+  return policyModeOf(value, field);
+}
+
+/**
+ * Validate an application identity create and build the request body.
+ * `token_policy_mode` defaults to `read_only` and is always sent. Kubernetes
+ * identities need a non-blank namespace and service account (sent trimmed);
+ * AppRole identities never send the Kubernetes fields.
+ */
+export function validateIdentityCreate(input: {
+  authMethod: unknown;
+  name: unknown;
+  tokenPolicyMode?: unknown;
+  k8sNamespace?: unknown;
+  k8sServiceAccount?: unknown;
+}): Record<string, unknown> {
+  const authMethod = input.authMethod;
+  if (typeof authMethod !== "string" || !(SECRET_IDENTITY_AUTH_METHODS as readonly string[]).includes(authMethod)) {
+    vfail(
+      `auth_method must be one of ${SECRET_IDENTITY_AUTH_METHODS.join(", ")}.`,
+      "invalid_auth_method",
+      "auth_method",
+    );
+  }
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+  if (!name) vfail("Identity name is required.", "invalid_identity_name", "name");
+  if (name.length > SECRET_IDENTITY_NAME_MAX_LENGTH) {
+    vfail(
+      `Identity name must be at most ${SECRET_IDENTITY_NAME_MAX_LENGTH} characters.`,
+      "invalid_identity_name",
+      "name",
+    );
+  }
+  const mode = policyModeOf(input.tokenPolicyMode, "token_policy_mode", "read_only");
+  const body: Record<string, unknown> = { auth_method: authMethod, name, token_policy_mode: mode };
+  const text = (v: unknown, field: string): string => {
+    if (v === undefined || v === null) return "";
+    if (typeof v !== "string") vfail(`${field} must be a string.`, `invalid_${field}`, field);
+    return (v as string).trim();
+  };
+  const ns = text(input.k8sNamespace, "k8s_namespace");
+  const sa = text(input.k8sServiceAccount, "k8s_service_account");
+  if (authMethod === "kubernetes") {
+    if (!ns || !sa) {
+      vfail(
+        "Kubernetes namespace and service account are required for Kubernetes identities.",
+        "invalid_kubernetes_identity",
+        !ns ? "k8s_namespace" : "k8s_service_account",
+      );
+    }
+    body.k8s_namespace = ns;
+    body.k8s_service_account = sa;
+  } else if (ns || sa) {
+    vfail(
+      "k8s_namespace and k8s_service_account are only used with auth_method 'kubernetes'.",
+      "invalid_approle_identity",
+      ns ? "k8s_namespace" : "k8s_service_account",
+    );
+  }
+  return body;
+}
+
+/**
+ * Check scope permissions sent in one call: a `read_only` scope cannot
+ * grant rollback or destroy. When the identity's `token_policy_mode` is
+ * known and `read_only`, the scope must be `read_only` without rollback or
+ * destroy.
+ */
+export function validateScopePermissions(input: {
+  accessMode?: unknown;
+  allowRollback?: unknown;
+  allowDestroy?: unknown;
+  identityMode?: string | null;
+}): void {
+  const mode = input.accessMode === undefined || input.accessMode === null
+    ? undefined
+    : policyModeOf(input.accessMode, "access_mode");
+  if (mode === "read_only" && (input.allowRollback === true || input.allowDestroy === true)) {
+    vfail(
+      "Read-only scopes cannot grant rollback or destroy permissions.",
+      "invalid_scope_permissions",
+      input.allowRollback === true ? "allow_rollback" : "allow_destroy",
+    );
+  }
+  if (
+    input.identityMode === "read_only" &&
+    (mode === "read_write" || input.allowRollback === true || input.allowDestroy === true)
+  ) {
+    vfail(
+      "Read-only identities cannot be granted write, rollback, or destroy permissions.",
+      "invalid_scope_permissions",
+      mode === "read_write" ? "access_mode" : "allow_rollback",
+    );
+  }
+}
+
+/** Validate an optional boolean flag. */
+export function validateOptionalBoolean(value: unknown, field: string): boolean | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "boolean") vfail(`${field} must be a boolean.`, `invalid_${field}`, field);
+  return value as boolean;
+}
+
+/** Throw when the compact UTF-8 JSON body exceeds `limit` bytes (default 64 KiB). */
+export function assertBodySize(body: unknown, limit: number = MAX_SECRET_STORE_BODY_BYTES): void {
+  const serialized = JSON.stringify(body);
+  if (serialized === undefined) return;
+  const size = new TextEncoder().encode(serialized).length;
+  if (size > limit) {
+    vfail(`Request body is ${size} bytes; the limit is ${limit} bytes.`, "request_body_too_large");
+  }
+}
+
+/** Minimal shape of `listSecretVersions` used by the rollback check. */
+export interface SecretVersionsLike {
+  current_version?: number;
+  versions?: Record<string, { destroyed?: boolean } | undefined>;
+}
+
+/**
+ * Portal rollback rule: the target must exist, must not be the current
+ * version and must not be destroyed.
+ */
+export function checkRollbackTarget(versions: SecretVersionsLike, version: number): void {
+  if (versions?.current_version === version) {
+    vfail(`Version ${version} is already the current version.`, "invalid_rollback_target", "version");
+  }
+  const entry = versions?.versions?.[String(version)];
+  if (!entry) vfail(`Version ${version} does not exist for this secret.`, "invalid_rollback_target", "version");
+  if (entry?.destroyed) {
+    vfail(`Version ${version} was destroyed and cannot be restored.`, "invalid_rollback_target", "version");
+  }
+}
+
+/** Portal rule for secret-ID rotation: AppRole and active only. */
+export function assertRotateAllowed(identity: { auth_method?: unknown; status?: unknown }): void {
+  if (String(identity?.auth_method ?? "") !== "approle") {
+    vfail(
+      "rotate-secret-id is only available for AppRole identities.",
+      "invalid_auth_method",
+      "auth_method",
+    );
+  }
+  if (String(identity?.status ?? "") !== "active") {
+    vfail("Identity is disabled; enable it before rotating its secret ID.", "identity_disabled", "status");
+  }
+}
+
+/**
+ * Portal rule for granting a store to an identity: the store must be
+ * active and not already granted to the identity.
+ */
+export function checkScopeStoreEligibility(
+  storeId: string,
+  activeStoreIds: Iterable<string> | undefined,
+  scopedStoreIds: Iterable<string> | undefined,
+): void {
+  if (scopedStoreIds && new Set(Array.from(scopedStoreIds, String)).has(storeId)) {
+    vfail(`Store '${storeId}' is already granted to this identity.`, "scope_store_already_granted", "store_id");
+  }
+  if (activeStoreIds && !new Set(Array.from(activeStoreIds, String)).has(storeId)) {
+    vfail(`Store '${storeId}' is not an active store in this workspace.`, "scope_store_not_active", "store_id");
+  }
 }

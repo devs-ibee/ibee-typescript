@@ -424,8 +424,156 @@ export class GatewayTimeoutError extends ApiError {
   constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "GatewayTimeoutError"; }
 }
 
+// ------------------------------------------------------------ Secret Store
+
+/**
+ * Secret Store refused an operation because of the organization's lifecycle
+ * state (`restricted`, `suspended`, `deleting` or `deleted`). The service
+ * reports this as 403 FORBIDDEN with a message; `state` and `operation`
+ * are parsed from it.
+ */
+export class OrganizationLifecycleError extends OrganizationRestrictedError {
+  constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "OrganizationLifecycleError"; }
+}
+
+const SECRET_RESOURCE_PATTERN =
+  /^(Store|Secret|Identity|Scope) '([^']+)' does not belong to workspace '([^']*)'$/;
+
+/**
+ * The store, secret, identity or scope does not exist in this workspace.
+ * Secret Store answers 403 (not 404) for missing and foreign resources, so
+ * this is a `ForbiddenError` subclass.
+ */
+export class ResourceNotFoundError extends ForbiddenError {
+  /** `store`, `secret`, `identity` or `scope`. */
+  readonly kind?: string;
+  readonly resourceId?: string;
+  readonly workspaceId?: string;
+  constructor(...a: ConstructorParameters<typeof ApiError>) {
+    super(...a);
+    this.name = "ResourceNotFoundError";
+    const match = SECRET_RESOURCE_PATTERN.exec(this.message);
+    if (match) {
+      this.kind = match[1].toLowerCase();
+      this.resourceId = match[2];
+      this.workspaceId = match[3];
+    }
+  }
+}
+/** The store is archived or being deleted, so identities and scopes cannot use it. */
+export class StoreNotActiveError extends ForbiddenError {
+  constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "StoreNotActiveError"; }
+}
+/** The application identity is disabled; enable it first. */
+export class IdentityDisabledError extends ForbiddenError {
+  constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "IdentityDisabledError"; }
+}
+/** The operation needs a different auth method (secret-ID rotation is AppRole only). */
+export class AuthMethodMismatchError extends ForbiddenError {
+  constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "AuthMethodMismatchError"; }
+}
+/** A read-only identity cannot be granted write, rollback or destroy permissions. */
+export class ScopePermissionError extends ForbiddenError {
+  constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "ScopePermissionError"; }
+}
+/** 409 STORE_ARCHIVED: unarchive the store first. */
+export class StoreArchivedError extends ConflictError {
+  constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "StoreArchivedError"; }
+}
+/** 409 STORE_DELETING: the store is being permanently deleted. */
+export class StoreDeletingError extends ConflictError {
+  constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "StoreDeletingError"; }
+}
+/**
+ * A secret value write with `cas` failed. Secret Store reports every
+ * backing-store failure, including a check-and-set mismatch, as 502; when
+ * `cas` was sent the most likely cause is that the current version differs.
+ */
+export class CasConflictError extends BadGatewayError {
+  constructor(...a: ConstructorParameters<typeof ApiError>) { super(...a); this.name = "CasConflictError"; }
+}
+/**
+ * 503 LIFECYCLE_OPERATION_INCOMPLETE: a permanent store delete did not
+ * finish. The store stays in `deleting`; repeating the same call is safe.
+ */
+export class DeletionIncompleteError extends ServiceUnavailableError {
+  readonly failedSteps: string[];
+  readonly storeId?: string;
+  constructor(...a: ConstructorParameters<typeof ApiError>) {
+    super(...a);
+    this.name = "DeletionIncompleteError";
+    const d = isRecord(this.details) ? this.details : {};
+    this.failedSteps = Array.isArray(d.failed_steps) ? d.failed_steps.map(String) : [];
+    this.storeId = str(d.store_id);
+  }
+}
+
+/** True for a request path under `/secret-store/`. */
+function isSecretStoreErrorPath(path: string | undefined): boolean {
+  return /^\/?(v1\/)?secret-store(\/|$)/.test(String(path ?? ""));
+}
+
+/**
+ * Secret Store specific mapping, or `undefined` to fall back to the generic
+ * mapping. Handles the service envelope `{error:{code,message,details}}`.
+ */
+function secretStoreErrorFromResponse(
+  statusCode: number,
+  body: unknown,
+  init: ApiErrorInit,
+): ApiError | undefined {
+  const parsed = parseErrorBody(statusCode, body);
+  const message = (parsed.message ?? "").trim();
+  const rawCode = String(parsed.rawCode ?? "").toUpperCase();
+  const path = String(init.path ?? "").split("?")[0];
+  switch (statusCode) {
+    case 403:
+      if (parsed.code === "insufficient_scope" || parsed.code === "workspace_not_allowed") return undefined;
+      if (ORG_RESTRICTED_PATTERN.test(message)) {
+        return new OrganizationLifecycleError(statusCode, body, undefined, init);
+      }
+      if (SECRET_RESOURCE_PATTERN.test(message)) {
+        return new ResourceNotFoundError(statusCode, body, undefined, init);
+      }
+      if (/^Store '.+' is not active$/.test(message)) {
+        return new StoreNotActiveError(statusCode, body, undefined, init);
+      }
+      if (message === "Identity is disabled") {
+        return new IdentityDisabledError(statusCode, body, undefined, init);
+      }
+      if (message === "rotate-secret-id is only available for AppRole identities") {
+        return new AuthMethodMismatchError(statusCode, body, undefined, init);
+      }
+      if (/^Read-only identities cannot be granted/.test(message)) {
+        return new ScopePermissionError(statusCode, body, undefined, init);
+      }
+      return undefined;
+    case 404:
+      if (/\/secret-store\/secrets\/[^/]+\/value\/?$/.test(path)) {
+        return new NotFoundError(
+          statusCode,
+          body,
+          `${message || "Secret value not found"} (the latest version may be soft-deleted or destroyed; undelete it or write a new value)`,
+          init,
+        );
+      }
+      return undefined;
+    case 409:
+      if (rawCode === "STORE_ARCHIVED") return new StoreArchivedError(statusCode, body, undefined, init);
+      if (rawCode === "STORE_DELETING") return new StoreDeletingError(statusCode, body, undefined, init);
+      return undefined;
+    case 503:
+      if (rawCode === "LIFECYCLE_OPERATION_INCOMPLETE") {
+        return new DeletionIncompleteError(statusCode, body, undefined, init);
+      }
+      return undefined;
+    default:
+      return undefined;
+  }
+}
+
 const ORG_RESTRICTED_PATTERN =
-  /^Operation '([A-Z_]+)' is not allowed while organization is ([A-Z_]+)$/;
+  /^Operation '([A-Z_]+)' is not allowed while organization is ([A-Za-z_]+)$/;
 const STORAGE_RESTRICTED_MESSAGES = new Set([
   "Storage namespace changes are restricted",
   "Storage namespace is not active",
@@ -471,6 +619,10 @@ export function apiErrorFromResponse(
   body: unknown,
   init: ApiErrorInit = {},
 ): ApiError {
+  if (isSecretStoreErrorPath(init.path)) {
+    const mapped = secretStoreErrorFromResponse(statusCode, body, init);
+    if (mapped) return mapped;
+  }
   const parsed = parseErrorBody(statusCode, body);
   const code = parsed.code;
   const message = parsed.message ?? "";

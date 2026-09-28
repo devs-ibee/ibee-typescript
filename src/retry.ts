@@ -38,6 +38,10 @@ function headerValue(headers: Record<string, string> | undefined, name: string):
   return undefined;
 }
 
+// GET .../access mints a new AppRole secret ID on every call, so it is
+// never repeated automatically.
+const NEVER_RETRY_ROUTE = /^\/?secret-store\/identities\/[^/]+\/access\/?$/;
+
 /** Whether repeating this request cannot duplicate a side effect. */
 export function isRetrySafe(
   method: string,
@@ -47,8 +51,9 @@ export function isRetrySafe(
   query?: Record<string, unknown>,
 ): boolean {
   const m = method.toUpperCase();
-  if (SAFE_METHODS.has(m)) return true;
   const p = relPath(path);
+  if (NEVER_RETRY_ROUTE.test(p)) return false;
+  if (SAFE_METHODS.has(m)) return true;
   if (nonEmpty(headerValue(headers, "X-Idempotency-Key")) && ["POST", "PATCH", "DELETE"].includes(m)) {
     if (HEADER_KEY_ROUTE.test(p)) return true;
   }

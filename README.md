@@ -225,6 +225,101 @@ and permanent deletion. Workload identities support AppRole or Kubernetes
 authentication, credential rotation, session revocation, and per-store scopes.
 Permanent-delete and version-destroy operations are irreversible.
 
+### Portal rules applied before sending
+
+Every Secret Store method checks its input the way the portal does and throws
+`IbeeValidationError` before any request:
+
+- `workspaceId` must have 2 to 128 digits (Secret Store refuses single-digit
+  workspace IDs). Store, secret, identity and scope IDs must be non-blank and
+  contain no `/`, `?`, `#` or control characters.
+- Store names are trimmed, 1..128 characters, and on create must contain a
+  letter or digit (the store key is generated from it). `updateSecretStore`
+  needs `name` or `description`.
+- Secret names are trimmed and **lower-cased** (as the portal does), then must
+  be 2..64 characters of `a-z`, `0-9` and `-`, starting with a letter or
+  digit. `createSecret({ name: " DB-Url " })` sends `secret_name: "db-url"`.
+- Secret values must be an object with at least one entry. Keys are trimmed
+  and must be non-blank and unique; string values must not be blank.
+  `patchSecretValue` also accepts `null`, which deletes that key.
+- `batchCreateSecrets`: 1..500 items, each checked like `createSecret`;
+  repeated names emit an `IbeeSecretStoreWarning` (the API skips them).
+- Versions are integers >= 1; version lists hold 1..100 entries and are
+  de-duplicated. `cas` is an integer >= 0. `page` >= 1, `limit` 1..200,
+  search `q` is trimmed and at most 128 characters.
+- Every Secret Store request body is limited to 64 KiB.
+
+```ts
+// Portal-style create: billing check, then reuse an existing store on conflict.
+const store = await client.secretStore.createSecretStore({
+  workspaceId: "710995",
+  name: "Payments",
+  billingPreflight: true, // SECRETMA-STD; BillingDeniedError when not allowed
+  ifExists: "return",     // return the existing "Payments" store instead of ConflictError
+});
+await client.secretStore.createSecret({
+  workspaceId: "710995",
+  storeId: store.id!,
+  name: "db-url",
+  value: { url: "postgres://..." },
+  billingPreflight: true,
+});
+
+// Archived stores are listed only on request; listAll* pages for you.
+const stores = await client.secretStore.listAllSecretStores({
+  workspaceId: "710995",
+  includeArchived: true,
+});
+const secrets = await client.secretStore.listAllSecrets({
+  workspaceId: "710995",
+  storeId: store.id!,
+  q: "db",
+});
+```
+
+Pre-checks the portal runs:
+
+- `rollbackSecret` reads the versions first (`checkTarget`, default true) and
+  refuses the current version and destroyed or missing versions.
+- `createSecretIdentityScope({ checkStore: true })` reads the identity, its
+  scopes and the active stores, and refuses a store that is not active or
+  already granted, or write access for a read-only identity. Scopes default
+  to `read_only` with version reads allowed; rollback and destroy need
+  `read_write`.
+- `rotateSecretIdentitySecretId({ checkAuthMethod: true })` refuses
+  Kubernetes and disabled identities.
+- `undeleteSecret` without `versions` restores the current version.
+
+A pre-check that the token cannot perform (403 `insufficient_scope`, for
+example a token without `billing.read` or `secret-store.read`) is skipped and
+the request is sent; the API enforces the same rule.
+
+`createSecretIdentity` always sends `token_policy_mode` (default `read_only`)
+and sends the Kubernetes fields only for `kubernetes` identities.
+`updateSecretIdentity` requires `tokenPolicyMode`.
+
+`getSecretIdentityAccess` and `rotateSecretIdentitySecretId` mint a new AppRole
+secret ID on every call (the previous one is not revoked), so they are never
+retried automatically. Store and secret creates and value writes are not
+retried either.
+
+Secret Store errors are typed:
+
+| Error | When |
+|---|---|
+| `ResourceNotFoundError` (403) | the store, secret, identity or scope does not exist in the workspace (`kind`, `resourceId`) |
+| `OrganizationLifecycleError` (403) | the organization is restricted, suspended, deleting or deleted (`state`, `operation`) |
+| `StoreNotActiveError` (403) | an identity or scope needs an active store |
+| `IdentityDisabledError` (403) | login details or rotation for a disabled identity |
+| `AuthMethodMismatchError` (403) | rotation of a Kubernetes identity |
+| `ScopePermissionError` (403) | write/rollback/destroy for a read-only identity |
+| `StoreArchivedError`, `StoreDeletingError` (409) | the store is archived (restore it first) or being deleted |
+| `CasConflictError` (502) | `updateSecretValue` with `cas` failed, most likely a version mismatch |
+| `DeletionIncompleteError` (503) | a permanent store delete did not finish (`failedSteps`); call it again |
+
+All 403 classes extend `ForbiddenError` and the 409 classes extend
+`ConflictError`, so 0.3.0 `instanceof` checks keep working.
+
 ## Errors
 
 Non-2xx responses throw an `ApiError` subclass. Every error has `statusCode`,
@@ -657,7 +752,7 @@ contract; behaviour may change.
 
 | Resource | Methods |
 |---|---|
-| `client.secretStore` | listSecretStores, createSecretStore, getSecretStore, updateSecretStore, archiveSecretStore, listSecrets, createSecret, getSecret, deleteSecret, getSecretValue, updateSecretValue |
+| `client.secretStore` | stores (list, listAll, iterate, create, get, update, archive, unarchive, permanently delete), secrets (list, listAll, iterate, create, batch create, get, delete, value get/update/patch, undelete, destroy versions, permanently delete, versions, rollback), identities (list, create, get, update, enable, disable, access, rotate secret ID, revoke sessions, delete) and identity scopes (list, create, update, delete) |
 | `client.objectStorage` | bucket list/listAllBuckets/iterateBuckets/create/get/update/delete and S3 credential list/create/get/revoke/delete |
 | `client.blockStorage` | volume list/listAllVolumes/iterateVolumes/create/get, operations, attachToVm/detachFromVm, node-level attach/detach, resize, and delete |
 | `client.cdn` | distributions, cache policies, metrics, static website configuration, custom domains (waitForCustomDomain), URL generation, and cache purge |
