@@ -151,8 +151,18 @@ export interface SecretIdentityActionStatus {
 
 export interface BucketSummary {
   name?: string;
+  is_public?: boolean;
+  region?: string;
+  plan?: string;
+  status?: string;
+  site_id?: string;
+  site_name?: string;
+  bucket_lock_enabled?: boolean;
   object_count?: number;
   total_size?: number;
+  created_at?: string;
+  updated_at?: string;
+  [key: string]: unknown;
 }
 
 export interface BucketList {
@@ -169,24 +179,40 @@ export interface DefaultRetention {
   years?: number;
 }
 
+/**
+ * A bucket as the API returns it. `object_count`/`total_size` are present on
+ * get and list (not on the create response).
+ */
 export interface Bucket {
-  bucket_name?: string;
-  minio_id?: string;
-  public?: boolean;
+  name?: string;
+  is_public?: boolean;
   region?: string;
   plan?: string;
   status?: string;
   site_id?: string;
-  site?: string;
+  site_name?: string;
+  /** True when Object Lock is on (such buckets cannot be deleted). */
+  bucket_lock_enabled?: boolean;
+  object_count?: number;
+  total_size?: number;
   tags?: string[];
-  metadata?: Record<string, unknown>;
-  stats?: BucketStats;
   created_at?: string;
+  updated_at?: string;
+  /** @deprecated 0.3.0 field name; the API returns `name`. */
+  bucket_name?: string;
+  /** @deprecated Not returned by the API. */
+  minio_id?: string;
+  /** @deprecated 0.3.0 field name; the API returns `is_public`. */
+  public?: boolean;
+  /** @deprecated 0.3.0 field name; the API returns `site_name`. */
+  site?: string;
+  /** @deprecated Not returned by the API. */
+  metadata?: Record<string, unknown>;
+  /** @deprecated 0.3.0 field; the API returns `object_count`/`total_size` at the top level. */
+  stats?: BucketStats;
+  /** @deprecated 0.3.0 field name; the API returns `updated_at`. */
   last_modified?: string;
-  /** @deprecated Legacy aliases retained for source compatibility. */
-  name?: string;
-  /** @deprecated Use `public`. */
-  is_public?: boolean;
+  [key: string]: unknown;
 }
 
 export interface BucketStats {
@@ -198,11 +224,19 @@ export interface BucketStats {
 
 export interface S3Credential {
   access_key_id: string;
-  project_id?: string;
+  organization_id?: string;
+  workspace_id?: string;
   name: string;
-  status: "active" | "revoked";
+  status: "active" | "revoked" | (string & {});
+  permission_type?: "admin_rw" | "admin_ro" | "object_rw" | "object_ro" | (string & {});
+  bucket_scope?: "all" | "specific" | (string & {});
+  allowed_buckets?: string[];
+  created_by_user_id?: string | null;
   created_at: string;
   last_used_at?: string;
+  /** @deprecated Not returned by the API. */
+  project_id?: string;
+  [key: string]: unknown;
 }
 
 export interface S3CredentialCreated extends S3Credential {
@@ -239,7 +273,10 @@ export type VmLifecycleStatus =
   | "error";
 
 export interface CloudVm {
+  /** VM ID. The SDK copies `_id` here when the API returns only `_id`. */
   id?: string;
+  /** Raw document ID as returned by the API. */
+  _id?: string;
   name?: string;
   status?: VmLifecycleStatus;
   cpu?: number;
@@ -256,6 +293,16 @@ export interface CloudVm {
   tags?: string[];
   created_at?: string;
   updated_at?: string | null;
+  /** Reserved IP attached to the VM (its public IP is then not auto-assigned). */
+  reserved_public_ip_id?: string | null;
+  admin_username?: string | null;
+  ssh_password_auth_enabled?: boolean | null;
+  ssh_keys?: string[];
+  ssh_key_ids?: string[];
+  ssh_key_secret_refs?: SshKeySecretRef[];
+  billing_catalog?: BillingCatalogSelection | null;
+  data_volumes?: Array<{ volume_id?: string; [key: string]: unknown }>;
+  [key: string]: unknown;
 }
 
 export type GpuVm = CloudVm & {
@@ -288,6 +335,44 @@ export interface VmMetrics {
 
 export type VmType = "cloud" | "gpu";
 export type BillingInterval = "HOURLY" | "MONTHLY";
+/** Billing term a VM can be bought on. */
+export type BillingTerm = "HOURLY" | "MONTHLY" | "YEARLY";
+
+/** One SKU reference inside a billing catalog selection. */
+export interface BillingSkuReference {
+  sku_id: string | number;
+  sku_code: string;
+  product_id?: string | number | null;
+  product_code?: string | null;
+  product_name?: string | null;
+  display_name?: string | null;
+  plan_id?: string | number | null;
+  plan_version?: string | number | null;
+  [key: string]: unknown;
+}
+
+/** A priced billing term offered by a SKU (`billing_catalog.billing_options[]`). */
+export interface BillingOption {
+  billing_interval: BillingTerm;
+  unit_price_minor: number;
+  committed?: boolean;
+  commitment_period?: BillingTerm;
+  commitment_months?: number;
+  committed_hours?: number;
+  discount_percent?: number | null;
+  price_unit?: string | null;
+  [key: string]: unknown;
+}
+
+/**
+ * Billing catalog selection sent with billable VM, snapshot, backup and
+ * volume-attach requests. Treat as opaque; the SDK only validates its shape.
+ */
+export interface BillingCatalogSelection extends BillingSkuReference {
+  attached_skus?: Record<string, BillingSkuReference>;
+  billing_options?: BillingOption[];
+  billing_interval?: BillingTerm;
+}
 
 export interface ComputeSite {
   site_id: string;
@@ -322,6 +407,8 @@ export interface ComputePlan {
   hourly_price_minor?: number;
   monthly_price_minor?: number;
   site_id?: string;
+  /** Plan SKU; pass it (priced for a term) as the create body's `billing_catalog`. */
+  billing_catalog?: BillingCatalogSelection | null;
 }
 
 export interface ComputePlanList {
@@ -379,6 +466,10 @@ export type ComputeOperationAction =
   | "rebuild"
   | "rescue";
 
+/**
+ * Compute operation status. Open union: a future status value does not break
+ * consumers. Terminal: succeeded | failed | cancelled | timed_out.
+ */
 export type ComputeOperationStatus =
   | "accepted"
   | "running"
@@ -387,53 +478,124 @@ export type ComputeOperationStatus =
   | "succeeded"
   | "failed"
   | "cancelled"
-  | "timed_out";
+  | "timed_out"
+  | (string & {});
 
 export interface OperationStatus {
   operation_id: string;
   vm_id: string;
+  operation_name?: string | null;
   action: ComputeOperationAction;
+  request_id?: string | null;
   status: ComputeOperationStatus;
   current_step?: string | null;
   error_code?: string | null;
   error_message?: string | null;
+  vm_type?: string | null;
   submitted_at: string;
   updated_at: string;
+  [key: string]: unknown;
 }
+
+/**
+ * Billing enforcement operation evaluated by the eligibility check.
+ * Not yet part of the published API contract; behaviour may change.
+ */
+export type EnforcementOperation =
+  | "CREATE_RESOURCE"
+  | "CREATE_CREDENTIAL"
+  | "INCREASE_CAPACITY"
+  | "MUTATE_RESOURCE"
+  | "READ_RESOURCE"
+  | "DELETE_RESOURCE"
+  | "REVOKE_CREDENTIAL"
+  | "SECURITY_RECOVERY";
 
 /** Body of the explicit preflight for any billable resource creation. */
 export interface BillingEligibilityRequest {
   sku_code?: string;
   estimated_cost_minor?: number;
+  /** Not yet part of the published API contract; behaviour may change. */
+  operation?: EnforcementOperation;
 }
 
-/**
- * Billing admission decision. Billing amount fields can be omitted when the
- * caller can create resources but is not permitted to view billing details.
- */
-export type BillingMode = "PREPAID" | "POSTPAID";
+export type BillingMode = "PREPAID" | "POSTPAID" | (string & {});
 export type BillingState =
   | "CURRENT"
   | "PAYMENT_DUE"
   | "PAST_DUE"
   | "SOFT_SUSPENDED"
-  | "HARD_SUSPENDED";
+  | "HARD_SUSPENDED"
+  | (string & {});
+export type ServiceEnforcementState =
+  | "NONE"
+  | "BLOCK_NEW_PURCHASES"
+  | "SUSPEND_METERED_SERVICES"
+  | "FULL_PROJECT_SUSPEND"
+  | (string & {});
+export type EnforcementSource =
+  | "BILLING"
+  | "MANUAL_ADMIN"
+  | "BILLING_AND_MANUAL"
+  | (string & {});
 
+/**
+ * Known billing reasons. Allowed: ok, usage_based_sku, status_only,
+ * operation_allowed. Denied: initial_topup_required, insufficient_balance,
+ * credit_limit_exceeded, unknown_sku, inactive_sku, billing_limit_exhausted,
+ * overage_cap_exceeded, dunning_active, dunning_grace_expired, or a manual
+ * admin reason code. The set is open.
+ */
+export type BillingReason =
+  | "ok"
+  | "usage_based_sku"
+  | "status_only"
+  | "operation_allowed"
+  | "initial_topup_required"
+  | "insufficient_balance"
+  | "credit_limit_exceeded"
+  | "unknown_sku"
+  | "inactive_sku"
+  | "billing_limit_exhausted"
+  | "overage_cap_exceeded"
+  | "dunning_active"
+  | "dunning_grace_expired"
+  | (string & {});
+
+/**
+ * Billing admission decision. Only `allowed === true` permits a create.
+ * Fields after `evaluated_at` are returned by the API today but are not yet
+ * part of the published contract.
+ */
 export interface BillingEligibility {
   organization_id: string;
   allowed: boolean;
-  reason: string;
+  reason: BillingReason;
   billing_mode?: BillingMode;
   billing_state?: BillingState;
   currency?: string;
+  /** Upper-cased by billing. */
   sku_code?: string | null;
   estimated_cost_minor?: number | null;
+  /** PREPAID only. */
   effective_balance_minor?: number | null;
+  /** POSTPAID only. */
   credit_headroom_minor?: number | null;
   evaluated_at?: string;
+  service_enforcement_state?: ServiceEnforcementState;
+  enforcement_revision?: number;
+  enforcement_source?: EnforcementSource;
+  enforcement_reason_code?: string | null;
+  operation?: EnforcementOperation | (string & {});
+  allowed_operations?: string[];
+  /** Per resource type limits. A missing key or -1 means unlimited. */
+  resource_limits?: Record<string, number>;
+  [key: string]: unknown;
 }
 
 export interface DeleteResponse {
+  /** Confirmation message, e.g. "Bucket deleted". */
+  detail?: string;
   deleted?: boolean;
   id?: string;
 }
@@ -458,6 +620,17 @@ export interface CreateBlockVolumeRequest {
   volume_class?: BlockVolumeClass;
   replica_count?: number;
   backup_enabled?: boolean;
+  /**
+   * VM type the volume is for (default `cloud`). A GPU VM can attach only a
+   * volume created with `vm_type: "gpu"`. Not yet part of the published API
+   * contract; behaviour may change.
+   */
+  vm_type?: VmType;
+  /**
+   * Delete the volume when the VM it is attached to is deleted (default
+   * false). Not yet part of the published API contract; behaviour may change.
+   */
+  delete_on_termination?: boolean;
   idempotency_key?: string | null;
 }
 
@@ -467,6 +640,7 @@ export interface BlockVolumeAttachment {
   device_path: string;
   vm_id?: string | null;
   vm_name?: string | null;
+  vm_type?: VmType | null;
   attached_at: string;
 }
 
@@ -485,6 +659,20 @@ export interface BlockVolume {
   attachments: BlockVolumeAttachment[];
   created_at: string;
   updated_at: string;
+  billing_catalog?: BillingCatalogSelection | null;
+  /** Read-only fields below are returned by the API but not in the published contract. */
+  volume_name?: string | null;
+  vm_type?: VmType | null;
+  volume_kind?: string | null;
+  attached_vm_id?: string | null;
+  attached_vm_name?: string | null;
+  metadata?: {
+    display_name?: string | null;
+    delete_on_termination?: boolean | null;
+    billing_catalog?: BillingCatalogSelection | null;
+    storage_performance?: Record<string, unknown> | null;
+    [key: string]: unknown;
+  } | null;
 }
 
 export interface BlockVolumeOperation {
@@ -523,7 +711,8 @@ export interface AttachBlockVolumeRequest {
 }
 
 export interface DetachBlockVolumeRequest {
-  node_name: string;
+  /** Storage node to detach from. Read from the volume's single attachment when omitted. */
+  node_name?: string;
   force?: boolean;
   confirm_unmounted?: boolean;
   vm_state?: "running" | "stopped" | "suspended" | null;
@@ -569,8 +758,12 @@ export interface UpdateCdnDistributionRequest {
 export interface CdnDistribution {
   id: string;
   name: string;
+  project_id?: string;
   origin_type: CdnOriginType;
   origin_id: string;
+  /** Origin bucket name for bucket origins. */
+  bucket_name?: string | null;
+  deleted_at?: string | null;
   cache_policy: string;
   enabled: boolean;
   status: "active" | "deploying" | "disabled" | "failed" | "deleted";
@@ -602,8 +795,48 @@ export interface CdnCustomDomain {
   domain: string;
   status: "pending_validation" | "pending_tls" | "active" | "failed";
   tls_status?: string | null;
+  cf_custom_hostname_id?: string | null;
+  /** DNS record to create at your DNS provider (create response). */
+  validation?: { cname_record?: { type: string; name: string; value: string } | null } | null;
   created_at: string;
   instructions?: string[] | null;
+}
+
+/** Result of deleting a CDN distribution. */
+export type CdnDistributionDeleteResult = Record<string, unknown>;
+
+/** Result of removing a CDN custom domain. */
+export interface CdnCustomDomainDeleteResult {
+  message?: string;
+  domain?: string;
+  [key: string]: unknown;
+}
+
+export interface CdnCachePolicy {
+  id: string;
+  name: string;
+  description: string;
+  headers: Record<string, string>;
+}
+
+export interface CdnCachePolicyList {
+  policies: CdnCachePolicy[];
+}
+
+/** CDN distribution metrics (traffic, cache, origin, responses, time series). */
+export interface CdnDistributionMetrics {
+  distribution_id: string;
+  distribution_name: string;
+  origin_type: CdnOriginType;
+  range: "24h" | "7d" | "30d";
+  granularity: "15m" | "1h" | "1d";
+  range_start: string;
+  range_end: string;
+  data_available_from?: string | null;
+  data_through?: string | null;
+  points?: Array<Record<string, unknown>>;
+  warnings?: string[];
+  [key: string]: unknown;
 }
 
 export interface CdnCustomDomainList {
@@ -634,32 +867,93 @@ export interface CdnCachePurge {
   message?: string | null;
 }
 
-/** Body of POST /compute/cloud-vms. */
+/** VPC connectivity for a VM placed in a VPC. */
+export type NetworkConnectivity = "private" | "nat" | "public_ip";
+
+/**
+ * Input of `cloudVms.create`. Only `name`, `site_id`, `plan_id` and
+ * `template_id` are needed: the SDK reads the plan and image from the compute
+ * catalog and fills `cpu`, `ram_mb`, `disk_gb`, `os_type`, `os_distro` and
+ * `billing_catalog` the way the portal does. Values you pass must match.
+ */
 export interface CreateVmRequest {
+  /** Hostname: letters, digits and `-` only. */
   name: string;
+  /** Required: a `site_id` from `computeCatalog.listSites`. */
   site_id?: string;
-  os_distro: string;
-  os_type: string;
-  cpu: number;
-  ram_mb: number;
-  template_id: string;
-  disk_gb?: number;
   plan_id: string;
+  template_id: string;
+  os_distro?: string;
+  os_type?: string;
+  cpu?: number;
+  ram_mb?: number;
+  disk_gb?: number;
+  /**
+   * Plan SKU. Built from the plan and `billing_term` when omitted; a value
+   * you pass is validated and sent as-is.
+   */
+  billing_catalog?: BillingCatalogSelection;
+  /**
+   * SDK-only (folded into `billing_catalog`, not sent). Cloud default: HOURLY,
+   * or the plan's first term. GPU default: the plan SKU unmodified (hourly).
+   */
+  billing_term?: BillingTerm;
+  /**
+   * SDK-only. Windows licence SKU, required for Windows images (attached as
+   * `billing_catalog.attached_skus.windows_license`, quantity = vCPUs). The
+   * public API cannot list it yet.
+   */
+  windows_license?: BillingCatalogSelection;
+  /**
+   * SSH key IDs. Keys are resolved under the VM creator, so API-token creates
+   * cannot use them yet: prefer `ssh_keys`.
+   */
   ssh_key_ids?: string[];
+  /** Inline public SSH keys (ssh-rsa, ssh-ed25519, ecdsa-sha2-nistp*, sk-*). */
+  ssh_keys?: string[];
+  /** At most one firewall group. */
+  firewall_group_ids?: string[];
+  /** VPC placement; `subnet_id` is required with it. */
+  vpc_id?: string;
+  subnet_id?: string;
+  network_connectivity?: NetworkConnectivity;
+  /** Reserved IP to attach (needs `network_connectivity: "public_ip"`). */
+  reserved_public_ip_id?: string;
   tags?: string[];
+  requested_by?: string;
 }
 
-/** Body of POST /compute/gpu-vms — adds the required GPU fields. */
+/** Input of `gpuVms.create`; GPU fields default to the plan's values. */
 export interface CreateGpuVmRequest extends CreateVmRequest {
-  gpu_count: number;
-  gpu_model: string;
+  gpu_count?: number;
+  gpu_model?: string;
 }
 
-export interface SshKeySecretRef {
-  ssh_key_id: string;
-  store_key?: string;
-  secret_name: string;
+/** Delete choice for a VM's auto-assigned public IP. */
+export type PublicIpAction = "reserve" | "release";
+
+/** Body of DELETE /compute/{cloud-vms|gpu-vms}/{vm_id}. */
+export interface VmDeleteRequest {
+  public_ip_action?: PublicIpAction;
+  reserved_ip_label?: string;
+  reserved_ip_billing_catalog?: BillingCatalogSelection;
+  requested_by?: string;
 }
+
+/** An accepted async VM operation; `operation` is set when the call waited. */
+export type OperationAcceptedResult = OperationAccepted & {
+  /** Final operation status (only when `wait` was requested). */
+  operation?: OperationStatus;
+};
+
+/**
+ * A Secret Store reference to an SSH public key. Either `ssh_key_id` or
+ * `secret_name` is enough (the API fills the other from it); `store_key`
+ * defaults to `ssh-keys`.
+ */
+export type SshKeySecretRef =
+  | { ssh_key_id: string; secret_name?: string; store_key?: string; ssh_key_name?: string }
+  | { ssh_key_id?: string; secret_name: string; store_key?: string; ssh_key_name?: string };
 
 export type VmSshKeyMode = "add" | "remove";
 
@@ -679,6 +973,20 @@ export interface VmResizeRequest {
   cpu?: number;
   ram_mb?: number;
   disk_gb?: number;
+  /**
+   * SDK-only: resize to this plan (cpu/ram/disk and SKU come from the plan in
+   * the VM's site). Not combinable with explicit cpu/ram_mb/disk_gb.
+   */
+  plan_id?: string;
+  /** SDK-only: term for the target plan SKU (default HOURLY). Needs `plan_id`. */
+  billing_term?: BillingTerm;
+  /** Target SKU. Built from `plan_id` when omitted. */
+  billing_catalog?: BillingCatalogSelection;
+  /**
+   * SDK-only: Windows licence SKU for a Windows VM (with `plan_id`). The
+   * VM's current licence is carried over when omitted.
+   */
+  windows_license?: BillingCatalogSelection;
   requested_by?: string;
 }
 
@@ -707,16 +1015,34 @@ export interface VmResizePrecheck {
 }
 
 export interface VmResizePlanRequest {
-  cpu: number;
-  ram_mb: number;
+  /** Target vCPUs. Required unless `plan_id` is given. */
+  cpu?: number;
+  /** Target RAM in MB. Required unless `plan_id` is given. */
+  ram_mb?: number;
+  /**
+   * SDK-only: take cpu/ram_mb from this plan in the VM's site and build the
+   * target `billing_catalog` for `billing_term`. Not combinable with cpu/ram_mb.
+   */
+  plan_id?: string;
+  /** SDK-only: term for the target SKU (default HOURLY). Needs `plan_id` or `billing_catalog`. */
+  billing_term?: BillingTerm;
+  /**
+   * SDK-only: Windows licence SKU for a Windows VM (with `plan_id`). The
+   * VM's current licence is carried over when omitted.
+   */
+  windows_license?: BillingCatalogSelection;
   allow_online?: boolean;
+  /** Required when cpu or ram_mb is lower than the VM's current value. */
   confirm_downgrade?: boolean;
+  billing_catalog?: BillingCatalogSelection;
   requested_by?: string;
 }
 
 export interface VmResizeRootDiskRequest {
+  /** New size in GB; must be larger than the current root disk. */
   new_size_gb: number;
   allow_online?: boolean;
+  billing_catalog?: BillingCatalogSelection;
   requested_by?: string;
 }
 
@@ -725,6 +1051,8 @@ export type VmVolumeMode = "single-writer" | "multi-writer";
 export interface VmAttachVolumeRequest {
   volume_id: string;
   mode?: VmVolumeMode;
+  /** Block Storage SKU of the volume. Read from the volume when omitted. */
+  billing_catalog?: BillingCatalogSelection;
   requested_by?: string;
 }
 
@@ -783,6 +1111,12 @@ export interface SnapshotCreateRequest {
   description?: string | null;
   mode?: SnapshotCaptureMode;
   selected_data_volume_ids?: string[];
+  /**
+   * Required by the API: the snapshot storage SKU (product `snapshot_storage`,
+   * SKU code `SNAPSHOT-STD`). The public API cannot list it yet; reuse the
+   * `billing_catalog` returned on an existing snapshot set.
+   */
+  billing_catalog?: BillingCatalogSelection;
   requested_by?: string;
 }
 
@@ -868,6 +1202,10 @@ export interface SnapshotSet {
   volume_manifest_summary?: RecoveryPointSummary;
   live_drift_summary?: LiveDriftSummary;
   metadata?: Record<string, unknown>;
+  /** SKU echoed by the API (not yet part of the published contract). */
+  billing_catalog?: BillingCatalogSelection | null;
+  sku_code?: string | null;
+  sku_id?: string | number | null;
   created_at: string;
   updated_at: string;
 }
@@ -908,9 +1246,24 @@ export interface RecoveryRestoreRequest {
   target_gpu_memory_display?: string | null;
   target_site_id?: string | null;
   target_site_name?: string | null;
+  /** new_vm only: SKU of the target plan (resolved from the plan when omitted). */
+  target_billing_catalog?: BillingCatalogSelection | null;
+  /** new_vm only: names for the restored data volumes, keyed by source volume ID. */
+  target_volume_names?: Record<string, string>;
   selected_volume_id?: string | null;
   requested_by?: string;
   auto_start?: boolean;
+}
+
+/** Body of a snapshot restore (adds new-VM network and SSH options). */
+export interface SnapshotRestoreRequest extends RecoveryRestoreRequest {
+  /** new_vm only; with `subnet_id`. */
+  vpc_id?: string | null;
+  subnet_id?: string | null;
+  /** new_vm only; defaults to `private` when `vpc_id` is set. */
+  network_connectivity?: NetworkConnectivity | null;
+  /** new_vm only. */
+  ssh_key_ids?: string[];
 }
 
 export interface RecoveryRestore {
@@ -972,6 +1325,8 @@ export interface BackupPolicyUpdateRequest {
   retention_days?: number | null;
   full_backup_interval_days?: number | null;
   incremental_enabled?: boolean | null;
+  /** Optional replacement backup storage SKU. */
+  billing_catalog?: BillingCatalogSelection;
   requested_by?: string;
 }
 
@@ -980,6 +1335,12 @@ export interface BackupPolicyEnableRequest {
   retention_days?: number;
   full_backup_interval_days?: number;
   incremental_enabled?: boolean;
+  /**
+   * Required by the API: the backup storage SKU (product `backup_storage`,
+   * SKU code `BACKUP-STD`). The public API cannot list it yet; reuse the
+   * `billing_catalog` returned on an existing backup run.
+   */
+  billing_catalog?: BillingCatalogSelection;
   requested_by?: string;
 }
 
@@ -988,13 +1349,16 @@ export interface BackupPolicyDisableRequest {
 }
 
 export interface BackupPolicyNextRunRequest {
-  next_run_at: string;
+  /** ISO-8601 timestamp with `Z` or an offset (or a Date). */
+  next_run_at: string | Date;
   requested_by?: string;
 }
 
 export interface ManualBackupRunRequest {
   requested_by?: string;
   reason?: string | null;
+  /** Required by the API: the backup storage SKU (see `BackupPolicyEnableRequest`). */
+  billing_catalog?: BillingCatalogSelection;
 }
 
 export interface BackupRun {
@@ -1014,6 +1378,8 @@ export interface BackupRun {
   policy_id?: string | null;
   chain_id?: string | null;
   recovery_point_id?: string | null;
+  /** Storage prefix; may carry the recovery point ID (`.../recovery-points/<id>`). */
+  r2_prefix?: string | null;
   trigger: "scheduled" | "manual" | "api";
   backup_type: "full" | "incremental";
   status: BackupStatus;
@@ -1039,11 +1405,28 @@ export interface BackupRun {
   live_drift_summary?: LiveDriftSummary;
   error_message?: string | null;
   metadata?: Record<string, unknown>;
+  /** SKU echoed by the API (not yet part of the published contract). */
+  billing_catalog?: BillingCatalogSelection | null;
+  sku_code?: string | null;
+  sku_id?: string | number | null;
+  created_at?: string | null;
 }
 
 export interface BackupRunList {
   runs: BackupRun[];
   total: number;
+}
+
+/** Result of deleting a backup run (not yet part of the published API contract). */
+export interface BackupRunDeleteResult {
+  status: "deleted" | (string & {});
+  run_id?: string;
+  recovery_point_id?: string | null;
+  deleted_artifact_count?: number;
+  verified_remote_absent_count?: number;
+  deleted_run_count?: number;
+  deleted_projection_count?: number;
+  [key: string]: unknown;
 }
 
 export interface BackupRestoreRequest extends RecoveryRestoreRequest {
@@ -1102,6 +1485,8 @@ export interface NetworkingSite {
   message?: string;
 }
 
+export type VpcConnectivity = "public" | "private" | "nat_gateway";
+
 export interface Vpc {
   vpc_id: string;
   organization_id: string;
@@ -1110,7 +1495,8 @@ export interface Vpc {
   name: string;
   cidr: string;
   status: string;
-  connectivity_type: "public" | "nat_gateway";
+  /** `private` is the portal default; `public` is legacy. */
+  connectivity_type: VpcConnectivity | (string & {});
   account_id?: string;
   description?: string;
   region?: string;
@@ -1122,13 +1508,28 @@ export interface Vpc {
 
 export interface VpcSummary extends Vpc {
   node_count?: number;
+  /** Environment pricing metadata; not a billing quote. */
   nat_pricing?: NatPricing;
 }
 
-export interface VpcDetail extends Vpc {
+export interface VpcDetail extends VpcSummary {
   subnets?: Subnet[];
   nat_gateways?: NatGateway[];
-  attached_nodes?: NetworkAllocation[];
+  attached_nodes?: VpcAttachedNode[];
+}
+
+/** A VM attached to a VPC (as listed in the VPC detail). */
+export interface VpcAttachedNode {
+  allocation_id: string;
+  vm_id: string;
+  subnet_id: string;
+  private_ip: string;
+  connectivity: "private" | "public_ip" | "nat";
+  public_ip?: string | null;
+  nat_public_ip?: string | null;
+  status: string;
+  attached_at?: string;
+  [key: string]: unknown;
 }
 
 export interface Subnet {
@@ -1137,8 +1538,11 @@ export interface Subnet {
   name: string;
   cidr: string;
   status: string;
+  site_id?: string;
   dns?: string[];
+  /** First usable host, assigned by the server. */
   gateway?: string;
+  error_message?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -1149,27 +1553,53 @@ export interface NetworkAllocation {
   subnet_id?: string;
   vm_id?: string;
   private_ip?: string;
-  public_ip?: string;
+  prefix_length?: number;
+  subnet_mask?: string;
+  gateway?: string;
+  dns?: string[];
+  public_ip_id?: string | null;
+  public_ip?: string | null;
+  nat_gateway_id?: string | null;
+  nat_public_ip?: string | null;
   connectivity?: "private" | "public_ip" | "nat";
   status?: string;
   created_at?: string;
   updated_at?: string;
 }
 
+/**
+ * NAT pricing metadata returned with VPCs. It is an environment setting, not
+ * a billing quote.
+ */
 export interface NatPricing {
   currency?: string;
+  price_per_hour?: number;
+  data_price_per_gb?: number;
+  billing_enforced?: boolean;
+  /** @deprecated Never returned by the API; use `price_per_hour`. */
   hourly?: number;
+  /** @deprecated Never returned by the API. */
   monthly?: number;
 }
 
 export interface NatGateway {
   nat_gateway_id: string;
   vpc_id: string;
-  subnet_id?: string;
+  subnet_id?: string | null;
   reserved_public_ip_id?: string;
+  public_ip_id?: string;
   name?: string;
   public_ip?: string;
+  /** `reserved` (customer Reserved IP), `automatic` (platform address) or null (legacy). */
+  public_ip_source?: "reserved" | "automatic" | null | (string & {});
   status: string;
+  pricing?: NatPricing;
+  billing_catalog?: Record<string, unknown>;
+  billing_started_at?: string | null;
+  billing_ended_at?: string | null;
+  deleted_at?: string | null;
+  error_message?: string | null;
+  account_id?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -1177,16 +1607,52 @@ export interface NatGateway {
 export type TransportProtocol = "tcp" | "udp";
 
 export interface NatPortForwardingRule {
+  /** Rule ID as returned by the API. */
+  port_forward_rule_id?: string;
+  /** @deprecated Use `port_forward_rule_id`. */
   rule_id?: string;
+  /** @deprecated Use `port_forward_rule_id`. */
   port_forwarding_rule_id?: string;
+  vpc_id?: string;
   nat_gateway_id?: string;
   name: string;
   protocol: TransportProtocol;
   external_port: number;
   internal_ip: string;
   internal_port: number;
+  /** `vm` or `vip` (MetalLB virtual IP). */
+  target_type?: "vm" | "vip";
+  /** VIP announcer VMs (VIP targets only). */
+  target_vm_ids?: string[];
+  network_allocation_id?: string | null;
+  vm_id?: string | null;
   note?: string;
   enabled?: boolean;
+  status?: string;
+  error_message?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * A private virtual IP reserved in a VPC subnet (MetalLB or custom).
+ * Not yet part of the published API contract; behaviour may change.
+ */
+export interface VpcVirtualIp {
+  virtual_ip_id: string;
+  vpc_id: string;
+  subnet_id: string;
+  private_ip: string;
+  purpose: "metallb" | "custom";
+  announcer_vm_ids: string[];
+  public_ip_id?: string | null;
+  public_ip?: string | null;
+  status: string;
+  error_message?: string | null;
+  account_id?: string;
+  organization_id?: string;
+  workspace_id?: string;
+  site_id?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -1207,6 +1673,18 @@ export interface ReservedIp {
   attached_subnet_id?: string;
   created_at?: string;
   updated_at?: string;
+  /** Reserved IP SKU (not yet part of the published contract). */
+  billing_catalog?: BillingCatalogSelection | null;
+  /** The fields below are not yet part of the published API contract. */
+  allocation_method?: "provider_assigned" | "converted" | (string & {});
+  attached_allocation_id?: string | null;
+  attached_network_id?: string | null;
+  provider_profile?: string | null;
+  purpose?: string;
+  billing_started_at?: string | null;
+  billing_ended_at?: string | null;
+  deleted_at?: string | null;
+  [key: string]: unknown;
 }
 
 export type FirewallDirection = "ingress" | "egress";
@@ -1219,7 +1697,8 @@ export interface FirewallRuleInput {
   protocol?: FirewallProtocol;
   portStart?: number;
   portEnd?: number;
-  remoteTargets?: string[];
+  /** IPv4 addresses or CIDRs (a comma-separated string is accepted too). */
+  remoteTargets?: string[] | string;
   action?: FirewallAction;
   priority?: number;
 }
@@ -1235,6 +1714,10 @@ export interface FirewallRule {
   remote_targets?: string[];
   action?: FirewallAction;
   priority?: number;
+  /** Platform baseline rule; cannot be updated or deleted. */
+  system_managed?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface FirewallGroup {
@@ -1252,10 +1735,36 @@ export interface FirewallGroup {
   updated_at?: string;
 }
 
+/**
+ * Firewall group list row returned with `summary=true`.
+ * Not yet part of the published API contract; behaviour may change.
+ */
+export interface FirewallGroupSummary {
+  firewall_group_id: string;
+  name: string;
+  description?: string | null;
+  status: string;
+  is_default: boolean;
+  linked_instance_count?: number;
+  rule_count?: number;
+  organization_id?: string;
+  workspace_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface FirewallAttachment {
   vm_id: string;
   network_id?: string;
   attached_at?: string;
+  vm_name?: string;
+  vm_type?: string;
+  private_ip?: string;
+  public_ip?: string;
+  status?: string;
+  network_provider?: string;
+  attached_firewall_group_ids?: string[];
+  [key: string]: unknown;
 }
 
 export type LoadBalancerLayer = "l4" | "l7";
@@ -1276,9 +1785,51 @@ export interface LoadBalancerRouting {
 
 export interface LoadBalancerTls {
   mode: "terminate" | "passthrough";
-  certificate_source?: string;
+  /** Only `managed` is supported (custom certificates are rejected). */
+  certificate_source?: "managed" | (string & {});
+  /** @deprecated Custom certificates are not supported; the SDK rejects this. */
   cert_pem?: string;
+  /** @deprecated Custom certificates are not supported; the SDK rejects this. */
   key_pem?: string;
+}
+
+/** Load-balancer request policy. Not yet part of the published API contract. */
+export interface LoadBalancerPolicy {
+  /** 100..300000 (default 30000). */
+  timeout_ms?: number;
+  retries?: {
+    /** 1..10 (portal default 3). */
+    attempts?: number;
+    /** Default ["5xx", "reset", "connect-failure"]. */
+    on?: string[];
+    /** 100..120000 (portal default 5000). */
+    per_retry_timeout_ms?: number;
+  };
+  proxy_protocol_enabled?: boolean;
+}
+
+/** Load-balancer health checks. Not yet part of the published API contract. */
+export interface LoadBalancerHealthCheck {
+  active?: {
+    type?: "http" | "https" | "tcp";
+    /** Not allowed for tcp; the server defaults http/https to /health. */
+    path?: string;
+    interval_ms?: number;
+    timeout_ms?: number;
+    healthy_threshold?: number;
+    unhealthy_threshold?: number;
+  };
+  passive?: {
+    enabled?: boolean;
+    consecutive_5xx?: number;
+    interval_ms?: number;
+    base_ejection_time_ms?: number;
+  };
+}
+
+/** Load-balancer observability. Not yet part of the published API contract. */
+export interface LoadBalancerObservability {
+  logs_enabled?: boolean;
 }
 
 export interface LoadBalancerRule {
@@ -1304,6 +1855,11 @@ export interface LoadBalancer {
   routing?: LoadBalancerRouting;
   tls?: LoadBalancerTls;
   rules?: LoadBalancerRule[];
+  /** L7 https custom domain; `cname_target` is where the CNAME must point. */
+  custom_domain?: { hostname: string; cname_target?: string } | null;
+  activated_at?: string | null;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
   created_at?: string;
   updated_at?: string;
 }
