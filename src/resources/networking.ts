@@ -1,4 +1,6 @@
 import type { HttpClient } from "../core.js";
+import { collect, paginateOffset } from "../pagination.js";
+import { validateLimitOffset, validateWorkspaceId } from "../validation.js";
 import type {
   FirewallAttachment,
   FirewallGroup,
@@ -456,12 +458,43 @@ export class ReservedIpsResource {
 export class FirewallsResource {
   constructor(private readonly http: HttpClient) {}
 
-  listGroups(args: { workspaceId: string }): Promise<FirewallGroup[]> {
+  /**
+   * List firewall groups. With no `limit`/`offset` every page is fetched
+   * (100 per request) and de-duplicated; otherwise exactly one page is
+   * returned. `limit` (1..100) and `offset` (>= 0) are not yet part of the
+   * published API contract; behaviour may change.
+   */
+  async listGroups(args: {
+    workspaceId: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<FirewallGroup[]> {
+    validateWorkspaceId(args.workspaceId);
+    validateLimitOffset(args, 100);
+    if (args.limit === undefined && args.offset === undefined) {
+      return collect(this.iterateGroups({ workspaceId: args.workspaceId }));
+    }
     return this.http.request({
       method: "GET",
       path: "/networking/firewall-groups",
       workspaceId: args.workspaceId,
+      query: { limit: args.limit, offset: args.offset },
     });
+  }
+
+  /** Iterate every firewall group, fetching pages of 100 on demand. */
+  iterateGroups(args: { workspaceId: string }): AsyncIterable<FirewallGroup> {
+    validateWorkspaceId(args.workspaceId);
+    return paginateOffset<FirewallGroup>(
+      (limit, offset) =>
+        this.http.request<FirewallGroup[]>({
+          method: "GET",
+          path: "/networking/firewall-groups",
+          workspaceId: args.workspaceId,
+          query: { limit, offset },
+        }),
+      { pageSize: 100 },
+    );
   }
 
   createGroup(args: {

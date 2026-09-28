@@ -379,6 +379,10 @@ export type ComputeOperationAction =
   | "rebuild"
   | "rescue";
 
+/**
+ * Compute operation status. Open union: a future status value does not break
+ * consumers. Terminal: succeeded | failed | cancelled | timed_out.
+ */
 export type ComputeOperationStatus =
   | "accepted"
   | "running"
@@ -387,50 +391,119 @@ export type ComputeOperationStatus =
   | "succeeded"
   | "failed"
   | "cancelled"
-  | "timed_out";
+  | "timed_out"
+  | (string & {});
 
 export interface OperationStatus {
   operation_id: string;
   vm_id: string;
+  operation_name?: string | null;
   action: ComputeOperationAction;
+  request_id?: string | null;
   status: ComputeOperationStatus;
   current_step?: string | null;
   error_code?: string | null;
   error_message?: string | null;
+  vm_type?: string | null;
   submitted_at: string;
   updated_at: string;
+  [key: string]: unknown;
 }
+
+/**
+ * Billing enforcement operation evaluated by the eligibility check.
+ * Not yet part of the published API contract; behaviour may change.
+ */
+export type EnforcementOperation =
+  | "CREATE_RESOURCE"
+  | "CREATE_CREDENTIAL"
+  | "INCREASE_CAPACITY"
+  | "MUTATE_RESOURCE"
+  | "READ_RESOURCE"
+  | "DELETE_RESOURCE"
+  | "REVOKE_CREDENTIAL"
+  | "SECURITY_RECOVERY";
 
 /** Body of the explicit preflight for any billable resource creation. */
 export interface BillingEligibilityRequest {
   sku_code?: string;
   estimated_cost_minor?: number;
+  /** Not yet part of the published API contract; behaviour may change. */
+  operation?: EnforcementOperation;
 }
 
-/**
- * Billing admission decision. Billing amount fields can be omitted when the
- * caller can create resources but is not permitted to view billing details.
- */
-export type BillingMode = "PREPAID" | "POSTPAID";
+export type BillingMode = "PREPAID" | "POSTPAID" | (string & {});
 export type BillingState =
   | "CURRENT"
   | "PAYMENT_DUE"
   | "PAST_DUE"
   | "SOFT_SUSPENDED"
-  | "HARD_SUSPENDED";
+  | "HARD_SUSPENDED"
+  | (string & {});
+export type ServiceEnforcementState =
+  | "NONE"
+  | "BLOCK_NEW_PURCHASES"
+  | "SUSPEND_METERED_SERVICES"
+  | "FULL_PROJECT_SUSPEND"
+  | (string & {});
+export type EnforcementSource =
+  | "BILLING"
+  | "MANUAL_ADMIN"
+  | "BILLING_AND_MANUAL"
+  | (string & {});
 
+/**
+ * Known billing reasons. Allowed: ok, usage_based_sku, status_only,
+ * operation_allowed. Denied: initial_topup_required, insufficient_balance,
+ * credit_limit_exceeded, unknown_sku, inactive_sku, billing_limit_exhausted,
+ * overage_cap_exceeded, dunning_active, dunning_grace_expired, or a manual
+ * admin reason code. The set is open.
+ */
+export type BillingReason =
+  | "ok"
+  | "usage_based_sku"
+  | "status_only"
+  | "operation_allowed"
+  | "initial_topup_required"
+  | "insufficient_balance"
+  | "credit_limit_exceeded"
+  | "unknown_sku"
+  | "inactive_sku"
+  | "billing_limit_exhausted"
+  | "overage_cap_exceeded"
+  | "dunning_active"
+  | "dunning_grace_expired"
+  | (string & {});
+
+/**
+ * Billing admission decision. Only `allowed === true` permits a create.
+ * Fields after `evaluated_at` are returned by the API today but are not yet
+ * part of the published contract.
+ */
 export interface BillingEligibility {
   organization_id: string;
   allowed: boolean;
-  reason: string;
+  reason: BillingReason;
   billing_mode?: BillingMode;
   billing_state?: BillingState;
   currency?: string;
+  /** Upper-cased by billing. */
   sku_code?: string | null;
   estimated_cost_minor?: number | null;
+  /** PREPAID only. */
   effective_balance_minor?: number | null;
+  /** POSTPAID only. */
   credit_headroom_minor?: number | null;
   evaluated_at?: string;
+  service_enforcement_state?: ServiceEnforcementState;
+  enforcement_revision?: number;
+  enforcement_source?: EnforcementSource;
+  enforcement_reason_code?: string | null;
+  operation?: EnforcementOperation | (string & {});
+  allowed_operations?: string[];
+  /** Per resource type limits. A missing key or -1 means unlimited. */
+  resource_limits?: Record<string, number>;
+  [key: string]: unknown;
 }
 
 export interface DeleteResponse {
