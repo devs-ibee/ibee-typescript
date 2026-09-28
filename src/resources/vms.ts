@@ -2001,7 +2001,7 @@ export class VmResource<
       query: recoveryListQuery(args),
     });
     if (!args.restorableOnly || !Array.isArray(list?.runs)) return list;
-    return { ...list, runs: list.runs.filter((r) => String(r.status).toLowerCase() === "succeeded") };
+    return { ...list, runs: list.runs.filter((r) => String(r.status ?? "").trim().toLowerCase() === "succeeded") };
   }
 
   /**
@@ -2071,7 +2071,7 @@ export class VmResource<
     const runId = validatePathId(args.runId, "run_id");
     if (args.checkState) {
       const run = await this.getBackupRun({ workspaceId: args.workspaceId, runId });
-      if (String(run?.status ?? "").toLowerCase() !== "succeeded") {
+      if (String(run?.status ?? "").trim().toLowerCase() !== "succeeded") {
         fail("Only a completed backup can be deleted.", "backup_not_completed", "run_id");
       }
     }
@@ -2108,7 +2108,7 @@ export class VmResource<
     // The run lookup accepts a run ID or a recovery point ID; the restore
     // needs the recovery point ID, so send the one the run reports.
     const run = await this.getBackupRun({ workspaceId: args.workspaceId, runId: recoveryPointId });
-    if (String(run?.status ?? "").toLowerCase() !== "succeeded") {
+    if (String(run?.status ?? "").trim().toLowerCase() !== "succeeded") {
       fail("Only successful backups can be restored.", "recovery_point_not_ready", "recovery_point_id");
     }
     // Portal resolution order, including the storage-prefix fallbacks.
