@@ -8,7 +8,6 @@ import {
   windowsLicenseAttachment,
   withAttachedBillingSkus,
 } from "../billingCatalog.js";
-import { estimateEligibilityCostMinor } from "../billingHelpers.js";
 import {
   ForbiddenError,
   NotFoundError,
@@ -192,7 +191,7 @@ export interface VmCreateOptions {
   workspaceId: string;
   /** Generated per VM when omitted. */
   idempotencyKey?: string;
-  /** Run the billing eligibility check first (needs `billing.read`). Default false. */
+  /** Check Billing account status first (needs `billing.read`). Upstream create decides selected-term affordability. Default false. */
   preflightBilling?: boolean;
   /**
    * Read the plan and image from the compute catalog to fill and check the
@@ -644,8 +643,6 @@ export class VmResource<
 
     // Billing catalog.
     let billingCatalog: BillingCatalogSelection;
-    let unitPriceMinor: number | undefined;
-    let effectiveTerm: BillingTerm | undefined = term;
     if (input.billing_catalog !== undefined && input.billing_catalog !== null) {
       // A caller-supplied SKU is sent as-is unless a term is also given.
       const built = buildVmCreateBillingCatalog({
@@ -658,7 +655,6 @@ export class VmResource<
         reservedIpBillingCatalog: reservedIpCatalog,
       });
       billingCatalog = built.catalog;
-      unitPriceMinor = built.option?.unit_price_minor;
     } else {
       if (!plan?.billing_catalog) {
         fail("The selected plan has no billing catalog, so it cannot be created.", "invalid_plan", "plan_id");
@@ -673,22 +669,16 @@ export class VmResource<
         reservedIpBillingCatalog: reservedIpCatalog,
       });
       billingCatalog = built.catalog;
-      unitPriceMinor = built.option?.unit_price_minor;
-      effectiveTerm = built.option?.billing_interval ?? term;
     }
     if (osType === "windows" && !billingCatalog.attached_skus?.windows_license) {
       fail("Windows VMs require a Windows licence SKU (windows_license).", "windows_license_required", "windows_license");
     }
 
     if (preflightBilling) {
-      const interval = effectiveTerm ?? "HOURLY";
-      const price =
-        unitPriceMinor ??
-        (interval === "HOURLY" ? plan?.hourly_price_minor : interval === "MONTHLY" ? plan?.monthly_price_minor : undefined);
+      // Eligibility has no selected-term input; a SKU-only probe uses monthly
+      // pricing. Check account status and let upstream admission price create.
       await this.billing.requireResourceEligibility({
         workspaceId,
-        skuCode: billingCatalog.sku_code,
-        estimatedCostMinor: typeof price === "number" ? estimateEligibilityCostMinor(interval, price, 1) : undefined,
         resourceType: isGpu ? "gpu_vm" : "vm",
       });
     }
