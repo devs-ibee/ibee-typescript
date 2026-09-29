@@ -377,7 +377,7 @@ test("NAT create preflight and edge denials become BillingDeniedError", async ()
   ]);
   await assert.rejects(
     client.vpcs.createNatGateway({ workspaceId: WS, vpcId: "v", validateVpc: false, preflightBilling: true, billingCatalog: NAT_CATALOG }),
-    (e) => e instanceof BillingDeniedError && e.topupAllowed === true && /NAT gateway/.test(e.message),
+    (e) => e instanceof BillingDeniedError && e.topupAllowed === false && /NAT gateway/.test(e.message),
   );
   assert.equal(calls[0].path, "/networking/vpcs/v/nat-gateways");
   assert.equal(calls.length, 1);
@@ -899,7 +899,7 @@ test("LB create edge billing denial is a BillingDeniedError for the load balance
   ]);
   await assert.rejects(
     client.loadBalancers.createL4({ workspaceId: WS, name: "e", protocol: "tcp", backends: [{ target: "s", port: 1 }] }),
-    (e) => e instanceof BillingDeniedError && e.resourceType === "load_balancer" && e.topupAllowed === true,
+    (e) => e instanceof BillingDeniedError && e.resourceType === "load_balancer" && e.topupAllowed === false,
   );
 });
 
