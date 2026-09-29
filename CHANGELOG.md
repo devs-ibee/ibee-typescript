@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.2
+
+- Product mutations no longer run a client-side eligibility preflight or apply
+  their own billing vetoes or cost estimates; upstream services decide
+  admission when the request is submitted. `preflightBilling` is a no-op.
+- An explicit `billing.checkResourceEligibility` diagnostic returns
+  `allowed: false` as data instead of throwing.
+- `minimumTopupMinor()` and `INR_MINIMUM_TOPUP_MINOR` return `null`; only
+  upstream can supply a minimum top-up.
+- `isBillingTopupAllowed()` and `BillingDeniedError.topupAllowed` are true only
+  when upstream lists `billing_topup` in `allowed_operations`; a reason code
+  alone never grants it.
+- Billing messages no longer invent a currency or a minimum top-up amount.
+
+
 ## 0.4.1
 
 - VM preflight checks Billing account status without a client-calculated price or

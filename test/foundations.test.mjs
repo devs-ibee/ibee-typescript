@@ -262,8 +262,8 @@ test("edge 402 billing_denied becomes BillingDeniedError with portal copy and re
       assert.equal(err.admissionContextId, "adm-1");
       assert.equal(err.requestId, "req-9");
       assert.equal(err.idempotencyKey, "my-key");
-      assert.equal(err.topupAllowed, true);
-      assert.equal(err.message, "Your available wallet balance does not cover this cloud VM. Add credits and try again.");
+      assert.equal(err.topupAllowed, false);
+      assert.equal(err.message, "Your available wallet balance does not cover this cloud VM. Review billing for available actions.");
       assert.ok(isPaymentBlockError(err));
       return true;
     },
@@ -760,9 +760,9 @@ test("requireResourceEligibility denial raises BillingDeniedError with portal co
       assert.equal(err.code, "billing_denied");
       assert.equal(err.reason, "initial_topup_required");
       assert.equal(err.skuCode, "STANDARD-2-8-50");
-      assert.equal(err.topupAllowed, true);
+      assert.equal(err.topupAllowed, false);
       assert.deepEqual(err.decision, denied);
-      assert.equal(err.message, "Add at least ₹2,000 to your wallet before creating your first GPU VM.");
+      assert.equal(err.message, "Billing requires an initial wallet top-up before creating your first GPU VM. Review billing for available actions.");
       return true;
     },
   );
@@ -793,30 +793,67 @@ test("requireResourceEligibility rejects malformed or mismatched decisions as Bi
 
 test("billingBlockMessage covers every portal branch", () => {
   const m = (reason, type = "vm", extra = {}) => billingBlockMessage({ reason, ...extra }, type);
-  assert.equal(m("initial_topup_required", "block_storage"), "Add at least ₹2,000 to your wallet before creating your first block storage volume.");
-  assert.equal(m("initial_topup_required", "vm", { currency: "USD" }), "Add funds to your wallet before creating your first cloud VM.");
+  assert.equal(m("initial_topup_required", "block_storage"), "Billing requires an initial wallet top-up before creating your first block storage volume. Review billing for available actions.");
+  assert.equal(m("initial_topup_required", "vm", { currency: "USD" }), "Billing requires an initial wallet top-up before creating your first cloud VM. Review billing for available actions.");
   assert.equal(m("credit_limit_exceeded", "cdn"), "Creating this CDN distribution would exceed this organization's credit limit.");
-  assert.equal(m("x", "reserved_ip", { billing_state: "PAST_DUE" }), "Billing needs attention before creating a Reserved IP. Add credits or settle the outstanding usage, then try again.");
+  assert.equal(m("x", "reserved_ip", { billing_state: "PAST_DUE" }), "Billing needs attention before creating a Reserved IP. Review billing for available actions.");
   assert.equal(m("overage_cap_exceeded", "secret"), "This organization is billing-suspended, so new secret creation is blocked. Please resolve billing before trying again.");
   assert.equal(m("x", "vm", { billing_state: "HARD_SUSPENDED" }), "This organization is billing-suspended, so new cloud VM creation is blocked. Please resolve billing before trying again.");
   assert.equal(m("dunning_grace_expired", "backup"), "An overdue billing case must be resolved before creating this backup policy.");
   assert.equal(m("unknown_sku", "load_balancer"), "Pricing for this load balancer could not be verified. Check the plan or SKU and try again.");
   assert.equal(m("manual_hold", "nonsense"), "Billing did not approve creating this resource. Please review billing and try again.");
-  assert.equal(billingBlockMessage("insufficient_balance", "custom_domain"), "Your available wallet balance does not cover this custom domain. Add credits and try again.");
+  assert.equal(billingBlockMessage("insufficient_balance", "custom_domain"), "Your available wallet balance does not cover this custom domain. Review billing for available actions.");
 });
 
 test("top-up and estimate helpers follow the portal", () => {
-  assert.equal(isBillingTopupAllowed({ reason: " Insufficient_Balance " }), true);
-  assert.equal(isBillingTopupAllowed({ reason: "billing_limit_exhausted" }), true);
+  assert.equal(isBillingTopupAllowed({ reason: " Insufficient_Balance " }), false);
+  assert.equal(isBillingTopupAllowed({ reason: "billing_limit_exhausted" }), false);
   assert.equal(isBillingTopupAllowed({ reason: "credit_limit_exceeded" }), false);
   assert.equal(isBillingTopupAllowed({ reason: "x", allowed_operations: ["billing_topup"] }), true);
   assert.equal(isBillingTopupAllowed(null), false);
-  assert.equal(minimumTopupMinor("inr"), 200_000);
-  assert.equal(minimumTopupMinor("USD"), 0);
+  assert.equal(minimumTopupMinor("inr"), null);
+  assert.equal(minimumTopupMinor("USD"), null);
   assert.equal(estimateEligibilityCostMinor("HOURLY", 250, 2), 250 * 731 * 2);
   assert.equal(estimateEligibilityCostMinor("MONTHLY", 120_000, 1), 120_000);
   assert.equal(estimateEligibilityCostMinor("YEARLY", 1_000_000, 1.9), 1_000_000);
   assert.equal(estimateEligibilityCostMinor("HOURLY", -5, 3), 0);
   assert.equal(estimateEligibilityCostMinor("HOURLY", Number.NaN, 3), 0);
   assert.equal(estimateEligibilityCostMinor("HOURLY", 1.5, 1, Number.NaN), Math.round(1.5 * 731));
+});
+
+test("top-up permission requires an explicit upstream operation, never a reason or coercion", () => {
+  for (const reason of ["initial_topup_required", "insufficient_balance", "billing_limit_exhausted"]) {
+    assert.equal(isBillingTopupAllowed(reason), false);
+    for (const operations of [undefined, null, [], "billing_topup", {}, [true, 1, null], ["BILLING_TOPUP"], [" billing_topup "], [{ toString: () => "billing_topup" }]]) {
+      const payload = { reason, allowed_operations: operations };
+      assert.equal(isBillingTopupAllowed(payload), false);
+      assert.doesNotMatch(billingBlockMessage(payload), /add credits/i);
+    }
+  }
+});
+
+test("feedback never invents a currency or minimum", () => {
+  for (const currency of [undefined, null, "", "INR", "USD", "EUR"]) {
+    const payload = { reason: "initial_topup_required", currency, allowed_operations: ["billing_topup"] };
+    assert.equal(billingBlockMessage(payload, "vm"), "Billing requires an initial wallet top-up before creating your first cloud VM. You can add credits in the IBEE portal.");
+    assert.equal(minimumTopupMinor(currency), null);
+  }
+});
+
+test("billing errors preserve explicit top-up allowance in edge and nested responses", () => {
+  for (const [operations, expected] of [[undefined, false], [[], false], [["billing_topup"], true], ["billing_topup", false]]) {
+    for (const body of [
+      { error: "billing_denied", billing_reason: "insufficient_balance", allowed_operations: operations },
+      { detail: { code: "billing_denied", reason: "insufficient_balance", allowed_operations: operations } },
+    ]) {
+      const error = apiErrorFromResponse(402, body);
+      assert.ok(error instanceof BillingDeniedError);
+      assert.equal(error.topupAllowed, expected);
+      assert.equal(error.message.includes("You can add credits"), expected);
+    }
+  }
+  const diagnostic = new BillingDeniedError(402, {}, undefined, {
+    decision: { reason: "insufficient_balance", allowed_operations: ["billing_topup"] },
+  });
+  assert.equal(diagnostic.topupAllowed, true);
 });

@@ -171,7 +171,7 @@ Use `client.billing.checkResourceEligibility(...)` for an explicit diagnostic qu
 It returns `allowed: false` as data and supports `REVOKE_CREDENTIAL` and `SECURITY_RECOVERY`.
 The explicitly invoked `requireResourceEligibility` convenience method retains its throwing contract for compatibility; product methods never call it.
 An explicit query does not authorize or reserve funds for a later mutation.
-Legacy estimate/minimum-top-up utilities are deprecated display/calculation helpers only; they are not authoritative prices or admission rules.
+Legacy estimate utilities are deprecated arithmetic helpers, not authoritative prices or admission rules. `minimumTopupMinor(...)` and `INR_MINIMUM_TOPUP_MINOR` now return `null` (unknown); callers must obtain any minimum and currency upstream. `isBillingTopupAllowed(...)` and error `topupAllowed` are true only when upstream explicitly lists `billing_topup` in `allowed_operations`; reasons and absent/empty operation lists never grant permission.
 
 ## Secret Store lifecycle
 
