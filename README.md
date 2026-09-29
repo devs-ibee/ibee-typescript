@@ -168,14 +168,11 @@ To check billing before collecting a create form (as the portal does), call the
 preflight explicitly:
 
 ```ts
-import { BillingDeniedError, estimateEligibilityCostMinor } from "ibee-sdk";
+import { BillingDeniedError } from "ibee-sdk";
 
 try {
   await client.billing.requireResourceEligibility({
     workspaceId: "710995",
-    skuCode: plan.billing_catalog.sku_code,
-    // Hourly rates are estimated over 731 hours; MONTHLY/YEARLY use the period price.
-    estimatedCostMinor: estimateEligibilityCostMinor("MONTHLY", 120_000, 1),
     resourceType: "vm",
   });
 } catch (err) {
@@ -187,6 +184,14 @@ try {
 ```
 
 `requireResourceEligibility` continues only when `allowed` is exactly `true`.
+
+For VM creation, `preflightBilling` checks account status without a calculated
+cost or SKU-only monthly price probe. The selected catalog term is sent to
+create; upstream catalog quoting and Billing decide affordability there.
+A successful account check does not approve a purchase. The exported estimate
+helper and explicit eligibility amounts remain caller-requested diagnostics,
+not automatic VM admission policy.
+
 It throws `BillingAdmissionError` (502, `invalid_billing_decision`) when the
 decision is malformed or does not confirm the requested SKU (compared
 case-insensitively). `checkResourceEligibility` returns the decision without
