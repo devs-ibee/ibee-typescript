@@ -33,7 +33,6 @@ import {
   MAX_SECRET_BATCH_SIZE,
   SECRET_STORE_MAX_PAGE_LIMIT,
 } from "../validation.js";
-import { BillingResource, SECRET_MANAGER_SKU_CODE } from "./billing.js";
 import type {
   BatchCreateSecretItem,
   BatchCreateSecretsResponse,
@@ -130,11 +129,7 @@ export interface CreateSecretStoreArgs extends SecretStoreCallOptions {
   name: string;
   /** Trimmed. */
   description?: string;
-  /**
-   * Run the portal's billing check (SECRETMA-STD) before creating. Throws
-   * `BillingDeniedError` when billing does not approve. Skipped with a
-   * warning when the token lacks `billing.read`.
-   */
+  /** @deprecated No-op. The upstream mutation decides billing and lifecycle admission. */
   billingPreflight?: boolean;
   /**
    * On a name conflict: `"error"` (default) throws `ConflictError`;
@@ -174,36 +169,16 @@ export interface CreateSecretArgs extends SecretStoreCallOptions {
   name: string;
   /** Key/value entries: at least one; keys trimmed and non-blank; string values non-blank. */
   value: Record<string, unknown>;
-  /** Run the portal's SECRETMA-STD billing check first (see `createSecretStore`). */
+  /** @deprecated No-op. The upstream mutation decides billing and lifecycle admission. */
   billingPreflight?: boolean;
 }
 
 /** Operations on the Secret Store control plane. */
 export class SecretStoreResource {
-  private readonly billing: BillingResource;
 
   constructor(private readonly http: HttpClient) {
-    this.billing = new BillingResource(http);
   }
 
-  private async preflight(workspaceId: string, resourceType: "secret_store" | "secret"): Promise<void> {
-    try {
-      await this.billing.requireResourceEligibility({
-        workspaceId: workspaceId.trim(),
-        skuCode: SECRET_MANAGER_SKU_CODE,
-        resourceType,
-      });
-    } catch (err) {
-      if (err instanceof InsufficientScopeError) {
-        emitWarning(
-          "Skipping the billing preflight: the token lacks billing.read. The API still checks billing on create.",
-          "IbeeBillingWarning",
-        );
-        return;
-      }
-      throw err;
-    }
-  }
 
   /** List stores (one page). Archived stores are listed only with `includeArchived`. */
   async listSecretStores(args: ListSecretStoresArgs): Promise<SecretStoreList> {
@@ -262,10 +237,9 @@ export class SecretStoreResource {
     if (ifExists !== "error" && ifExists !== "return") {
       throw new IbeeValidationError("ifExists must be 'error' or 'return'.", "invalid_if_exists", "if_exists");
     }
-    // Body size is checked locally before the billing preflight.
+    // Body size is checked locally before the mutation.
     const body = description === undefined ? { name } : { name, description };
     assertBodySize(body);
-    if (args.billingPreflight) await this.preflight(args.workspaceId, "secret_store");
     try {
       return await this.http.request<SecretStore>({
         method: "POST",
@@ -422,10 +396,9 @@ export class SecretStoreResource {
     const path = `${storePath(args.storeId)}/secrets`;
     const secretName = normalizeSecretName(args.name, "name");
     const value = normalizeSecretValue(args.value);
-    // Body size is checked locally before the billing preflight.
+    // Body size is checked locally before the mutation.
     const body = { secret_name: secretName, value };
     assertBodySize(body);
-    if (args.billingPreflight) await this.preflight(args.workspaceId, "secret");
     return this.http.request({
       method: "POST",
       path,

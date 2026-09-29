@@ -32,11 +32,10 @@ import type {
   UpdateCdnDistributionRequest,
   UpdateCdnWebsiteConfigRequest,
 } from "../types.js";
-import { BillingResource } from "./billing.js";
 
 /** SKU the edge admits custom-domain creates against. */
 export const CDN_CUSTOM_DOMAIN_SKU_CODE = "CUSTOMDO-STD";
-/** Estimated monthly cost (minor units) the portal checks before adding a custom domain. */
+/** @deprecated Historical display estimate only; never sent or used for admission. */
 export const CDN_CUSTOM_DOMAIN_ESTIMATED_COST_MINOR = 19_900;
 
 const pathId = (value: string) => encodeURIComponent(value);
@@ -54,10 +53,8 @@ export interface WaitForCdnDomainOptions {
 
 /** CDN distributions, websites, domains, URL generation, and cache purge. */
 export class CdnResource {
-  private readonly billing: BillingResource;
 
   constructor(private readonly http: HttpClient) {
-    this.billing = new BillingResource(http);
   }
 
   /** Signed CDN URL for one object (`expires_in` >= 1 s; `disposition` inline or attachment). */
@@ -112,7 +109,7 @@ export class CdnResource {
     args: { workspaceId: string } & CreateCdnDistributionRequest & {
       /** Refuse a private origin bucket before creating (default false). */
       checkOriginPublic?: boolean;
-      /** Check billing eligibility before creating (default false). */
+      /** @deprecated No-op. The upstream mutation decides billing and lifecycle admission. */
       preflightBilling?: boolean;
     },
   ): Promise<CdnDistribution> {
@@ -140,9 +137,6 @@ export class CdnResource {
           "origin_id",
         );
       }
-    }
-    if (preflightBilling) {
-      await this.billing.requireResourceEligibility({ workspaceId, resourceType: "cdn" });
     }
     return this.http.request({
       method: "POST",
@@ -285,27 +279,18 @@ export class CdnResource {
    * Add a custom domain (lower-cased; 3..253 characters; must include a
    * subdomain such as `cdn.example.com`). The response carries the CNAME
    * record to create at your DNS provider; then call `verifyCustomDomain`
-   * or `waitForCustomDomain`. With `preflightBilling` the SDK checks the
-   * CUSTOMDO-STD eligibility first, like the portal.
+   * or `waitForCustomDomain`. `preflightBilling` is a deprecated no-op.
    */
   async createCustomDomain(args: {
     workspaceId: string;
     distributionId: string;
     domain: string;
-    /** Check billing eligibility before adding the domain (default false). */
+    /** @deprecated No-op. The upstream mutation decides billing and lifecycle admission. */
     preflightBilling?: boolean;
   }): Promise<CdnCustomDomain> {
     validateWorkspaceId(args.workspaceId);
     const id = distId(args.distributionId);
     const domain = normalizeCdnDomain(args.domain, { create: true });
-    if (args.preflightBilling) {
-      await this.billing.requireResourceEligibility({
-        workspaceId: args.workspaceId,
-        skuCode: CDN_CUSTOM_DOMAIN_SKU_CODE,
-        estimatedCostMinor: CDN_CUSTOM_DOMAIN_ESTIMATED_COST_MINOR,
-        resourceType: "custom_domain",
-      });
-    }
     return this.http.request({
       method: "POST",
       path: `/cdn/distributions/${pathId(id)}/custom-domains`,

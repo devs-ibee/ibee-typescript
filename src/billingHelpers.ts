@@ -43,7 +43,7 @@ export const CREATE_TYPE_LABELS: Readonly<Record<BillingCreateType, string>> = O
 /** Minimum INR wallet top-up, in paise (₹2,000). */
 export const INR_MINIMUM_TOPUP_MINOR = 200_000;
 
-/** Minimum wallet top-up in minor units for a currency (0 when none applies). */
+/** @deprecated Legacy display constant; not an authoritative top-up requirement. */
 export function minimumTopupMinor(currency: string | null | undefined): number {
   return String(currency ?? "").trim().toUpperCase() === "INR" ? INR_MINIMUM_TOPUP_MINOR : 0;
 }
@@ -153,7 +153,8 @@ export function billingBlockMessage(
 export const HOURLY_BILLING_PERIOD_HOURS = 731;
 
 /**
- * Amount (minor units) to send as `estimated_cost_minor`, computed the way the
+ * @deprecated Legacy arithmetic only; never use this as an admission decision.
+ * Historical amount (minor units), computed the way the
  * portal does: hourly rates are multiplied by 731 hours; MONTHLY and YEARLY
  * use the full period price.
  */

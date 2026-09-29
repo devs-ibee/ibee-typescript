@@ -215,7 +215,7 @@ test("createSecretStore trims fields and validates the name before sending", asy
   assert.deepEqual(calls[1].body, { name: "Other" });
 });
 
-test("createSecretStore billing preflight uses SECRETMA-STD and blocks on denial", async () => {
+test("createSecretStore ignores legacy billing preflight for either diagnostic decision", async () => {
   let allowed = false;
   const { calls, client } = router([
     ["POST", /^\/billing\/resource-eligibility$/, (c) => ({
@@ -223,19 +223,16 @@ test("createSecretStore billing preflight uses SECRETMA-STD and blocks on denial
     })],
     ["POST", /^\/secret-store\/stores$/, { status: 201, json: { id: "st1" } }],
   ]);
-  await assert.rejects(
-    client.secretStore.createSecretStore({ workspaceId: WS, name: "app", billingPreflight: true }),
-    (err) => err instanceof BillingDeniedError && err.topupAllowed === true && /secret store/.test(err.message),
-  );
+  await client.secretStore.createSecretStore({ workspaceId: WS, name: "app", billingPreflight: true });
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].body.sku_code, SECRET_MANAGER_SKU_CODE);
+  assert.equal(calls[0].path, "/secret-store/stores");
   assert.equal(SECRET_MANAGER_SKU_CODE, "SECRETMA-STD");
   allowed = true;
   await client.secretStore.createSecretStore({ workspaceId: WS, name: "app", billingPreflight: true });
-  assert.deepEqual(calls.slice(1).map((c) => c.path), ["/billing/resource-eligibility", "/secret-store/stores"]);
+  assert.deepEqual(calls.slice(1).map((c) => c.path), ["/secret-store/stores"]);
 });
 
-test("billing preflight is skipped with a warning when the token lacks billing.read", async () => {
+test("legacy preflight needs no billing.read scope and emits no skipped-check warning", async () => {
   const warnings = [];
   const onWarning = (w) => warnings.push(w);
   process.on("warning", onWarning);
@@ -245,10 +242,10 @@ test("billing preflight is skipped with a warning when the token lacks billing.r
       ["POST", /^\/secret-store\/stores\/st1\/secrets$/, { status: 201, json: { id: "s1" } }],
     ]);
     await client.secretStore.createSecret({ workspaceId: WS, storeId: "st1", name: "Api-Key", value: { k: "v" }, billingPreflight: true });
-    assert.equal(calls.length, 2);
-    assert.deepEqual(calls[1].body, { secret_name: "api-key", value: { k: "v" } });
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].body, { secret_name: "api-key", value: { k: "v" } });
     await new Promise((r) => setImmediate(r));
-    assert.ok(warnings.some((w) => w.name === "IbeeBillingWarning"));
+    assert.ok(!warnings.some((w) => w.name === "IbeeBillingWarning"));
   } finally {
     process.off("warning", onWarning);
   }

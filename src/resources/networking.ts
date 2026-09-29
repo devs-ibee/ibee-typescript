@@ -3,12 +3,6 @@ import { BadRequestError, ForbiddenError, IbeeError, NotFoundError } from "../er
 import { collect, paginateOffset } from "../pagination.js";
 import { sleepMs } from "../polling.js";
 import {
-  BillingResource,
-  LOAD_BALANCER_SKU_CODE,
-  NAT_GATEWAY_SKU_CODE,
-  RESERVED_IP_SKU_CODE,
-} from "./billing.js";
-import {
   IbeeValidationError,
   NAT_DELETE_IP_ACTIONS,
   NETWORK_CONNECTIVITY_MODES,
@@ -103,10 +97,8 @@ export interface WaitForNatGatewayAbsentArgs {
 }
 
 export class VpcsResource {
-  private readonly billing: BillingResource;
 
   constructor(private readonly http: HttpClient) {
-    this.billing = new BillingResource(http);
   }
 
   /**
@@ -468,7 +460,7 @@ export class VpcsResource {
    * - `billingCatalog` (NAT-GATEWAY SKU; not yet part of the published API
    *   contract) makes the gateway metered. Without it an
    *   `IbeeBillingWarning` is emitted.
-   * - `preflightBilling: true` runs the portal eligibility check first.
+   * - `preflightBilling` is a deprecated no-op; upstream decides admission.
    *
    * The call is idempotent: an existing gateway is returned (or repaired).
    */
@@ -480,6 +472,7 @@ export class VpcsResource {
     name?: string;
     billingCatalog?: Record<string, unknown>;
     validateVpc?: boolean;
+    /** @deprecated No-op. The upstream mutation decides billing and lifecycle admission. */
     preflightBilling?: boolean;
   }): Promise<NatGateway> {
     validateWorkspaceId(args.workspaceId);
@@ -507,13 +500,6 @@ export class VpcsResource {
         });
         validateReservedIpEligibleForService(rip, vpc.site_id);
       }
-    }
-    if (args.preflightBilling) {
-      await this.billing.requireResourceEligibility({
-        workspaceId: args.workspaceId,
-        skuCode: NAT_GATEWAY_SKU_CODE,
-        resourceType: "nat_gateway",
-      });
     }
     if (!billingCatalog) {
       emitBillingWarning("The NAT gateway will be created without a billing catalog (billingCatalog), so it is not metered.");
@@ -1026,10 +1012,8 @@ function targetBody(args: { vmId: string; vpcId?: string; subnetId?: string }): 
 }
 
 export class ReservedIpsResource {
-  private readonly billing: BillingResource;
 
   constructor(private readonly http: HttpClient) {
-    this.billing = new BillingResource(http);
   }
 
   async list(args: { workspaceId: string; siteId?: string }): Promise<ReservedIp[]> {
@@ -1050,27 +1034,20 @@ export class ReservedIpsResource {
    * `label` is trimmed (max 120). `billingCatalog` (RESERVED-IP SKU from the
    * IBEE billing catalog, which is not yet public; build it with
    * `networkBillingCatalog`) needs `sku_code` and `sku_id`; the field is not
-   * yet part of the published API contract. `checkBilling: true` runs the
-   * portal's eligibility preflight first.
+   * yet part of the published API contract. `checkBilling` is a deprecated no-op.
    */
   async reserve(args: {
     workspaceId: string;
     siteId: string;
     label?: string;
     billingCatalog?: Record<string, unknown>;
+    /** @deprecated No-op. The upstream mutation decides billing and lifecycle admission. */
     checkBilling?: boolean;
   }): Promise<ReservedIp> {
     validateWorkspaceId(args.workspaceId);
     const siteId = validateReservedIpSiteId(args.siteId);
     const label = validateOptionalText(args.label, "label", 120);
     const billingCatalog = reservedIpBillingCatalog(args.billingCatalog);
-    if (args.checkBilling) {
-      await this.billing.requireResourceEligibility({
-        workspaceId: args.workspaceId,
-        skuCode: RESERVED_IP_SKU_CODE,
-        resourceType: "reserved_ip",
-      });
-    }
     return this.http.request({
       method: "POST",
       path: "/networking/reserved-ips",
@@ -1238,10 +1215,8 @@ export class ReservedIpsResource {
    * Convert a standalone (non-VPC) VM's current public IPv4 into a Reserved
    * IP, keeping the address. `siteId` must be the VM's site.
    *
-   * The edge does not run billing admission on this route, so
-   * `billingCheck` (default true) runs the RESERVED-IP eligibility preflight
-   * first (needs the `billing.read` scope; pass `billingCheck: false` to
-   * skip). `billingCatalog` follows the `reserve` rules.
+   * `billingCheck` is a deprecated no-op. Upstream decides admission.
+   * `billingCatalog` follows the `reserve` rules.
    *
    * Not yet part of the published API contract; behaviour may change.
    */
@@ -1251,6 +1226,7 @@ export class ReservedIpsResource {
     siteId: string;
     label?: string;
     billingCatalog?: Record<string, unknown>;
+    /** @deprecated No-op. The upstream mutation decides billing and lifecycle admission. */
     billingCheck?: boolean;
   }): Promise<ReservedIp> {
     validateWorkspaceId(args.workspaceId);
@@ -1264,25 +1240,6 @@ export class ReservedIpsResource {
     const siteId = validateReservedIpSiteId(args.siteId);
     const label = validateOptionalText(args.label, "label", 120);
     const billingCatalog = reservedIpBillingCatalog(args.billingCatalog);
-    if (args.billingCheck !== false) {
-      try {
-        await this.billing.requireResourceEligibility({
-          workspaceId: args.workspaceId,
-          skuCode: RESERVED_IP_SKU_CODE,
-          resourceType: "reserved_ip",
-        });
-      } catch (err) {
-        if (err instanceof ForbiddenError) {
-          throw new ForbiddenError(
-            err.statusCode,
-            err.body,
-            "This check needs the billing.read scope; grant it or pass billingCheck: false to skip.",
-            { headers: err.headers, code: err.code },
-          );
-        }
-        throw err;
-      }
-    }
     return this.http.request({
       method: "POST",
       path: "/networking/reserved-ips/convert",
@@ -1615,17 +1572,15 @@ interface CreateLoadBalancerArgs extends LoadBalancerExtras {
   routing?: LoadBalancerRouting;
   /** Supplied automatically (managed certificate) for https / tls_passthrough. */
   tls?: LoadBalancerTls;
-  /** Run the LOADBALA-STD billing eligibility preflight first (not sent). */
+  /** @deprecated No-op. The upstream mutation decides billing and lifecycle admission. */
   checkBilling?: boolean;
 }
 
 const lbPath = (id: string) => pathId(validatePathId(id, "load_balancer_id"));
 
 export class LoadBalancersResource {
-  private readonly billing: BillingResource;
 
   constructor(private readonly http: HttpClient) {
-    this.billing = new BillingResource(http);
   }
 
   /**
@@ -1652,13 +1607,6 @@ export class LoadBalancersResource {
     validateWorkspaceId(args.workspaceId);
     const { workspaceId, checkBilling, ...input } = args;
     const body = buildLoadBalancerBody(layer, "create", input as LoadBalancerBodyInput);
-    if (checkBilling) {
-      await this.billing.requireResourceEligibility({
-        workspaceId,
-        skuCode: LOAD_BALANCER_SKU_CODE,
-        resourceType: "load_balancer",
-      });
-    }
     return this.http.request({ method: "POST", path: `/networking/load-balancers/${layer}`, workspaceId, body });
   }
 
