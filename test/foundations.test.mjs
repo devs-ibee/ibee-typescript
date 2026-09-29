@@ -83,9 +83,9 @@ const client = (fetchImpl, extra = {}) => new Ibee({ token: "t", fetch: fetchImp
 
 // ------------------------------------------------------------- packaging
 
-test("version is 0.4.0 and CJS build exports the same surface", () => {
-  assert.equal(VERSION, "0.4.0");
-  assert.equal(cjs.VERSION, "0.4.0");
+test("version is 0.4.1 and CJS build exports the same surface", () => {
+  assert.equal(VERSION, "0.4.1");
+  assert.equal(cjs.VERSION, "0.4.1");
   assert.equal(typeof cjs.IbeeValidationError, "function");
   assert.equal(typeof cjs.BillingDeniedError, "function");
   assert.equal(IbeeEnvironment.PRODUCTION, IbeeEnvironment.DEFAULT);

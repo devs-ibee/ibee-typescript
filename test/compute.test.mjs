@@ -245,7 +245,7 @@ test("VPC placement: NAT only in NAT VPCs, Reserved IP SKU attached, primary att
   assert.equal(calls.at(-1).body.network_connectivity, "private");
 });
 
-test("create billing preflight uses the plan SKU and a 731-hour estimate; create is never retried", async () => {
+test("create preflight delegates account status without a price estimate; create is never retried", async () => {
   const decisions = [];
   const { calls, client } = router([
     ...catalogRoutes(),
@@ -259,13 +259,39 @@ test("create billing preflight uses the plan SKU and a 731-hour estimate; create
     client.cloudVms.create({ workspaceId: WS, name: "web", site_id: "site-1", plan_id: "plan-1", template_id: "ubuntu-24", preflightBilling: true }),
     (err) => err.statusCode === 503,
   );
-  assert.deepEqual(decisions, [{ sku_code: "STANDARD-2-8-50", estimated_cost_minor: 500 * 731 }]);
+  assert.deepEqual(decisions, [{}]);
   // Even with retries enabled, the create POST is sent once.
   const r2 = router([...catalogRoutes(), ["POST", /^\/compute\/cloud-vms$/, { status: 503, json: {} }]]);
   const c2 = new Ibee({ token: "t", fetch: r2.fetchImpl, maxRetries: 2 });
   await assert.rejects(c2.cloudVms.create({ workspaceId: WS, name: "web", site_id: "site-1", plan_id: "plan-1", template_id: "ubuntu-24" }));
   assert.equal(r2.calls.filter((c) => c.method === "POST").length, 1);
   assert.equal(calls.filter((c) => c.method === "POST" && c.path === "/compute/cloud-vms").length, 1);
+});
+
+for (const family of ["cloud", "gpu"]) {
+  test(`${family} preflight preserves upstream admission and sends no local cost`, async () => {
+    const { calls, client } = router([
+      ...catalogRoutes([family === "gpu" ? GPU_PLAN : PLAN]),
+      ["POST", /^\/billing\/resource-eligibility$/, { organization_id: "o1", allowed: true, reason: "status_only", effective_balance_minor: 3500 }],
+      ["POST", /^\/compute\/(cloud|gpu)-vms$/, { status: 402, json: { error: "billing_denied", billing_reason: "insufficient_balance", billing_sku_code: "GPU-A100-2", admission_context_id: "adm_upstream" } }],
+    ]);
+    await assert.rejects(client[family === "gpu" ? "gpuVms" : "cloudVms"].create({
+      workspaceId: WS, name: "test", site_id: "site-1", plan_id: family === "gpu" ? "gpu-1" : "plan-1",
+      template_id: "ubuntu-24", billing_term: "HOURLY", preflightBilling: true,
+    }), (err) => err.statusCode === 402 && err.admissionContextId === "adm_upstream");
+    assert.deepEqual(calls.find(c => c.path === "/billing/resource-eligibility").body, {});
+    assert.equal(calls.filter(c => c.method === "POST" && c.path === `/compute/${family}-vms`).length, 1);
+  });
+}
+
+test("an upstream account denial stops VM creation", async () => {
+  const { calls, client } = router([
+    ...catalogRoutes(),
+    ["POST", /^\/billing\/resource-eligibility$/, { organization_id: "o1", allowed: false, reason: "billing_suspended" }],
+    ["POST", /^\/compute\/cloud-vms$/, ACCEPTED],
+  ]);
+  await assert.rejects(client.cloudVms.create({ workspaceId: WS, name: "web", site_id: "site-1", plan_id: "plan-1", template_id: "ubuntu-24", preflightBilling: true }), err => err.statusCode === 402);
+  assert.equal(calls.filter(c => c.method === "POST" && c.path === "/compute/cloud-vms").length, 0);
 });
 
 test("create with wait polls the operation", async () => {
