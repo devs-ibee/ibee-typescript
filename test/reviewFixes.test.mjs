@@ -133,7 +133,7 @@ test("S3 credentials are labelled 'S3 credential' in billing messages", async ()
   const err = apiErrorFromResponse(402, { error: "billing_denied", billing_reason: "insufficient_balance" }, { path: "/object-storage/credentials" });
   assert.match(err.message, /this S3 credential/);
   const { client } = router([
-    ["POST", /resource-eligibility$/, (c) => ({ allowed: false, organization_id: "o", reason: "insufficient_balance", sku_code: c.body.sku_code })],
+    ["POST", /object-storage\/credentials$/, { status: 402, json: { error: "billing_denied", billing_reason: "insufficient_balance" } }],
   ]);
   await assert.rejects(
     client.objectStorage.createS3Credential({ workspaceId: WS, preflightBilling: true }),

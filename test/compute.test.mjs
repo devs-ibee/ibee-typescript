@@ -259,7 +259,7 @@ test("create preflight delegates account status without a price estimate; create
     client.cloudVms.create({ workspaceId: WS, name: "web", site_id: "site-1", plan_id: "plan-1", template_id: "ubuntu-24", preflightBilling: true }),
     (err) => err.statusCode === 503,
   );
-  assert.deepEqual(decisions, [{}]);
+  assert.deepEqual(decisions, []);
   // Even with retries enabled, the create POST is sent once.
   const r2 = router([...catalogRoutes(), ["POST", /^\/compute\/cloud-vms$/, { status: 503, json: {} }]]);
   const c2 = new Ibee({ token: "t", fetch: r2.fetchImpl, maxRetries: 2 });
@@ -279,19 +279,20 @@ for (const family of ["cloud", "gpu"]) {
       workspaceId: WS, name: "test", site_id: "site-1", plan_id: family === "gpu" ? "gpu-1" : "plan-1",
       template_id: "ubuntu-24", billing_term: "HOURLY", preflightBilling: true,
     }), (err) => err.statusCode === 402 && err.admissionContextId === "adm_upstream");
-    assert.deepEqual(calls.find(c => c.path === "/billing/resource-eligibility").body, {});
+    assert.equal(calls.some(c => c.path === "/billing/resource-eligibility"), false);
     assert.equal(calls.filter(c => c.method === "POST" && c.path === `/compute/${family}-vms`).length, 1);
   });
 }
 
-test("an upstream account denial stops VM creation", async () => {
+test("a diagnostic denial cannot veto VM creation", async () => {
   const { calls, client } = router([
     ...catalogRoutes(),
     ["POST", /^\/billing\/resource-eligibility$/, { organization_id: "o1", allowed: false, reason: "billing_suspended" }],
     ["POST", /^\/compute\/cloud-vms$/, ACCEPTED],
   ]);
-  await assert.rejects(client.cloudVms.create({ workspaceId: WS, name: "web", site_id: "site-1", plan_id: "plan-1", template_id: "ubuntu-24", preflightBilling: true }), err => err.statusCode === 402);
-  assert.equal(calls.filter(c => c.method === "POST" && c.path === "/compute/cloud-vms").length, 0);
+  await client.cloudVms.create({ workspaceId: WS, name: "web", site_id: "site-1", plan_id: "plan-1", template_id: "ubuntu-24", preflightBilling: true });
+  assert.equal(calls.filter(c => c.method === "POST" && c.path === "/compute/cloud-vms").length, 1);
+  assert.equal(calls.some(c => c.path === "/billing/resource-eligibility"), false);
 });
 
 test("create with wait polls the operation", async () => {
@@ -346,7 +347,7 @@ test("delete asks for the public IP choice like the portal (default release)", a
     reserved_ip_label: "web",
     reserved_ip_billing_catalog: { sku_id: 9, sku_code: "RIP-STD" },
   });
-  assert.ok(calls.some((c) => c.path === "/billing/resource-eligibility"));
+  assert.ok(!calls.some((c) => c.path === "/billing/resource-eligibility"));
   vm = { ...vm, reserved_public_ip_id: "rip-1" };
   await client.cloudVms.delete({ workspaceId: WS, vmId: VM1 });
   assert.equal(calls.at(-1).body, undefined);

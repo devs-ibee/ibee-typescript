@@ -73,7 +73,6 @@ import {
   vmListQuery,
   type VmStateAction,
 } from "../validation.js";
-import { BillingResource } from "./billing.js";
 import type {
   BackupPolicy,
   BackupPolicyDisableRequest,
@@ -191,7 +190,7 @@ export interface VmCreateOptions {
   workspaceId: string;
   /** Generated per VM when omitted. */
   idempotencyKey?: string;
-  /** Check Billing account status first (needs `billing.read`). Upstream create decides selected-term affordability. Default false. */
+  /** @deprecated No-op. The upstream mutation decides billing and lifecycle admission. */
   preflightBilling?: boolean;
   /**
    * Read the plan and image from the compute catalog to fill and check the
@@ -278,7 +277,6 @@ export class VmResource<
   TVm extends CloudVm = CloudVm,
 > {
   private readonly operations: OperationsResource;
-  private readonly billing: BillingResource;
 
   constructor(
     private readonly http: HttpClient,
@@ -286,7 +284,6 @@ export class VmResource<
     private readonly vmType: "cloud" | "gpu",
   ) {
     this.operations = new OperationsResource(http);
-    this.billing = new BillingResource(http);
   }
 
   private base(id?: string): string {
@@ -674,14 +671,6 @@ export class VmResource<
       fail("Windows VMs require a Windows licence SKU (windows_license).", "windows_license_required", "windows_license");
     }
 
-    if (preflightBilling) {
-      // Eligibility has no selected-term input; a SKU-only probe uses monthly
-      // pricing. Check account status and let upstream admission price create.
-      await this.billing.requireResourceEligibility({
-        workspaceId,
-        resourceType: isGpu ? "gpu_vm" : "vm",
-      });
-    }
 
     const body: Record<string, unknown> = {
       name,
@@ -750,7 +739,7 @@ export class VmResource<
      * yet: copy `billing_catalog` from an existing Reserved IP in the same site.
      */
     reservedIpBillingCatalog?: BillingCatalogSelection;
-    /** Check billing eligibility for the Reserved IP first (reserve only). */
+    /** @deprecated No-op. The upstream mutation decides billing and lifecycle admission. */
     preflightBilling?: boolean;
     requestedBy?: string;
   } & VmActionOptions): Promise<OperationAcceptedResult> {
@@ -783,13 +772,6 @@ export class VmResource<
           field: "reserved_ip_billing_catalog",
         });
         body.reserved_ip_billing_catalog = catalog;
-        if (args.preflightBilling) {
-          await this.billing.requireResourceEligibility({
-            workspaceId: args.workspaceId,
-            skuCode: catalog.sku_code,
-            resourceType: "reserved_ip",
-          });
-        }
       }
     }
     if (args.requestedBy !== undefined) body = { ...(body ?? {}), requested_by: args.requestedBy };
@@ -1406,7 +1388,7 @@ export class VmResource<
     workspaceId: string;
     vmId: string;
     request: SnapshotCreateRequest;
-    /** Billing eligibility check for the snapshot SKU first. */
+    /** @deprecated No-op. The upstream mutation decides billing and lifecycle admission. */
     preflightBilling?: boolean;
     /** Read the VM: refuse busy states and unattached selected volumes. */
     checkState?: boolean;
@@ -1442,13 +1424,6 @@ export class VmResource<
           fail(`Selected data volume(s) are not attached to this VM: ${missing.join(", ")}.`, "volume_not_attached", "selected_data_volume_ids");
         }
       }
-    }
-    if (args.preflightBilling) {
-      await this.billing.requireResourceEligibility({
-        workspaceId: args.workspaceId,
-        skuCode: catalog.sku_code,
-        resourceType: "snapshot",
-      });
     }
     const snapshot = await this.http.request<SnapshotSet>({
       method: "POST",
@@ -1830,6 +1805,7 @@ export class VmResource<
     workspaceId: string;
     vmId: string;
     request?: BackupPolicyEnableRequest;
+    /** @deprecated No-op. The upstream mutation decides billing and lifecycle admission. */
     preflightBilling?: boolean;
   }): Promise<BackupPolicy> {
     validateWorkspaceId(args.workspaceId);
@@ -1867,13 +1843,6 @@ export class VmResource<
       body.incremental_enabled = req.incremental_enabled ?? true;
     }
     if (req.requested_by !== undefined) body.requested_by = req.requested_by;
-    if (args.preflightBilling) {
-      await this.billing.requireResourceEligibility({
-        workspaceId: args.workspaceId,
-        skuCode: catalog.sku_code,
-        resourceType: "backup",
-      });
-    }
     return this.http.request({
       method: "POST",
       path: `${this.base(vmId)}/backups/enable`,
@@ -1925,6 +1894,7 @@ export class VmResource<
     vmId: string;
     request?: ManualBackupRunRequest;
     checkState?: boolean;
+    /** @deprecated No-op. The upstream mutation decides billing and lifecycle admission. */
     preflightBilling?: boolean;
     /** Wait for the run to succeed (RecoveryFailedError on failure). */
     wait?: boolean | RecoveryWaitOptions;
@@ -1950,13 +1920,6 @@ export class VmResource<
       if (!policy || policy.enabled !== true) {
         fail("Backup policy is disabled for this VM. Enable backups before creating a backup run.", "backups_disabled", "vm_id");
       }
-    }
-    if (args.preflightBilling) {
-      await this.billing.requireResourceEligibility({
-        workspaceId: args.workspaceId,
-        skuCode: catalog.sku_code,
-        resourceType: "backup",
-      });
     }
     const run = await this.http.request<BackupRun>({
       method: "POST",

@@ -23,7 +23,6 @@ import type {
   S3CredentialList,
   S3CredentialRevoked,
 } from "../types.js";
-import { BillingResource } from "./billing.js";
 
 /** SKU the edge admits bucket and S3 credential creates against. */
 export const OBJECT_STORAGE_SKU_CODE = "OBJECTST-STD";
@@ -32,10 +31,8 @@ const bucketPath = (name: string) => `/object-storage/buckets/${encodeURICompone
 
 /** Buckets and S3 credentials. */
 export class ObjectStorageResource {
-  private readonly billing: BillingResource;
 
   constructor(private readonly http: HttpClient) {
-    this.billing = new BillingResource(http);
   }
 
   /** One page of buckets (limit 1..1000, server default 100). */
@@ -104,19 +101,12 @@ export class ObjectStorageResource {
     objectLockEnabled?: boolean;
     defaultRetention?: DefaultRetention;
     tags?: string[];
-    /** Check billing eligibility (OBJECTST-STD) before creating (default false). */
+    /** @deprecated No-op. The upstream mutation decides billing and lifecycle admission. */
     preflightBilling?: boolean;
   }): Promise<Bucket> {
     validateWorkspaceId(args.workspaceId);
     const region = resolveObjectStorageRegion(args.region, this.http.baseUrl);
     const body = buildBucketCreateBody({ ...args, region });
-    if (args.preflightBilling) {
-      await this.billing.requireResourceEligibility({
-        workspaceId: args.workspaceId,
-        skuCode: OBJECT_STORAGE_SKU_CODE,
-        resourceType: "object_storage",
-      });
-    }
     return this.http.request({
       method: "POST",
       path: "/object-storage/buckets",
@@ -211,18 +201,11 @@ export class ObjectStorageResource {
     permissionType?: S3PermissionType | (string & {});
     bucketScope?: S3BucketScope;
     allowedBuckets?: string[];
-    /** Check billing eligibility (OBJECTST-STD) before creating (default false). */
+    /** @deprecated No-op. The upstream mutation decides billing and lifecycle admission. */
     preflightBilling?: boolean;
   }): Promise<S3CredentialCreated> {
     validateWorkspaceId(args.workspaceId);
     const body = buildS3CredentialBody(args);
-    if (args.preflightBilling) {
-      await this.billing.requireResourceEligibility({
-        workspaceId: args.workspaceId,
-        skuCode: OBJECT_STORAGE_SKU_CODE,
-        resourceType: "s3_credential",
-      });
-    }
     return this.http.request({
       method: "POST",
       path: "/object-storage/credentials",

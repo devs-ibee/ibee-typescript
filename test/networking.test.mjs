@@ -373,12 +373,13 @@ test("NAT create requires a nat_gateway VPC and an eligible Reserved IP", async 
 test("NAT create preflight and edge denials become BillingDeniedError", async () => {
   const { calls, client } = router([
     ["POST", /^\/billing\/resource-eligibility$/, DENY("NAT-GATEWAY")],
+    ["POST", /nat-gateways$/, { status: 402, json: { error: "billing_denied", billing_reason: "insufficient_balance" } }],
   ]);
   await assert.rejects(
     client.vpcs.createNatGateway({ workspaceId: WS, vpcId: "v", validateVpc: false, preflightBilling: true, billingCatalog: NAT_CATALOG }),
     (e) => e instanceof BillingDeniedError && e.topupAllowed === true && /NAT gateway/.test(e.message),
   );
-  assert.equal(calls[0].body.sku_code, "NAT-GATEWAY");
+  assert.equal(calls[0].path, "/networking/vpcs/v/nat-gateways");
   assert.equal(calls.length, 1);
 
   const edge = router([
@@ -608,9 +609,9 @@ test("reserve validates site, label and billing catalog, with optional preflight
   );
   assert.equal(calls.length, 0);
   await client.reservedIps.reserve({ workspaceId: WS, siteId: " s ", label: " web ", billingCatalog: RIP_CATALOG, checkBilling: true });
-  assert.deepEqual(sent(calls), ["POST /billing/resource-eligibility", "POST /networking/reserved-ips"]);
-  assert.equal(calls[0].body.sku_code, "RESERVED-IP");
-  assert.deepEqual(calls[1].body, {
+  assert.deepEqual(sent(calls), ["POST /networking/reserved-ips"]);
+  assert.ok(!calls.some(c => c.path === "/billing/resource-eligibility"));
+  assert.deepEqual(calls[0].body, {
     site_id: "s", label: "web", billing_catalog: { sku_id: "sku-rip", sku_code: "RESERVED-IP", unit_price_minor: 250 },
   });
 });
@@ -692,16 +693,16 @@ test("convert runs the RESERVED-IP preflight and posts to /convert", async () =>
   await assert.rejects(client.reservedIps.convert({ workspaceId: WS, vmId: "vm", siteId: "" }), isValidation("invalid_site_id", /valid location/));
   const rip = await client.reservedIps.convert({ workspaceId: WS, vmId: " vm ", siteId: "s", label: " keep " });
   assert.equal(rip.allocation_method, "converted");
-  assert.deepEqual(sent(calls), ["POST /billing/resource-eligibility", "POST /networking/reserved-ips/convert"]);
-  assert.deepEqual(calls[1].body, { vm_id: "vm", site_id: "s", label: "keep" });
+  assert.deepEqual(sent(calls), ["POST /networking/reserved-ips/convert"]);
+  assert.deepEqual(calls[0].body, { vm_id: "vm", site_id: "s", label: "keep" });
   calls.length = 0;
   await client.reservedIps.convert({ workspaceId: WS, vmId: "vm", siteId: "s", billingCheck: false });
   assert.deepEqual(sent(calls), ["POST /networking/reserved-ips/convert"]);
 
-  const denied = router([["POST", /resource-eligibility$/, { status: 403, json: { error: "insufficient_scope", required_scope: "billing.read" } }]]);
+  const denied = router([["POST", /reserved-ips\/convert$/, { status: 403, json: { error: "insufficient_scope", required_scope: "networking.write" } }]]);
   await assert.rejects(
     denied.client.reservedIps.convert({ workspaceId: WS, vmId: "vm", siteId: "s" }),
-    (e) => e instanceof ForbiddenError && /billingCheck: false/.test(e.message),
+    (e) => e instanceof ForbiddenError && e.requiredScope === "networking.write",
   );
 });
 
@@ -843,8 +844,8 @@ test("L7 create: managed TLS for https, custom domain and rule normalisation", a
     rules: [{ priority: 2, path_prefix: " ", headers: { " x-env ": " prod " } }],
     checkBilling: true,
   });
-  assert.equal(calls[0].body.sku_code, "LOADBALA-STD");
-  assert.deepEqual(calls[1].body, {
+  assert.ok(!calls.some(c => c.path === "/billing/resource-eligibility"));
+  assert.deepEqual(calls[0].body, {
     name: "web",
     protocol: "https",
     backends: [{ target: "web-svc", port: 8080 }],
