@@ -40,12 +40,12 @@ export const CREATE_TYPE_LABELS: Readonly<Record<BillingCreateType, string>> = O
   container_registry: "container registry",
 });
 
-/** Minimum INR wallet top-up, in paise (₹2,000). */
-export const INR_MINIMUM_TOPUP_MINOR = 200_000;
+/** @deprecated Unknown: only upstream can supply a minimum. */
+export const INR_MINIMUM_TOPUP_MINOR = null;
 
-/** Minimum wallet top-up in minor units for a currency (0 when none applies). */
-export function minimumTopupMinor(currency: string | null | undefined): number {
-  return String(currency ?? "").trim().toUpperCase() === "INR" ? INR_MINIMUM_TOPUP_MINOR : 0;
+/** @deprecated Currency alone cannot establish a minimum; returns unknown. */
+export function minimumTopupMinor(currency: string | null | undefined): number | null {
+  return null;
 }
 
 /** Billing reasons that deny a create. Manual admin reason codes may also appear. */
@@ -59,12 +59,6 @@ export const BILLING_DENIED_REASONS: ReadonlySet<string> = new Set([
   "overage_cap_exceeded",
   "dunning_active",
   "dunning_grace_expired",
-]);
-
-const TOPUP_REASONS = new Set([
-  "initial_topup_required",
-  "insufficient_balance",
-  "billing_limit_exhausted",
 ]);
 
 /** Anything that looks like a billing decision, or a bare reason string. */
@@ -86,20 +80,11 @@ function field(decision: BillingDecisionLike, key: string): unknown {
 }
 
 /**
- * True when adding wallet credits in the portal can resolve the denial.
- * (`allowed_operations` contains `billing_topup`, or the reason is
- * `initial_topup_required`, `insufficient_balance` or `billing_limit_exhausted`.)
+ * True only when upstream explicitly lists the billing_topup operation.
  */
 export function isBillingTopupAllowed(decision: BillingDecisionLike): boolean {
   const ops = field(decision, "allowed_operations");
-  if (Array.isArray(ops) && ops.map((o) => String(o ?? "").trim()).includes("billing_topup")) {
-    return true;
-  }
-  const reason =
-    typeof decision === "string"
-      ? decision
-      : String(field(decision, "reason") ?? field(decision, "can_create_reason") ?? "");
-  return TOPUP_REASONS.has(reason.trim().toLowerCase());
+  return Array.isArray(ops) && ops.some(operation => typeof operation === "string" && operation === "billing_topup");
 }
 
 /**
@@ -119,23 +104,23 @@ export function billingBlockMessage(
       : String(field(decision, "can_create_reason") || field(decision, "reason") || "")
   ).trim();
   const state = String(options.billingState ?? field(decision, "billing_state") ?? "").trim().toUpperCase();
-  const currency = String(options.currency ?? field(decision, "currency") ?? "").trim().toUpperCase();
   const label =
     (CREATE_TYPE_LABELS as Record<string, string>)[String(createType ?? "").trim().toLowerCase()] ?? "resource";
+  const guidance = isBillingTopupAllowed(decision)
+    ? "You can add credits in the IBEE portal."
+    : "Review billing for available actions.";
 
   if (reason === "initial_topup_required") {
-    return currency && currency !== "INR"
-      ? `Add funds to your wallet before creating your first ${label}.`
-      : `Add at least ₹2,000 to your wallet before creating your first ${label}.`;
+    return `Billing requires an initial wallet top-up before creating your first ${label}. ${guidance}`;
   }
   if (reason === "insufficient_balance") {
-    return `Your available wallet balance does not cover this ${label}. Add credits and try again.`;
+    return `Your available wallet balance does not cover this ${label}. ${guidance}`;
   }
   if (reason === "credit_limit_exceeded") {
     return `Creating this ${label} would exceed this organization's credit limit.`;
   }
   if (reason === "billing_limit_exhausted" || state === "PAST_DUE") {
-    return `Billing needs attention before creating a ${label}. Add credits or settle the outstanding usage, then try again.`;
+    return `Billing needs attention before creating a ${label}. ${guidance}`;
   }
   if (reason === "overage_cap_exceeded" || state === "HARD_SUSPENDED") {
     return `This organization is billing-suspended, so new ${label} creation is blocked. Please resolve billing before trying again.`;
@@ -153,7 +138,8 @@ export function billingBlockMessage(
 export const HOURLY_BILLING_PERIOD_HOURS = 731;
 
 /**
- * Amount (minor units) to send as `estimated_cost_minor`, computed the way the
+ * @deprecated Legacy arithmetic only; never use this as an admission decision.
+ * Historical amount (minor units), computed the way the
  * portal does: hourly rates are multiplied by 731 hours; MONTHLY and YEARLY
  * use the full period price.
  */

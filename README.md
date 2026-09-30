@@ -157,48 +157,21 @@ Every request sends exactly one `workspace_id` query parameter. Workspace IDs
 must match `^[1-9][0-9]*$`; anything else throws `IbeeValidationError`
 (code `invalid_workspace_id`) before a request is made.
 
-## Billing preflight
+## Billing and lifecycle authority
 
-Every create helper sends exactly one product request. The public edge performs
-the authoritative billing check before it forwards a billable request to the
-product service. When billing refuses, the create throws `BillingDeniedError`
-(HTTP 402) with the same message the IBEE portal shows.
+All product mutations go to the upstream API for fresh Billing and lifecycle decisions.
+The SDK does not query eligibility, estimate prices, or veto writes based on a diagnostic decision.
+Catalog shape, selected term, tenant/workspace, scope, resource state, and destructive-action checks remain in place.
+Upstream billing denial, restriction, suspension, and inactive-token errors propagate to callers.
 
-To check billing before collecting a create form (as the portal does), call the
-preflight explicitly:
+`preflightBilling`, `billingPreflight`, `checkBilling`, and `billingCheck` are deprecated compatibility no-ops on product methods, for both true and false values.
+They do not require `billing.read`. This applies to compute, recovery, networking, storage, CDN and secrets.
 
-```ts
-import { BillingDeniedError } from "ibee-sdk";
-
-try {
-  await client.billing.requireResourceEligibility({
-    workspaceId: "710995",
-    resourceType: "vm",
-  });
-} catch (err) {
-  if (err instanceof BillingDeniedError) {
-    console.error(err.message); // e.g. "Your available wallet balance does not cover this cloud VM. ..."
-    if (err.topupAllowed) console.error("Add credits in the IBEE portal (Billing > Add Credits), then retry.");
-  }
-}
-```
-
-`requireResourceEligibility` continues only when `allowed` is exactly `true`.
-
-For VM creation, `preflightBilling` checks account status without a calculated
-cost or SKU-only monthly price probe. The selected catalog term is sent to
-create; upstream catalog quoting and Billing decide affordability there.
-A successful account check does not approve a purchase. The exported estimate
-helper and explicit eligibility amounts remain caller-requested diagnostics,
-not automatic VM admission policy.
-
-It throws `BillingAdmissionError` (502, `invalid_billing_decision`) when the
-decision is malformed or does not confirm the requested SKU (compared
-case-insensitively). `checkResourceEligibility` returns the decision without
-throwing, including `billing_state`, `service_enforcement_state`,
-`allowed_operations` and `resource_limits`. The preflight does not reserve
-funds. `billingBlockMessage`, `isBillingTopupAllowed` and `minimumTopupMinor`
-are exported for applications that render their own UI.
+Use `client.billing.checkResourceEligibility(...)` for an explicit diagnostic query.
+It returns `allowed: false` as data and supports `REVOKE_CREDENTIAL` and `SECURITY_RECOVERY`.
+The explicitly invoked `requireResourceEligibility` convenience method retains its throwing contract for compatibility; product methods never call it.
+An explicit query does not authorize or reserve funds for a later mutation.
+Legacy estimate utilities are deprecated arithmetic helpers, not authoritative prices or admission rules. `minimumTopupMinor(...)` and `INR_MINIMUM_TOPUP_MINOR` now return `null` (unknown); callers must obtain any minimum and currency upstream. `isBillingTopupAllowed(...)` and error `topupAllowed` are true only when upstream explicitly lists `billing_topup` in `allowed_operations`; reasons and absent/empty operation lists never grant permission.
 
 ## Secret Store lifecycle
 
@@ -536,7 +509,7 @@ attached with `quantity` equal to the vCPU count. The public API cannot list
 this SKU yet. `ssh_key_ids` are resolved under the VM creator, so creates made
 with an API token should use inline `ssh_keys`.
 
-Pass `preflightBilling: true` to run the billing eligibility check first. A
+`preflightBilling` is a deprecated no-op. A
 VM create is never retried automatically, because replaying it can surface as
 "VM with this name already exists".
 
@@ -724,7 +697,7 @@ price entry you already have. Without a catalog the SDK emits an
   virtual IP, pass `detachFromService: true`.
 - A VM without a VPC attachment raises `ReservedIpTargetUnsupportedError`.
   `reservedIps.convert` turns such a VM's current public IP into a Reserved
-  IP. It runs the RESERVED-IP billing preflight by default (`billingCheck`).
+  IP. `billingCheck` is a deprecated no-op.
 
 **Firewalls**
 
@@ -746,8 +719,7 @@ price entry you already have. Without a catalog the SDK emits an
   certificates, and sticky sessions on L4, are rejected.
 - `customDomain` works on L7 https only; `updateL7({ customDomain: null })`
   removes it.
-- `list`/`get` accept `includeDeleted`, and `checkBilling` runs the
-  LOADBALA-STD preflight.
+- `list`/`get` accept `includeDeleted`; `checkBilling` is a deprecated no-op.
 
 These are not yet part of the published API contract:
 
