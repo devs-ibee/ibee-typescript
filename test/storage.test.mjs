@@ -524,11 +524,10 @@ test("createBucket defaults the region per environment and can preflight billing
     ["POST", /^\/object-storage\/buckets$/, (c) => ({ ...c.body })],
   ]);
   await client.objectStorage.createBucket({ workspaceId: WS, name: "assets", preflightBilling: true });
-  assert.deepEqual(sent(calls), ["POST /billing/resource-eligibility", "POST /object-storage/buckets"]);
-  assert.deepEqual(calls[0].body, { sku_code: "OBJECTST-STD" });
-  assert.deepEqual(calls[1].body, { name: "assets", region: "in-south-1" });
+  assert.deepEqual(sent(calls), ["POST /object-storage/buckets"]);
+  assert.deepEqual(calls[0].body, { name: "assets", region: "in-south-1" });
   await assert.rejects(client.objectStorage.createBucket({ workspaceId: WS, name: "Assets" }), isValidation("invalid_bucket_name"));
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 1);
 
   const dev = router([["POST", /^\/object-storage\/buckets$/, {}]], { environment: IbeeEnvironment.DEVELOPMENT });
   await dev.client.objectStorage.createBucket({ workspaceId: WS, name: "assets", isPublic: false });
@@ -634,7 +633,7 @@ test("distribution create/update validate fields and can check the origin bucket
   bucket = { name: "assets", is_public: true };
   await client.cdn.createDistribution({ workspaceId: WS, name: " site ", origin_id: " assets ", checkOriginPublic: true, preflightBilling: true, cache_policy: "media" });
   assert.deepEqual(calls.at(-1).body, { name: "site", origin_type: "bucket", origin_id: "assets", cache_policy: "media" });
-  assert.deepEqual(calls.at(-2).body, {}, "CDN preflight has no SKU, like the portal");
+  assert.ok(!calls.some(c => c.path === "/billing/resource-eligibility"));
   const n = calls.length;
   await assert.rejects(client.cdn.createDistribution({ workspaceId: WS, name: " ", origin_id: "a" }), isValidation("invalid_name", /Please enter a name/));
   await assert.rejects(client.cdn.createDistribution({ workspaceId: WS, name: "a", origin_id: " " }), isValidation("invalid_origin_id", /select a bucket/));
@@ -708,12 +707,12 @@ test("website, domain, URL and metrics inputs are validated", async () => {
   await client.cdn.updateWebsiteConfig({ workspaceId: WS, distributionId: "d1" });
   assert.deepEqual(calls[0].body, { index_document: "index.html" });
   await client.cdn.createCustomDomain({ workspaceId: WS, distributionId: "d1", domain: "CDN.example.com", preflightBilling: true });
-  assert.deepEqual(calls[1].body, { sku_code: "CUSTOMDO-STD", estimated_cost_minor: 19900 });
-  assert.deepEqual(calls[2].body, { domain: "cdn.example.com" });
+  assert.deepEqual(calls[1].body, { domain: "cdn.example.com" });
+  assert.ok(!calls.some(c => c.path === "/billing/resource-eligibility"));
   await client.cdn.getCustomDomain({ workspaceId: WS, distributionId: "d1", domain: " CDN.example.com " });
-  assert.equal(calls[3].path, "/cdn/distributions/d1/custom-domains/cdn.example.com");
+  assert.equal(calls[2].path, "/cdn/distributions/d1/custom-domains/cdn.example.com");
   await client.cdn.generateUrl({ workspaceId: WS, bucket_name: " assets ", object_key: "a.png", expires_in: 60 });
-  assert.deepEqual(calls[4].body, { bucket_name: "assets", object_key: "a.png", expires_in: 60 });
+  assert.deepEqual(calls[3].body, { bucket_name: "assets", object_key: "a.png", expires_in: 60 });
   const policies = await client.cdn.listCachePolicies({ workspaceId: WS });
   assert.equal(policies.policies[0].id, "static-assets");
   await client.cdn.getDistributionMetrics({ workspaceId: WS, distributionId: "d1" });

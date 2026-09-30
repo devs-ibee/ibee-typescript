@@ -297,7 +297,7 @@ export class BillingDeniedError extends PaymentRequiredError {
   readonly skuCode?: string;
   /** Full eligibility decision (preflight only). */
   readonly decision?: Record<string, unknown>;
-  /** True when adding wallet credits in the portal can resolve the denial. */
+  /** True only when upstream explicitly allows billing_topup. */
   readonly topupAllowed: boolean;
   readonly resourceType: string;
 
@@ -305,7 +305,8 @@ export class BillingDeniedError extends PaymentRequiredError {
     const parsed = parseErrorBody(statusCode, body);
     const reason = init.reason ?? parsed.reason ?? str((init.decision ?? {}).reason);
     const resourceType = init.resourceType ?? "resource";
-    const decisionLike = init.decision ?? { reason };
+    const feedback = isRecord(parsed.details) ? parsed.details : isRecord(body) ? body : {};
+    const decisionLike = init.decision ?? { reason, allowed_operations: feedback.allowed_operations };
     super(
       statusCode,
       body,

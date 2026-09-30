@@ -18,8 +18,8 @@ export interface CheckResourceEligibilityArgs {
   /** Plan SKU (the plan's `billing_catalog.sku_code`). Trimmed; blank is omitted; max 64. */
   skuCode?: string;
   /**
-   * Estimated cost in minor units (>= 0). Non-integers are rounded. Compute
-   * it with `estimateEligibilityCostMinor`.
+   * Caller-supplied diagnostic estimate in minor units (>= 0). Non-integers
+   * are rounded. This is not an authoritative price or purchase approval.
    */
   estimatedCostMinor?: number;
   /**
