@@ -41,7 +41,7 @@ const plans = await client.computeCatalog.listPlans({
   workspaceId: "710995",
   vmType: "cloud",
   siteId: "site_blr_01",
-  currency: "INR",
+  // Omit currency to use the organization's profile currency.
   billingInterval: "MONTHLY",
 });
 // cpu, ram_mb, disk_gb, OS and billing_catalog come from the plan and image.
@@ -159,7 +159,7 @@ must match `^[1-9][0-9]*$`; anything else throws `IbeeValidationError`
 
 ## Billing and lifecycle authority
 
-All product mutations go to the upstream API for fresh Billing and lifecycle decisions.
+The upstream API owns Billing and lifecycle decisions for product mutations.
 The SDK does not query eligibility, estimate prices, or veto writes based on a diagnostic decision.
 Catalog shape, selected term, tenant/workspace, scope, resource state, and destructive-action checks remain in place.
 Upstream billing denial, restriction, suspension, and inactive-token errors propagate to callers.
@@ -228,10 +228,10 @@ Every Secret Store method checks its input the way the portal does and throws
   de-duplicated. `cas` is an integer >= 0. `page` >= 1, `limit` 1..200,
   search `q` is trimmed and at most 128 characters.
 - Every Secret Store request body is limited to 64 KiB (checked before the
-  billing preflight). `workspaceId` is trimmed.
+  product request). `workspaceId` is trimmed.
 
 ```ts
-// Portal-style create: billing check, then reuse an existing store on conflict.
+// Portal-style create: upstream admission, then reuse an existing store on conflict.
 const store = await client.secretStore.createSecretStore({
   workspaceId: "710995",
   name: "Payments",
@@ -899,7 +899,7 @@ contract; behaviour may change.
 | `client.firewalls` | firewall group (auto-paged list, listAllGroups, iterateGroups, listGroupSummaries), rule, and VM attachment lifecycle |
 | `client.loadBalancers` | list, createL4, createL7, get, updateL4, updateL7, delete, getStatus |
 | `client.computeCatalog` | typed site, plan, and image discovery |
-| `client.billing` | checkResourceEligibility, requireResourceEligibility (portal preflight) |
+| `client.billing` | checkResourceEligibility, requireResourceEligibility (optional diagnostic) |
 | `client.cloudVms` / `client.gpuVms` | auto-paged list, listAll and iterate; portal-style create; full lifecycle: power, access, resize/precheck, volumes, mount guidance, events, metrics, snapshots, backup policy/runs (listAllBackupRuns, deleteBackupRun), restores and restore waits |
 | `client.vmConsole` | createSession (cloud VMs), getSession, closeSession |
 | `client.operations` | get, wait, waitFor |

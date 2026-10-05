@@ -33,7 +33,7 @@ for (const [name, mutate] of mutations) {
       [423, "organization_suspended"], [403, "key_revoked"], [403, "workspace_not_allowed"], [403, "insufficient_scope"]]) {
       test(`${name}: flag=${flag}, upstream=${code ?? "success"}`, async () => {
         const calls = [];
-        const client = new Ibee({ token: "fixture", maxRetries: 0, fetch: async (url, init) => {
+        const client = new Ibee({ token: "fixture", maxRetries: 3, fetch: async (url, init) => {
           calls.push({ url: String(url), init });
           assert.ok(!String(url).includes("billing/resource-eligibility"));
           assert.ok(!String(init.body).includes("estimated_cost_minor"));
@@ -42,10 +42,21 @@ for (const [name, mutate] of mutations) {
           return new Response(JSON.stringify(code ? {
             error: code, message: "upstream decision", billing_reason: "insufficient_balance",
             admission_context_id: "adm_upstream", required_scope: "product.write",
-          } : { id: "created", name: "app" }), { status, headers: { "content-type": "application/json" } });
+          } : { id: "created", name: "app" }), { status, headers: {
+            "content-type": "application/json", "X-Request-ID": "req-policy", "Retry-After": "0",
+          } });
         } });
-        if (code) await assert.rejects(mutate(client, flag), e =>
-          e.statusCode === status && e.code === code && e.admissionContextId === "adm_upstream");
+        if (code) await assert.rejects(mutate(client, flag), e => {
+          assert.equal(e.statusCode, status);
+          assert.equal(e.code, code);
+          assert.equal(e.rawCode, code);
+          assert.equal(e.reason, "insufficient_balance");
+          assert.equal(e.requestId, "req-policy");
+          assert.equal(e.admissionContextId, "adm_upstream");
+          assert.equal(e.retryable, false);
+          assert.equal(e.body.billing_reason, "insufficient_balance");
+          return true;
+        });
         else await mutate(client, flag);
         assert.equal(calls.filter(c => !["GET", "HEAD", "OPTIONS"].includes(c.init.method)).length, 1);
       });

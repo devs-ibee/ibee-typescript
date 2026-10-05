@@ -126,6 +126,7 @@ export function parseErrorBody(status: number, body: unknown): ParsedErrorBody {
   } else if (isRecord(body) && isRecord(body.error)) {
     // 2. Secret Store envelope.
     rawCode = str(body.error.code);
+    reason = str(body.error.reason) ?? str(body.error.billing_reason);
     message = str(body.error.message);
     details = body.error.details;
   } else if (isRecord(body) && isRecord(body.detail)) {
@@ -133,7 +134,7 @@ export function parseErrorBody(status: number, body: unknown): ParsedErrorBody {
     const detail = body.detail;
     rawCode = str(detail.code) ?? str(detail.error_code) ?? str(detail.error);
     message = str(detail.message);
-    reason = str(detail.reason);
+    reason = str(detail.reason) ?? str(detail.billing_reason);
     details = detail;
   } else if (isRecord(body) && Array.isArray(body.detail)) {
     // 4. FastAPI validation list.

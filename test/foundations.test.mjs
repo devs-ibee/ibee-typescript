@@ -340,6 +340,45 @@ test("unkeyed POST is not retried; keyed VM write is retried with the same key a
   }
 });
 
+for (const [status, code, ErrorType] of [
+  [402, "billing_denied", BillingDeniedError],
+  [403, "organization_restricted", OrganizationRestrictedError],
+  [423, "organization_suspended", OrganizationSuspendedError],
+]) {
+  for (const envelope of ["edge", "detail", "error"]) {
+    for (const method of ["GET", "POST"]) {
+      test(`${method} ${status} ${envelope} policy denial retains metadata without retries`, async () => {
+        const rawCode = envelope === "edge" ? code : code.toUpperCase();
+        const fields = { message: "Upstream policy decision", billing_reason: "operator_review_required" };
+        const payload = envelope === "edge" ? { error: rawCode, ...fields } : {
+          [envelope]: { code: rawCode, ...fields },
+        };
+        const { calls, fetchImpl } = scripted({ status, json: payload, headers: {
+          "X-Request-ID": "req-policy", "Retry-After": "0",
+        } });
+        const c = client(fetchImpl, { maxRetries: 3 });
+        const pending = method === "GET"
+          ? c.objectStorage.listBuckets({ workspaceId: WS })
+          : c.cloudVms.start({ workspaceId: WS, vmId: VM1, idempotencyKey: "policy-key" });
+        await assert.rejects(pending, error => {
+          assert.ok(error instanceof ErrorType);
+          assert.equal(error.statusCode, status);
+          assert.equal(error.code, code);
+          assert.equal(error.rawCode, rawCode);
+          assert.equal(error.reason, fields.billing_reason);
+          assert.equal(error.requestId, "req-policy");
+          assert.equal(error.idempotencyKey, method === "POST" ? "policy-key" : undefined);
+          assert.equal(error.retryable, false);
+          assert.deepEqual(error.body, payload);
+          return true;
+        });
+        assert.equal(calls.length, 1);
+        assert.ok(isRetrySafe(method, new URL(calls[0].url).pathname, Object.fromEntries(calls[0].headers)));
+      });
+    }
+  }
+}
+
 test("transport errors are retried only for retry-safe requests and carry the key", async () => {
   {
     const { calls, fetchImpl } = scripted({ throws: new TypeError("fetch failed") }, { json: [] });
@@ -740,6 +779,41 @@ test("checkResourceEligibility normalises and validates inputs", async () => {
   }
   assert.equal(calls.length, 2);
 });
+
+for (const [name, metadata] of [
+  ["omitted", {}],
+  ["enforced", {
+    operation: "SECURITY_RECOVERY",
+    service_enforcement_state: "FULL_PROJECT_SUSPEND",
+    enforcement_revision: 0,
+    enforcement_source: "MANUAL_ADMIN",
+    enforcement_reason_code: "operator_review_required",
+    allowed_operations: ["READ_RESOURCE", "SECURITY_RECOVERY"],
+    resource_limits: { vm: 0, gpu_vm: -1 },
+  }],
+  ["future", {
+    operation: "FUTURE_OPERATION",
+    service_enforcement_state: "FUTURE_STATE",
+    enforcement_revision: 42,
+    enforcement_source: "FUTURE_SOURCE",
+    enforcement_reason_code: "future_reason",
+    allowed_operations: [],
+    resource_limits: {},
+    future_field: { retained: true },
+  }],
+]) {
+  test(`eligibility retains ${name} optional enforcement metadata on a denial`, async () => {
+    const payload = { organization_id: "org-1", allowed: false, reason: "upstream", ...metadata };
+    const { calls, fetchImpl } = scripted({ json: payload });
+    const result = await client(fetchImpl).billing.checkResourceEligibility({
+      workspaceId: WS, operation: "SECURITY_RECOVERY",
+    });
+    assert.deepEqual(result, payload);
+    assert.equal(calls.length, 1);
+    assert.equal(new URL(calls[0].url).pathname, "/v1/billing/resource-eligibility");
+    assert.deepEqual(JSON.parse(calls[0].body), { operation: "SECURITY_RECOVERY" });
+  });
+}
 
 test("requireResourceEligibility passes only on allowed === true, comparing SKU case-insensitively", async () => {
   const { fetchImpl } = scripted({ json: decision() });
