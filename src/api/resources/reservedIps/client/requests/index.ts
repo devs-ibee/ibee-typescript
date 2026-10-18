@@ -1,0 +1,8 @@
+export type { AttachReservedIpBody } from "./AttachReservedIpBody.js";
+export type { DetachReservedIpRequest } from "./DetachReservedIpRequest.js";
+export type { GetReservedIpRequest } from "./GetReservedIpRequest.js";
+export type { ListReservedIpsRequest } from "./ListReservedIpsRequest.js";
+export type { MoveReservedIpRequest } from "./MoveReservedIpRequest.js";
+export type { ReleaseReservedIpRequest } from "./ReleaseReservedIpRequest.js";
+export type { ReserveIpRequest } from "./ReserveIpRequest.js";
+export type { UpdateReservedIpRequest } from "./UpdateReservedIpRequest.js";
