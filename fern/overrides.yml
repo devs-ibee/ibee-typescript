@@ -1,0 +1,8 @@
+# The SDK fills these two from client config (workspace id) and with a random
+# key (idempotency), so they are optional in the generated request types.
+components:
+  parameters:
+    WorkspaceId:
+      required: false
+    IdempotencyKey:
+      required: false
