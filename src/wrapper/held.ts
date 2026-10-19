@@ -6,10 +6,12 @@
 //   (HOURLY by default for cloud VMs), plus the Windows licence and the
 //   Reserved IP SKU in attached_skus.
 // - VM delete: public_ip_action defaults to "release".
-// - billing_catalog on attach-volume (read from the volume) and on resize /
+// - billing_catalog on attach-volume (the volume's metadata.billing_catalog;
+//   left out when the volume has none, so the server answers) and on resize /
 //   resize-plan with plan_id (from the plan). NAT: nat_billing_catalog on
 //   VPC create and billing_catalog on NAT gateway create are passed through.
-//   Snapshot and backup take billing_catalog straight from the contract.
+//   Snapshot, backup, resize-plan and root-disk resize take billing_catalog
+//   straight from the contract (0.4.1).
 // - VM and firewall-group lists read every page when no limit/offset is set
 //   (the server returns 10 by default).
 // - The token-environment check and keeping the token out of the client's
@@ -44,7 +46,7 @@ export type HeldVmCreate<T extends { billing_catalog: unknown }> = Omit<T, "bill
     HeldVmCreateFields & { billing_catalog?: T["billing_catalog"] };
 /** VM delete with an optional body; public_ip_action defaults to "release". */
 export type HeldVmDelete<T extends { body: unknown }> = Omit<T, "body"> & { body?: T["body"] };
-/** Attach-volume whose billing_catalog may be omitted (read from the volume). */
+/** Attach-volume whose billing_catalog may be omitted (read from the volume's metadata.billing_catalog). */
 export type HeldVmAttach<T extends { body: Ibee.VmAttachVolumeRequest }> = Omit<T, "body"> & {
     body: Omit<Ibee.VmAttachVolumeRequest, "billing_catalog"> & { billing_catalog?: Ibee.BillingCatalogSelection };
 };
@@ -52,7 +54,7 @@ export type HeldVmAttach<T extends { body: Ibee.VmAttachVolumeRequest }> = Omit<
 export interface HeldResizeFields {
     plan_id?: string;
     billing_term?: string;
-    billing_catalog?: Rec;
+    billing_catalog?: Ibee.BillingCatalogSelection;
     windows_license?: Rec;
 }
 export type HeldVmResize<T extends { body: object }> = Omit<T, "body"> & {
@@ -319,8 +321,9 @@ async function vmAttach<T extends { workspace_id?: string; body: Rec }>(options:
             workspace_id: request.workspace_id,
         }),
     );
-    const billing_catalog = volume?.billing_catalog ?? rec(volume?.metadata)?.billing_catalog;
-    return { ...request, body: { ...request.body, billing_catalog } };
+    const billing_catalog = rec(rec(volume?.metadata)?.billing_catalog);
+    const { billing_catalog: _none, ...body } = request.body;
+    return { ...request, body: billing_catalog ? { ...body, billing_catalog } : body };
 }
 
 async function vmResize<T extends { workspace_id?: string; body: Rec }>(

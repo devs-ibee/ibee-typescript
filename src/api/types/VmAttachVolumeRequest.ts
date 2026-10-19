@@ -5,7 +5,7 @@ import type * as Ibee from "../index.js";
 export interface VmAttachVolumeRequest {
     volume_id: string;
     mode?: VmAttachVolumeRequest.Mode | undefined;
-    /** Required. The Block Storage SKU from the Billing catalog that the VM engine records for this attachment. No public operation lists it yet. */
+    /** Required. The Block Storage SKU from the Billing catalog that the VM engine records for this attachment. Copy it from the volume's `metadata.billing_catalog` (`GET /block-storage/volumes/{volume_id}`). */
     billing_catalog: Ibee.BillingCatalogSelection;
     requested_by?: string | undefined;
 }

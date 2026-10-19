@@ -5,6 +5,7 @@
  *     {
  *         workspace_id: "710995",
  *         name: "ml-training-01",
+ *         site_id: "site_id",
  *         os_distro: "ubuntu",
  *         os_type: "linux",
  *         template_id: "tmpl_ubuntu_2204_cuda",
@@ -25,8 +26,8 @@ export interface CreateGpuVmRequest {
     "X-Idempotency-Key"?: string;
     /** Display name for the virtual machine. */
     name: string;
-    /** Optional placement site ID. Omit for automatic placement. To pin the VM, copy `site_id` from `GET /compute/sites` and use the same value when filtering plans and images. */
-    site_id?: string | null;
+    /** Placement site ID from `GET /compute/sites`. Required: the API refuses a create without it (400 `invalid_site_id`). Use the same value when filtering plans and images. */
+    site_id: string;
     /** Operating system distribution (e.g. ubuntu, centos, debian, rocky). */
     os_distro: string;
     /** Operating system family. */

@@ -1,11 +1,13 @@
-# Generates src/ from the IBEE public API contract.
-# Copy the contract first (IBEE/platform-docs fern/openapi/ibee-cloud.yaml):
-#   cp <platform-docs>/fern/openapi/ibee-cloud.yaml fern/openapi/ibee-cloud.yaml
-#   cd fern && fern generate --local --group ts-sdk --force
+# Generates src/ from the vendored API contract (contract/ibee-cloud.yaml, an exact
+# copy of IBEE/platform-docs fern/openapi/ibee-cloud.yaml). Same generator settings as
+# platform-docs fern/apis/ibee-cloud/generators.yml (group typescript-sdk).
+#
+#   scripts/regenerate.sh        # = cd fern && fern generate --local --group ts-sdk --force --version <package.json version>
+#
 # Files listed in src/.fernignore are hand-written and kept.
 api:
   specs:
-    - openapi: ./openapi/ibee-cloud.yaml
+    - openapi: ../contract/ibee-cloud.yaml
       overrides: ./overrides.yml
 
 groups:
