@@ -5,6 +5,7 @@ import { BlockStorageClient } from "./api/resources/blockStorage/client/Client.j
 import { CdnClient } from "./api/resources/cdn/client/Client.js";
 import { CloudVmsClient } from "./api/resources/cloudVms/client/Client.js";
 import { ComputeCatalogClient } from "./api/resources/computeCatalog/client/Client.js";
+import { ContainerRegistryClient } from "./api/resources/containerRegistry/client/Client.js";
 import { FirewallsClient } from "./api/resources/firewalls/client/Client.js";
 import { GpuVmsClient } from "./api/resources/gpuVms/client/Client.js";
 import { LoadBalancersClient } from "./api/resources/loadBalancers/client/Client.js";
@@ -38,6 +39,7 @@ export class IbeeClient {
     protected _billing: BillingClient | undefined;
     protected _blockStorage: BlockStorageClient | undefined;
     protected _cdn: CdnClient | undefined;
+    protected _containerRegistry: ContainerRegistryClient | undefined;
 
     constructor(options: IbeeClient.Options) {
         this._options = normalizeClientOptionsWithAuth(options);
@@ -93,6 +95,10 @@ export class IbeeClient {
 
     public get cdn(): CdnClient {
         return (this._cdn ??= new CdnClient(this._options));
+    }
+
+    public get containerRegistry(): ContainerRegistryClient {
+        return (this._containerRegistry ??= new ContainerRegistryClient(this._options));
     }
 
     /**

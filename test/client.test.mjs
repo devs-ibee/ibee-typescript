@@ -26,8 +26,8 @@ function recordingFetch(calls) {
     };
 }
 
-test("version is 0.5.2", () => {
-    assert.equal(VERSION, "0.5.2");
+test("version is 0.6.0", () => {
+    assert.equal(VERSION, "0.6.0");
 });
 
 test("reads token, workspace and environment from the environment", async () => {

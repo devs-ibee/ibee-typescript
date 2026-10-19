@@ -112,6 +112,8 @@ function resolveBaseUrl(value: string | undefined): string {
 // The 22 contract operations that require X-Idempotency-Key: every write on a
 // cloud or GPU VM collection, VM or VM action.
 const KEYED_ROUTE = /(^|\/)compute\/(cloud-vms|gpu-vms)(\/[^/]+(\/actions\/[^/]+)?)?\/?$/;
+// Container Registry plan upgrade reads Idempotency-Key (not X-Idempotency-Key).
+const UPGRADE_ROUTE = /(^|\/)container-registry\/registries\/[^/]+\/upgrade\/?$/;
 // VM create is not retried: a replayed create is not confirmed to be safe yet.
 const CREATE_ROUTE = /(^|\/)compute\/(cloud-vms|gpu-vms)\/?$/;
 // Each GET of an identity's access mints a new secret ID.
@@ -121,8 +123,9 @@ const MAX_RETRY_DELAY_MS = 30_000;
 
 /**
  * Wraps the generated fetcher: fills the default workspace_id and a missing
- * X-Idempotency-Key, and retries only when it is safe (GET/HEAD, or a keyed
- * write) on 429/503 answers that carry no billing/admission code.
+ * X-Idempotency-Key (Idempotency-Key on Container Registry plan upgrade), and
+ * retries only when it is safe (GET/HEAD, or a keyed write) on 429/503 answers
+ * that carry no billing/admission code.
  */
 function ibeeFetcher(workspaceId: string | undefined): core.FetchFunction {
     return async <R = unknown>(args: core.Fetcher.Args): Promise<core.APIResponse<R, core.Fetcher.Error>> => {
@@ -134,8 +137,12 @@ function ibeeFetcher(workspaceId: string | undefined): core.FetchFunction {
         if (method !== "GET" && KEYED_ROUTE.test(path) && headers["x-idempotency-key"] == null) {
             headers["x-idempotency-key"] = newIdempotencyKey();
         }
+        if (method === "POST" && UPGRADE_ROUTE.test(path) && headers["idempotency-key"] == null) {
+            headers["idempotency-key"] = newIdempotencyKey();
+        }
         const keyed =
             headers["x-idempotency-key"] != null ||
+            headers["idempotency-key"] != null ||
             nonEmpty((args.body as Record<string, unknown> | undefined)?.idempotency_key) ||
             nonEmpty(queryParameters.idempotency_key);
         const retrySafe =
