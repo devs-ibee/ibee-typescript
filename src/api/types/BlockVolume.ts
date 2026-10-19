@@ -17,6 +17,7 @@ export interface BlockVolume {
     attachments: Ibee.BlockVolumeAttachment[];
     created_at: string;
     updated_at: string;
+    metadata?: BlockVolume.Metadata | undefined;
 }
 
 export namespace BlockVolume {
@@ -37,4 +38,11 @@ export namespace BlockVolume {
         Performance: "performance",
     } as const;
     export type VolumeClass = (typeof VolumeClass)[keyof typeof VolumeClass];
+
+    export interface Metadata {
+        /** The Block Storage SKU this volume is billed under. Pass it as `billing_catalog` when attaching the volume to a VM. */
+        billing_catalog?: Ibee.BillingCatalogSelection | undefined;
+        /** Accepts any additional properties */
+        [key: string]: any;
+    }
 }

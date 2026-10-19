@@ -121,6 +121,7 @@ export class GpuVmsClient {
      *     await client.gpuVms.createGpuVm({
      *         workspace_id: "710995",
      *         name: "ml-training-01",
+     *         site_id: "site_id",
      *         os_distro: "ubuntu",
      *         os_type: "linux",
      *         template_id: "tmpl_ubuntu_2204_cuda",

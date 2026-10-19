@@ -121,6 +121,7 @@ export class CloudVmsClient {
      *     await client.cloudVms.createCloudVm({
      *         workspace_id: "710995",
      *         name: "web-server-01",
+     *         site_id: "site_id",
      *         os_distro: "ubuntu",
      *         os_type: "linux",
      *         template_id: "tmpl_ubuntu_2204",

@@ -80,14 +80,40 @@ test("VM delete defaults public_ip_action to release", async () => {
     assert.deepEqual(calls[1].body, { public_ip_action: "reserve", reserved_ip_billing_catalog: { sku_id: 7 } });
 });
 
-test("attach-volume reads billing_catalog from the volume when omitted", async () => {
-    const volume = { id: "vol-1", billing_catalog: { sku_id: 3, sku_code: "BLOCK-STD" } };
+test("attach-volume reads billing_catalog from the volume's metadata when omitted", async () => {
+    const volume = { id: "vol-1", metadata: { billing_catalog: { sku_id: 3, sku_code: "BLOCK-STD" } } };
     const { client, calls } = stubClient(api({ "/block-storage/volumes/vol-1": volume }));
     await client.cloudVms.attachCloudVmVolume({ vm_id: "vm1", body: { volume_id: "vol-1" } });
     assert.deepEqual(sent(calls, "POST", "/compute/cloud-vms/vm1/actions/attach-volume").body, {
         volume_id: "vol-1",
-        billing_catalog: volume.billing_catalog,
+        billing_catalog: volume.metadata.billing_catalog,
     });
+});
+
+test("attach-volume leaves billing_catalog out when the volume has none", async () => {
+    const volume = { id: "vol-2", metadata: { billing_catalog: null } };
+    const { client, calls } = stubClient(api({ "/block-storage/volumes/vol-2": volume }));
+    await client.gpuVms.attachGpuVmVolume({ vm_id: "vm1", body: { volume_id: "vol-2", billing_catalog: null } });
+    const body = sent(calls, "POST", "/compute/gpu-vms/vm1/actions/attach-volume").body;
+    assert.deepEqual(body, { volume_id: "vol-2" });
+});
+
+test("attach-volume with a billing_catalog makes no lookup", async () => {
+    const sku = { sku_id: 4, sku_code: "BLOCK-FAST" };
+    const { client, calls } = stubClient(api());
+    await client.cloudVms.attachCloudVmVolume({ vm_id: "vm1", body: { volume_id: "vol-1", billing_catalog: sku } });
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].body, { volume_id: "vol-1", billing_catalog: sku });
+});
+
+test("resize-plan and root-disk resize pass billing_catalog through", async () => {
+    const sku = { sku_id: 12, sku_code: "VM-STD-4" };
+    const { client, calls } = stubClient(api());
+    await client.gpuVms.resizeGpuVmPlan({ vm_id: "vm1", body: { cpu: 4, ram_mb: 8192, billing_catalog: sku } });
+    await client.cloudVms.resizeCloudVmRootDisk({ vm_id: "vm1", body: { new_size_gb: 100, billing_catalog: sku } });
+    assert.equal(calls.length, 2);
+    assert.deepEqual(calls[0].body, { cpu: 4, ram_mb: 8192, billing_catalog: sku });
+    assert.deepEqual(calls[1].body, { new_size_gb: 100, billing_catalog: sku });
 });
 
 test("resize with plan_id sends the plan shape and SKU, carrying a Windows licence", async () => {

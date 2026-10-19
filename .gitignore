@@ -4,4 +4,3 @@ dist-cjs/
 *.tgz
 *.log
 .DS_Store
-fern/openapi/

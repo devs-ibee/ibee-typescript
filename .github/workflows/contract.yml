@@ -1,0 +1,47 @@
+name: Contract
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  generated:
+    name: Generated code is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Fern CLI
+        run: npm install -g fern-api@5.45.3
+
+      # Regenerates from contract/ibee-cloud.yaml in a temporary copy and fails if a
+      # generated file differs (hand-written files in src/.fernignore are kept).
+      - name: Regenerate and compare
+        run: scripts/check-generated.sh
+
+  contract-calls:
+    name: No calls outside the contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check the hand-written files
+        run: node scripts/check-contract-calls.mjs

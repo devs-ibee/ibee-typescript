@@ -1,0 +1,55 @@
+name: Regenerate
+
+# A pull request that changes contract/** (platform-docs contract-sync opens these from
+# branch contract/<version>) gets src/ regenerated and pushed to its branch.
+# workflow_dispatch does the same on the branch it runs on (not main).
+on:
+  pull_request:
+    paths: ["contract/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: regenerate-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  regenerate:
+    # A fork's pull request gets a read-only token: regenerate those by hand.
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' && github.ref_name != github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          # A push made with GITHUB_TOKEN starts no workflow run. With a REGENERATE_TOKEN
+          # secret (contents: write) the checks run again on the regenerated commit.
+          token: ${{ secrets.REGENERATE_TOKEN || github.token }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Fern CLI
+        run: npm install -g fern-api@5.45.3
+
+      - name: Regenerate from contract/ibee-cloud.yaml
+        run: scripts/regenerate.sh
+
+      - name: Push the regenerated code
+        run: |
+          git add -A src
+          if git diff --cached --quiet; then
+            echo "src/ is already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: regenerate src/ from contract/ibee-cloud.yaml"
+          git push
