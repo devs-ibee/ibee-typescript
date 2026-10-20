@@ -1,8 +1,11 @@
-# The SDK fills these two from client config (workspace id) and with a random
-# key (idempotency), so they are optional in the generated request types.
+# The SDK fills these from client config (workspace id) and with a random key
+# (idempotency: X-Idempotency-Key, and Container Registry's Idempotency-Key on plan
+# upgrade), so they are optional in the generated request types.
 components:
   parameters:
     WorkspaceId:
       required: false
     IdempotencyKey:
+      required: false
+    ContainerRegistryIdempotencyKey:
       required: false
