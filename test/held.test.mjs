@@ -69,15 +69,33 @@ test("a given billing_catalog is sent as is; GPU plans get no default term", asy
     assert.deepEqual(sent(s.calls, "POST", "/compute/gpu-vms").body.billing_catalog, PLAN_CATALOG);
 });
 
-test("VM delete defaults public_ip_action to release", async () => {
+test("VM delete sends the body as given, with no public_ip_action default", async () => {
     const { client, calls } = stubClient(api());
     await client.cloudVms.deleteCloudVm({ vm_id: "vm1" });
+    await client.gpuVms.deleteGpuVm({ vm_id: "vm2", body: {} });
     await client.gpuVms.deleteGpuVm({
-        vm_id: "vm2",
+        vm_id: "vm3",
         body: { public_ip_action: "reserve", reserved_ip_billing_catalog: { sku_id: 7 } },
     });
-    assert.deepEqual(calls[0].body, { public_ip_action: "release" });
-    assert.deepEqual(calls[1].body, { public_ip_action: "reserve", reserved_ip_billing_catalog: { sku_id: 7 } });
+    assert.equal(calls.length, 3);
+    assert.deepEqual(calls[0].body, {});
+    assert.deepEqual(calls[1].body, {});
+    assert.deepEqual(calls[2].body, { public_ip_action: "reserve", reserved_ip_billing_catalog: { sku_id: 7 } });
+    assert.ok(calls.every((c) => c.method === "DELETE"), "no VM read to decide the action");
+});
+
+test("VM delete without a choice relays the server's 400", async () => {
+    const { client, calls } = stubClient(() => ({
+        status: 400,
+        json: { error: "public_ip_action_required" },
+        headers: { "x-request-id": "req-9" },
+    }));
+    await assert.rejects(client.cloudVms.deleteCloudVm({ vm_id: "vm1" }), (err) => {
+        assert.equal(err.statusCode, 400);
+        assert.deepEqual(err.body, { error: "public_ip_action_required" });
+        return true;
+    });
+    assert.equal(calls.length, 1);
 });
 
 test("attach-volume reads billing_catalog from the volume's metadata when omitted", async () => {

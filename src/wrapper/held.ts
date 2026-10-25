@@ -5,7 +5,9 @@
 // - VM create: billing_catalog from the plan, priced for billing_term
 //   (HOURLY by default for cloud VMs), plus the Windows licence and the
 //   Reserved IP SKU in attached_skus.
-// - VM delete: public_ip_action defaults to "release".
+// - VM delete: the body may be left out (the contract makes it optional).
+//   public_ip_action has no default: the server answers 400 for a VM with an
+//   automatically assigned public IP until the caller chooses.
 // - billing_catalog on attach-volume (the volume's metadata.billing_catalog;
 //   left out when the volume has none, so the server answers) and on resize /
 //   resize-plan with plan_id (from the plan). NAT: nat_billing_catalog on
@@ -44,7 +46,7 @@ export interface HeldVmCreateFields {
 /** VM create whose billing_catalog may be omitted (taken from the plan). */
 export type HeldVmCreate<T extends { billing_catalog: unknown }> = Omit<T, "billing_catalog"> &
     HeldVmCreateFields & { billing_catalog?: T["billing_catalog"] };
-/** VM delete with an optional body; public_ip_action defaults to "release". */
+/** VM delete with an optional body; nothing is added to it (no public_ip_action default). */
 export type HeldVmDelete<T extends { body: unknown }> = Omit<T, "body"> & { body?: T["body"] };
 /** Attach-volume whose billing_catalog may be omitted (read from the volume's metadata.billing_catalog). */
 export type HeldVmAttach<T extends { body: Ibee.VmAttachVolumeRequest }> = Omit<T, "body"> & {
@@ -310,7 +312,8 @@ async function vmCreate<T extends Rec>(options: Options, vmType: VmType, request
 }
 
 function vmDelete<T extends { body?: Rec }>(request: T): any {
-    return { ...request, body: { ...request.body, public_ip_action: request.body?.public_ip_action ?? "release" } };
+    // Sent as given: no public_ip_action default. An omitted body is sent as {}.
+    return { ...request, body: { ...request.body } };
 }
 
 async function vmAttach<T extends { workspace_id?: string; body: Rec }>(options: Options, request: T): Promise<any> {

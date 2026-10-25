@@ -159,7 +159,9 @@ did:
   billing catalog is looked up and priced for `billing_term` (cloud VMs:
   HOURLY when omitted). `windows_license` and the Reserved IP SKU of
   `reserved_public_ip_id` go into `attached_skus`.
-- `deleteCloudVm` / `deleteGpuVm`: `public_ip_action` defaults to `release`.
+- `deleteCloudVm` / `deleteGpuVm`: the `body` may be omitted. Nothing is added
+  to it: for a VM with an automatically assigned public IP the server answers
+  400 until you pass `public_ip_action` `release` or `reserve`.
 - `attachCloudVmVolume` / `attachGpuVmVolume` without `billing_catalog`: the
   volume's `metadata.billing_catalog` (left out when the volume has none, and
   the server answers). `resize*` / `resize*Plan` with `plan_id`: cpu, ram_mb,

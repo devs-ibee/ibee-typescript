@@ -20,10 +20,20 @@ Container Registry.
   pass none and reuses it on retries, like `X-Idempotency-Key` on VM writes
   (`fern/overrides.yml` makes the header optional; `src/wrapper/Ibee.ts` fills it).
 
+### Changed
+
+- `deleteCloudVm` / `deleteGpuVm`: `public_ip_action` no longer defaults to `release`.
+  The body is sent as given (an omitted body is sent as `{}`); for a VM with an
+  automatically assigned public IP the server answers 400 until you pass `release` or
+  `reserve`.
+
 ### Notes
 
 - An access token's `secret` is returned only by create and rotate. The SDK does not
   log request or response bodies.
+- The identity access read (`getSecretIdentityAccess`) was already never retried, and
+  writes are retried only with an idempotency key on 429/503 without a billing answer;
+  VM creates are never retried. Unchanged in this release.
 
 ## 0.5.2
 
