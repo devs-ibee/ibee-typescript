@@ -1,5 +1,5 @@
 # Hand-written files; `fern generate` keeps them.
 index.ts
 version.ts
-wrapper
+wrapper/Ibee.ts
 errors/IbeeError.ts

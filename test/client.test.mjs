@@ -74,16 +74,15 @@ test("rejects unsafe base URLs", () => {
     }
 });
 
-test("rejects a token for the other environment (held)", () => {
-    assert.throws(
-        () => new Ibee({ token: "ibee_dev_key_x", environment: IbeeEnvironment.Production }),
-        /token environment does not match/,
-    );
-    assert.throws(() => new Ibee({ token: "ibee_prod_key_x", environment: "dev" }), /token environment does not match/);
-    assert.ok(new Ibee({ token: "ibee_dev_key_x", environment: "dev" }));
+test("the token is sent as given; the server decides whether it fits the environment", async () => {
+    const calls = [];
+    const client = new Ibee({ token: "ibee_dev_key_x", environment: IbeeEnvironment.Production, fetch: recordingFetch(calls) });
+    await client.cloudVms.listCloudVms({ limit: 1 });
+    assert.equal(calls[0].url.origin + "/v1", IbeeEnvironment.Production);
+    assert.equal(calls[0].headers.get("authorization"), "Bearer ibee_dev_key_x");
 });
 
-test("the token is not in the client's enumerable state (held)", () => {
+test("the token is not in the client's enumerable state", () => {
     const client = new Ibee({ token: "ibee_prod_key_secret" });
     assert.ok(!JSON.stringify(client).includes("ibee_prod_key_secret"));
 });

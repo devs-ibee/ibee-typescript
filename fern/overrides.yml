@@ -9,3 +9,27 @@ components:
       required: false
     ContainerRegistryIdempotencyKey:
       required: false
+
+# Contract 0.6.2 declares no request body on backups/disable, but the server answers
+# 422 without one (platform-docs qa/2026-10-28-public-api-full-test, gap G3): declare
+# an empty JSON object so the generated method sends {}. Remove once the contract
+# declares the body.
+paths:
+  /compute/cloud-vms/{vm_id}/backups/disable:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: {}
+  /compute/gpu-vms/{vm_id}/backups/disable:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: {}

@@ -7,7 +7,11 @@
 //   when the hand layer calls or overrides it: `super.x`, `this.x` and a method `x` in
 //   a class that extends a generated client, and `new SomeClient(...).x`;
 // - a string that names an API path (it starts with a top-level contract segment such
-//   as `compute/`) and matches no contract path.
+//   as `compute/`) and matches no contract path;
+// - a route pattern in src/wrapper/Ibee.ts that drifted from the contract: KEYED_ROUTE
+//   (writes) must match exactly the operations that declare X-Idempotency-Key,
+//   UPGRADE_ROUTE (POST) exactly those that declare Idempotency-Key, CREATE_ROUTE (POST)
+//   exactly VM create, NEVER_RETRY_ROUTE (GET) exactly getSecretIdentityAccess.
 //
 // Needs only the `typescript` dev dependency: node scripts/check-contract-calls.mjs
 import fs from "node:fs";
@@ -123,12 +127,101 @@ function check(file) {
     return problems;
 }
 
-const problems = [...new Set(handFiles().flatMap(check))].sort();
+/** Every contract operation with its method, path and the component parameters it uses. */
+function contractOperations() {
+    const ops = [];
+    const pathParams = new Map();
+    let currentPath;
+    let section;
+    for (const line of paths.split("\n")) {
+        let m = line.match(/^ {2}(\/\S*):\s*$/);
+        if (m) {
+            currentPath = m[1];
+            pathParams.set(currentPath, new Set());
+            section = undefined;
+            continue;
+        }
+        m = line.match(/^ {4}(get|put|post|patch|delete|head|options):/);
+        if (m) {
+            section = { path: currentPath, method: m[1].toUpperCase(), id: undefined, params: new Set() };
+            ops.push(section);
+            continue;
+        }
+        if (/^ {4}parameters:/.test(line)) {
+            section = { params: pathParams.get(currentPath) };
+            continue;
+        }
+        if (/^ {4}\S/.test(line)) section = undefined;
+        if (!section) continue;
+        m = line.match(/^\s+operationId:\s*(\S+)\s*$/);
+        if (m && section.method) section.id = m[1];
+        m = line.match(/#\/components\/parameters\/(\w+)/);
+        if (m) section.params.add(m[1]);
+    }
+    for (const op of ops) for (const name of pathParams.get(op.path)) op.params.add(name);
+    return ops;
+}
+
+/** The regular-expression constants `names` declared in `file`. */
+function routePatterns(file, names) {
+    const source = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+    const found = {};
+    const visit = (node) => {
+        if (
+            ts.isVariableDeclaration(node) &&
+            ts.isIdentifier(node.name) &&
+            names.includes(node.name.text) &&
+            node.initializer?.kind === ts.SyntaxKind.RegularExpressionLiteral
+        ) {
+            const text = node.initializer.text;
+            const end = text.lastIndexOf("/");
+            found[node.name.text] = new RegExp(text.slice(1, end), text.slice(end + 1));
+        }
+        ts.forEachChild(node, visit);
+    };
+    visit(source);
+    return found;
+}
+
+/** Problems when a route pattern of src/wrapper/Ibee.ts and the contract disagree. */
+function checkRoutes() {
+    const file = path.join(src, "wrapper/Ibee.ts");
+    const rel = path.relative(root, file);
+    const rules = {
+        KEYED_ROUTE: [(op) => op.method !== "GET", (op) => op.params.has("IdempotencyKey")],
+        UPGRADE_ROUTE: [(op) => op.method === "POST", (op) => op.params.has("ContainerRegistryIdempotencyKey")],
+        CREATE_ROUTE: [(op) => op.method === "POST", (op) => ["createCloudVm", "createGpuVm"].includes(op.id)],
+        NEVER_RETRY_ROUTE: [(op) => op.method === "GET", (op) => op.id === "getSecretIdentityAccess"],
+    };
+    const patterns = routePatterns(file, Object.keys(rules));
+    const problems = [];
+    for (const [name, [applies, expected]] of Object.entries(rules)) {
+        const pattern = patterns[name];
+        if (!pattern) {
+            problems.push(`${rel}: ${name} is not declared as a regular expression`);
+            continue;
+        }
+        let matched = 0;
+        for (const op of contractOperations()) {
+            const url = "/v1" + op.path.replace(/\{[^}]+\}/g, "x1");
+            const hit = applies(op) && pattern.test(url);
+            if (hit) matched += 1;
+            if (hit !== expected(op)) {
+                problems.push(`${rel}: ${name} ${hit ? "matches" : "misses"} ${op.method} ${op.path} (${op.id})`);
+            }
+        }
+        if (matched === 0) problems.push(`${rel}: ${name} matches no contract operation`);
+    }
+    return problems;
+}
+
+const problems = [...new Set([...handFiles().flatMap(check), ...checkRoutes()])].sort();
 for (const problem of problems) console.error(problem);
 if (problems.length) {
     console.error("Hand-written code calls outside contract/ibee-cloud.yaml.");
     process.exit(1);
 }
 console.log(
-    `Hand-written code calls only contract operations and paths (${operations.size} operations, ${templates.length} paths).`,
+    `Hand-written code calls only contract operations and paths (${operations.size} operations, ${templates.length} paths); ` +
+        `its idempotency and retry routes match the contract.`,
 );

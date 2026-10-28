@@ -1,9 +1,98 @@
-// Contract 0.6.2: generated calls for the moved and added operations, answers unchanged.
+// Contract 0.6.2: generated calls, sent as given, answers unchanged. The SDK adds no
+// client-side logic (no plan lookups, defaults, billing_catalog composition or paging).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { stubClient } from "./helpers.mjs";
 
 const route = (c) => [c.method, c.path];
+
+// The plan's billing_catalog with its HOURLY billing_options entry merged in (README recipe).
+const SELECTION = {
+    sku_id: "019f25b7-c1b3-7a9e-bfb9-8c83e323b517",
+    sku_code: "PERFORMA-1-2-50",
+    price_currency: "INR",
+    billing_options: [{ billing_interval: "HOURLY", committed: false, commitment_period: "HOURLY", unit_price_minor: 82 }],
+    billing_interval: "HOURLY",
+    committed: false,
+    commitment_period: "HOURLY",
+    unit_price_minor: 82,
+};
+const VM = {
+    name: "web",
+    site_id: "site-1",
+    plan_id: "plan-1",
+    template_id: "t",
+    os_distro: "ubuntu",
+    os_type: "linux",
+    cpu: 1,
+    ram_mb: 2048,
+    billing_catalog: SELECTION,
+};
+
+test("VM create sends the request as given: no plan lookup, no billing_catalog change", async () => {
+    const { client, calls } = stubClient(() => ({ status: 202, json: { operation_id: "op-1" } }));
+    await client.cloudVms.createCloudVm(VM);
+    await client.gpuVms.createGpuVm({ ...VM, gpu_count: 1, gpu_model: "A100" });
+    assert.deepEqual(calls.map(route), [
+        ["POST", "/compute/cloud-vms"],
+        ["POST", "/compute/gpu-vms"],
+    ]);
+    assert.deepEqual(calls[0].body, VM);
+    assert.deepEqual(calls[1].body.billing_catalog, SELECTION);
+    assert.ok(calls.every((c) => /^[0-9a-f-]{36}$/.test(c.headers.get("x-idempotency-key"))));
+});
+
+test("VM create returns the server's billing-term answer unchanged", async () => {
+    const answer = { error: "compute_billing_term_required", admission_context_id: "adm_1" };
+    const { client, calls } = stubClient(() => ({ status: 400, json: answer, headers: { "x-request-id": "req-1" } }));
+    const { billing_catalog: _none, ...noTerm } = VM;
+    await assert.rejects(client.cloudVms.createCloudVm({ ...noTerm, billing_catalog: { sku_id: 1, sku_code: "X" } }), (err) => {
+        assert.equal(err.statusCode, 400);
+        assert.equal(err.code, "compute_billing_term_required");
+        assert.equal(err.requestId, "req-1");
+        assert.deepEqual(err.body, answer);
+        return true;
+    });
+    assert.equal(calls.length, 1);
+});
+
+test("VM delete, attach-volume and resize send their bodies as given", async () => {
+    const { client, calls } = stubClient(() => ({ status: 202, json: { operation_id: "op-1" } }));
+    await client.cloudVms.deleteCloudVm({ vm_id: "vm1", body: { public_ip_action: "release" } });
+    await client.cloudVms.attachCloudVmVolume({ vm_id: "vm1", body: { volume_id: "vol-1", billing_catalog: { sku_id: 3, sku_code: "BLOCK" } } });
+    await client.gpuVms.resizeGpuVm({ vm_id: "vm2", body: { cpu: 2, ram_mb: 4096, disk_gb: 60 } });
+    assert.deepEqual(calls.map(route), [
+        ["DELETE", "/compute/cloud-vms/vm1"],
+        ["POST", "/compute/cloud-vms/vm1/actions/attach-volume"],
+        ["POST", "/compute/gpu-vms/vm2/actions/resize"],
+    ]);
+    assert.deepEqual(calls[0].body, { public_ip_action: "release" });
+    assert.deepEqual(calls[1].body, { volume_id: "vol-1", billing_catalog: { sku_id: 3, sku_code: "BLOCK" } });
+    assert.deepEqual(calls[2].body, { cpu: 2, ram_mb: 4096, disk_gb: 60 });
+});
+
+test("lists make one call with the caller's paging", async () => {
+    const { client, calls } = stubClient(() => ({ json: Array.from({ length: 10 }, (_, i) => ({ id: `vm-${i}` })) }));
+    assert.equal((await client.cloudVms.listCloudVms()).length, 10);
+    await client.firewalls.listFirewallGroups({ limit: 50, offset: 100 });
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].url.searchParams.get("limit"), null);
+    assert.equal(calls[1].url.searchParams.get("limit"), "50");
+    assert.equal(calls[1].url.searchParams.get("offset"), "100");
+});
+
+test("backups/disable sends the JSON body {} (fern/overrides.yml)", async () => {
+    const { client, calls } = stubClient(() => ({ json: { policy_id: "p", enabled: false } }));
+    await client.cloudVms.disableCloudVmBackups({ vm_id: "vm1" });
+    await client.gpuVms.disableGpuVmBackups({ vm_id: "vm2" });
+    assert.deepEqual(
+        calls.map((c) => [c.method, c.path, c.body, c.headers.get("content-type")]),
+        [
+            ["POST", "/compute/cloud-vms/vm1/backups/disable", {}, "application/json"],
+            ["POST", "/compute/gpu-vms/vm2/backups/disable", {}, "application/json"],
+        ],
+    );
+});
 
 test("S3 keys: revoke is POST .../revoke (soft), delete is DELETE (hard)", async () => {
     const { client, calls } = stubClient(() => ({ json: { access_key_id: "AK1", status: "revoked" } }));

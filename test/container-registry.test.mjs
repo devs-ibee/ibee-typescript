@@ -54,7 +54,7 @@ test("a caller's Idempotency-Key is sent unchanged", async () => {
     );
 });
 
-test("upgrade is retried on 503 with the same key; a billing refusal is not retried", async () => {
+test("upgrade is retried on 503 with the same key; a 403 billing refusal comes back unchanged", async () => {
     let s = stubClient((call, n) => (n === 1 ? { status: 503, json: { detail: "busy" }, headers: NOW } : { json: {} }));
     await s.client.containerRegistry.upgradeContainerRegistryPackage({ registry_id: REG, billing_catalog: SKU });
     assert.equal(s.calls.length, 2);
