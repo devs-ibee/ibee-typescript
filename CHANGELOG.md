@@ -2,26 +2,90 @@
 
 ## 0.6.0
 
-Generated from the API contract 0.5.0 (`contract/ibee-cloud.yaml`), which adds
-Container Registry.
+Generated from the API contract 0.6.2 (`contract/ibee-cloud.yaml`, 225 operations):
+Container Registry (contract 0.5.0) plus the 0.6 changes (23 operations removed, 29
+added, 1 moved).
+
+### Breaking changes
+
+- **Removed methods** (their operations left the contract):
+  - `cloudVms.resizeCloudVmPlan`, `cloudVms.resizeCloudVmRootDisk`,
+    `gpuVms.resizeGpuVmPlan`, `gpuVms.resizeGpuVmRootDisk`: use
+    `resizeCloudVm` / `resizeGpuVm` with `cpu`, `ram_mb`, `disk_gb`
+    (`precheckCloudVmResize` / `precheckGpuVmResize` first if you want the decision).
+  - `cloudVms.acknowledgeCloudVmMountGuidance`, `gpuVms.acknowledgeGpuVmMountGuidance`.
+  - `cloudVms.createCloudVmBackupRun`, `gpuVms.createGpuVmBackupRun` (manual backup run),
+    `cloudVms.rescheduleCloudVmBackup`, `gpuVms.rescheduleGpuVmBackup` (next-run-at).
+  - `ibee.vmConsole` (`createVmConsoleSession`, `getVmConsoleSession`,
+    `closeVmConsoleSession`).
+  - `blockStorage.attachBlockVolume`, `blockStorage.detachBlockVolume`: use
+    `attachCloudVmVolume` / `detachCloudVmVolume` (GPU the same).
+  - `cdn.generateCdnUrl`.
+  - `vpcs.updateVpcSubnet`.
+  - `secretStore.patchSecretValue`, `updateSecretIdentity`, `updateSecretIdentityScope`,
+    `updateSecretStore`.
+  - `containerRegistry.emptyContainerRegistry`.
+  - `ibee.billing` (`checkResourceEligibility`).
+- `objectStorage.revokeS3Credential` is now `POST /object-storage/credentials/{id}/revoke`
+  (revokes the key); the new `deleteS3Credential` (`DELETE`) deletes it.
+- `billing_catalog` on `createCloudVm` / `createGpuVm` is typed as the contract's
+  `ComputeBillingSelection`: the plan's `billing_catalog` with one `billing_options`
+  entry (`HOURLY` or `MONTHLY`) merged in whole, keeping `price_currency`. The server
+  answers 400 `compute_billing_term_required` without a term and 400
+  `invalid_compute_billing_selection` for a partial or mismatching one. There is no
+  `YEARLY` term. `MONTHLY` is a one-month commitment: delete and resize answer 409
+  `VM_COMMITTED` during it.
+- `disableCloudVmBackups` / `disableGpuVmBackups` take no `body` (the contract
+  declares none).
+- Resize with `plan_id` is gone (`HeldVmResize` and `HeldResizeFields` are no longer
+  exported): the resize body is the contract's `cpu`, `ram_mb`, `disk_gb`, sent as
+  given; no plan is looked up and no `billing_catalog` is added.
+- Request and response types follow contract 0.6.2 (for example `requested_by` is
+  gone from VM action, backup-policy and snapshot bodies, restore requests take
+  `target_volume_names`, NAT gateway delete takes `public_ip_action`).
 
 ### Added
 
-- `ibee.containerRegistry`: the 27 Container Registry operations of contract 0.5.0
-  with their types. Registries (name check, list, create, get, delete, visibility,
-  empty, retry provisioning), storage plan (get, upgrade), access tokens (list,
-  create, rotate, revoke), repositories (list, delete), artifacts (list, delete,
-  rescan), security settings (get, update), vulnerabilities (summary, list), SBOMs
-  (list, get, download) and metrics. Paging is `page`/`page_size` (at most 100), as
-  the contract has it. Requests are sent as given and the registry service's answer
-  (including Billing refusals such as 403 `billing_resource_not_eligible`) comes
-  back unchanged.
+- `ibee.containerRegistry`: the Container Registry operations with their types.
+  Registries (name check, list, create, get, delete, visibility, retry provisioning),
+  storage plan (get, upgrade), access tokens (list, create, rotate, revoke),
+  repositories (list, delete), artifacts (list, delete, rescan), security settings
+  (get, update), vulnerabilities (summary, list), SBOMs (list, get, download) and
+  metrics. Paging is `page`/`page_size` (at most 100), as the contract has it.
+  Requests are sent as given and the registry service's answer (including Billing
+  refusals such as 403 `billing_resource_not_eligible`) comes back unchanged.
 - `upgradeContainerRegistryPackage` sends a random `Idempotency-Key` header when you
   pass none and reuses it on retries, like `X-Idempotency-Key` on VM writes
   (`fern/overrides.yml` makes the header optional; `src/wrapper/Ibee.ts` fills it).
+- Object storage settings as REST operations: `get`/`set`/`deleteBucketLifecycle`,
+  `get`/`set`/`deleteBucketCors`, `get`/`setBucketObjectLock`,
+  `get`/`set`/`deleteBucketNotifications`, `getBucketCustomDomains`,
+  `addBucketCustomDomain`, `removeBucketCustomDomain`, `getBucketMetrics`; and
+  `deleteS3Credential`. Answers come back as sent (the CORS read currently uses S3
+  casing such as `AllowedOrigins`; the write takes snake_case).
+- Compute: `computeCatalog.listSnapshotStoragePlans` and `listBackupStoragePlans` (the
+  SKUs snapshot create and backup enable need); `listComputePlans` takes
+  `billing_interval`; `listAllCloudVmSnapshots`, `listAllCloudVmBackupRuns`,
+  `deleteCloudVmBackupRun` and the GPU equivalents.
+- `blockStorage.listBlockStoragePlans`, `cdn.getCdnDistributionMetrics`,
+  `reservedIps.convertReservedIp`, `reservedIps.attachReservedIpDirect`,
+  `vpcs.updateNatGatewayPublicIp`.
+- `HeldBillingTerm` (`"HOURLY" | "MONTHLY"`), the type of `billing_term`.
 
 ### Changed
 
+- VM create without `billing_catalog` (cloud **and GPU**): the plan's
+  `billing_catalog` is copied and the `billing_options` entry for `billing_term`
+  (`HOURLY` when omitted) is merged in whole (`billing_interval`, `committed`,
+  `commitment_period`, `commitment_months`, `committed_hours`, `price_unit`,
+  `unit_price_minor`). Before, only some fields were set and GPU VMs got no term. A
+  given `billing_catalog` without `billing_interval` (the plan's, as listed) is
+  merged the same way; a term the plan does not offer is left for the server to
+  answer.
+- `disableCloudVmBackups` / `disableGpuVmBackups` send the JSON body `{}` (the server
+  answers 422 without one).
+- `X-Idempotency-Key` is filled on the 18 VM write operations of the contract (22
+  before the resize-plan and root-disk resize operations left it).
 - `deleteCloudVm` / `deleteGpuVm`: `public_ip_action` no longer defaults to `release`.
   The body is sent as given (an omitted body is sent as `{}`); for a VM with an
   automatically assigned public IP the server answers 400 until you pass `release` or

@@ -3,13 +3,30 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { stubClient } from "./helpers.mjs";
 
+// A plan's billing_catalog as GET /compute/plans lists it on dev (contract 0.6.2).
+const HOURLY = { billing_interval: "HOURLY", committed: false, commitment_period: "HOURLY", unit_price_minor: 82 };
+const MONTHLY = {
+    billing_interval: "MONTHLY",
+    committed: true,
+    commitment_period: "MONTHLY",
+    commitment_months: 1,
+    committed_hours: 731,
+    unit_price_minor: 66,
+    price_unit: "HOUR",
+    discount_percent: 19.51,
+};
 const PLAN_CATALOG = {
-    sku_id: 11,
-    sku_code: "VM-STD-2",
-    billing_options: [
-        { billing_interval: "HOURLY", committed: false, unit_price_minor: 500 },
-        { billing_interval: "MONTHLY", committed: true, commitment_months: 1, unit_price_minor: 300000 },
-    ],
+    source: "billing_v2",
+    product_id: "p_rp274o",
+    product_code: "vm_shared",
+    sku_id: "019f25b7-c1b3-7a9e-bfb9-8c83e323b517",
+    sku_code: "PERFORMA-1-2-50",
+    plan_version: 117,
+    price_currency: "INR",
+    hourly_price_minor: 82,
+    monthly_price_minor: 60000,
+    billing_options: [HOURLY, MONTHLY],
+    attached_skus: { bandwidth: { sku_id: "bw-1", sku_code: "BW-V-PF-1-2-50" } },
 };
 const PLANS = {
     plans: [{ plan_id: "plan-1", cpu: 4, ram_mb: 8192, disk_gb: 80, billing_catalog: PLAN_CATALOG }],
@@ -25,20 +42,62 @@ function api(extra = {}) {
 }
 const sent = (calls, method, path) => calls.find((c) => c.method === method && c.path === path);
 
-test("VM create without billing_catalog uses the plan SKU priced HOURLY", async () => {
+test("VM create without billing_catalog merges the plan's whole HOURLY entry", async () => {
     const { client, calls } = stubClient(api());
     await client.cloudVms.createCloudVm(VM);
     const plans = sent(calls, "GET", "/compute/plans");
     assert.equal(plans.url.searchParams.get("vm_type"), "cloud");
     assert.equal(plans.url.searchParams.get("site_id"), "site-1");
     const body = sent(calls, "POST", "/compute/cloud-vms").body;
-    assert.equal(body.billing_catalog.sku_code, "VM-STD-2");
-    assert.equal(body.billing_catalog.billing_interval, "HOURLY");
-    assert.equal(body.billing_catalog.unit_price_minor, 500);
+    // ComputeBillingSelection: the plan's billing_catalog plus the chosen billing_options entry.
+    assert.deepEqual(body.billing_catalog, { ...PLAN_CATALOG, ...HOURLY });
+    assert.equal(body.billing_catalog.price_currency, "INR");
     assert.equal(body.billing_term, undefined);
 });
 
-test("VM create merges billing_term, the Windows licence and the Reserved IP SKU", async () => {
+test("billing_term MONTHLY merges the whole MONTHLY entry, commitment fields included", async () => {
+    const { client, calls } = stubClient(api());
+    await client.cloudVms.createCloudVm({ ...VM, billing_term: "MONTHLY" });
+    const catalog = sent(calls, "POST", "/compute/cloud-vms").body.billing_catalog;
+    assert.deepEqual(catalog, { ...PLAN_CATALOG, ...MONTHLY });
+    for (const key of ["committed", "commitment_period", "commitment_months", "committed_hours", "price_unit", "unit_price_minor"]) {
+        assert.equal(catalog[key], MONTHLY[key], key);
+    }
+});
+
+test("GPU VM create gets the HOURLY entry by default too", async () => {
+    const { client, calls } = stubClient(api());
+    await client.gpuVms.createGpuVm({ ...VM, gpu_count: 1, gpu_model: "A100" });
+    assert.equal(sent(calls, "GET", "/compute/plans").url.searchParams.get("vm_type"), "gpu");
+    assert.deepEqual(sent(calls, "POST", "/compute/gpu-vms").body.billing_catalog, { ...PLAN_CATALOG, ...HOURLY });
+});
+
+test("a given plan billing_catalog is merged without a lookup; a full selection is sent as is", async () => {
+    let s = stubClient(api());
+    await s.client.cloudVms.createCloudVm({ ...VM, billing_catalog: PLAN_CATALOG, billing_term: "monthly" });
+    assert.equal(sent(s.calls, "GET", "/compute/plans"), undefined);
+    assert.deepEqual(sent(s.calls, "POST", "/compute/cloud-vms").body.billing_catalog, { ...PLAN_CATALOG, ...MONTHLY });
+
+    s = stubClient(api());
+    const selection = { ...PLAN_CATALOG, ...MONTHLY };
+    await s.client.cloudVms.createCloudVm({ ...VM, billing_catalog: selection });
+    assert.equal(s.calls.length, 1);
+    assert.deepEqual(s.calls[0].body.billing_catalog, selection);
+
+    // A new term replaces every field of the previous entry (no stale commitment fields).
+    s = stubClient(api());
+    await s.client.cloudVms.createCloudVm({ ...VM, billing_catalog: selection, billing_term: "HOURLY" });
+    assert.deepEqual(s.calls[0].body.billing_catalog, { ...PLAN_CATALOG, ...HOURLY });
+});
+
+test("a term the plan does not offer leaves the catalog unchanged for the server to answer", async () => {
+    const hourlyOnly = { ...PLAN_CATALOG, billing_options: [HOURLY] };
+    const { client, calls } = stubClient(api());
+    await client.cloudVms.createCloudVm({ ...VM, billing_catalog: hourlyOnly, billing_term: "MONTHLY" });
+    assert.deepEqual(calls[0].body.billing_catalog, hourlyOnly);
+});
+
+test("VM create merges the Windows licence and the Reserved IP SKU", async () => {
     const rip = { id: "rip-1", billing_catalog: { sku_id: 7, sku_code: "RESERVED-IP" } };
     const { client, calls } = stubClient(api({ "/networking/reserved-ips/rip-1": rip }));
     await client.cloudVms.createCloudVm({
@@ -54,19 +113,20 @@ test("VM create merges billing_term, the Windows licence and the Reserved IP SKU
     assert.equal(catalog.attached_skus.windows_license.quantity, 4);
     assert.equal(catalog.attached_skus.windows_license.quantity_basis, "VCPU");
     assert.deepEqual(catalog.attached_skus.reserved_ip, rip.billing_catalog);
+    assert.deepEqual(catalog.attached_skus.bandwidth, PLAN_CATALOG.attached_skus.bandwidth);
 });
 
-test("a given billing_catalog is sent as is; GPU plans get no default term", async () => {
-    let s = stubClient(api());
-    const given = { sku_id: 1, sku_code: "MINE" };
-    await s.client.cloudVms.createCloudVm({ ...VM, billing_catalog: given });
-    assert.deepEqual(sent(s.calls, "POST", "/compute/cloud-vms").body.billing_catalog, given);
-    assert.equal(sent(s.calls, "GET", "/compute/plans"), undefined);
-
-    s = stubClient(api());
-    await s.client.gpuVms.createGpuVm({ ...VM, gpu_count: 1, gpu_model: "A100" });
-    assert.equal(sent(s.calls, "GET", "/compute/plans").url.searchParams.get("vm_type"), "gpu");
-    assert.deepEqual(sent(s.calls, "POST", "/compute/gpu-vms").body.billing_catalog, PLAN_CATALOG);
+test("VM create relays the server's billing-term answer", async () => {
+    const { client } = stubClient((call) =>
+        call.path === "/compute/plans"
+            ? { json: PLANS }
+            : { status: 400, json: { error: "invalid_compute_billing_selection", admission_context_id: "adm_1" } },
+    );
+    await assert.rejects(client.cloudVms.createCloudVm(VM), (err) => {
+        assert.equal(err.statusCode, 400);
+        assert.equal(err.code, "invalid_compute_billing_selection");
+        return true;
+    });
 });
 
 test("VM delete sends the body as given, with no public_ip_action default", async () => {
@@ -124,33 +184,28 @@ test("attach-volume with a billing_catalog makes no lookup", async () => {
     assert.deepEqual(calls[0].body, { volume_id: "vol-1", billing_catalog: sku });
 });
 
-test("resize-plan and root-disk resize pass billing_catalog through", async () => {
-    const sku = { sku_id: 12, sku_code: "VM-STD-4" };
+test("resize sends cpu, ram_mb and disk_gb as given, with no lookup", async () => {
     const { client, calls } = stubClient(api());
-    await client.gpuVms.resizeGpuVmPlan({ vm_id: "vm1", body: { cpu: 4, ram_mb: 8192, billing_catalog: sku } });
-    await client.cloudVms.resizeCloudVmRootDisk({ vm_id: "vm1", body: { new_size_gb: 100, billing_catalog: sku } });
+    await client.cloudVms.resizeCloudVm({ vm_id: "vm1", body: { cpu: 2, ram_mb: 4096, disk_gb: 60 } });
+    await client.gpuVms.resizeGpuVm({ vm_id: "vm2", body: { cpu: 8 } });
     assert.equal(calls.length, 2);
-    assert.deepEqual(calls[0].body, { cpu: 4, ram_mb: 8192, billing_catalog: sku });
-    assert.deepEqual(calls[1].body, { new_size_gb: 100, billing_catalog: sku });
+    assert.equal(calls[0].path, "/compute/cloud-vms/vm1/actions/resize");
+    assert.deepEqual(calls[0].body, { cpu: 2, ram_mb: 4096, disk_gb: 60 });
+    assert.deepEqual(calls[1].body, { cpu: 8 });
+    assert.match(calls[0].headers.get("x-idempotency-key"), /^[0-9a-f-]{36}$/);
 });
 
-test("resize with plan_id sends the plan shape and SKU, carrying a Windows licence", async () => {
-    const license = { sku_id: 9, sku_code: "WIN-LIC", quantity: 2 };
-    const vm = { _id: "vm1", site_id: "site-1", billing_catalog: { attached_skus: { windows_license: license } } };
-    const { client, calls } = stubClient(api({ "/compute/cloud-vms/vm1": vm }));
-    await client.cloudVms.resizeCloudVm({ vm_id: "vm1", body: { plan_id: "plan-1" } });
-    const body = sent(calls, "POST", "/compute/cloud-vms/vm1/actions/resize").body;
-    assert.equal(body.cpu, 4);
-    assert.equal(body.ram_mb, 8192);
-    assert.equal(body.disk_gb, 80);
-    assert.equal(body.plan_id, undefined);
-    assert.equal(body.billing_catalog.billing_interval, "HOURLY");
-    assert.deepEqual(body.billing_catalog.attached_skus.windows_license, license);
-
-    await client.cloudVms.resizeCloudVmPlan({ vm_id: "vm1", body: { plan_id: "plan-1", billing_term: "MONTHLY" } });
-    const plan = sent(calls, "PATCH", "/compute/cloud-vms/vm1/actions/resize-plan").body;
-    assert.equal(plan.disk_gb, undefined);
-    assert.equal(plan.billing_catalog.billing_interval, "MONTHLY");
+test("backups/disable is sent with the JSON body {}", async () => {
+    const { client, calls } = stubClient(() => ({ json: { policy_id: "p", enabled: false } }));
+    await client.cloudVms.disableCloudVmBackups({ vm_id: "vm1" });
+    await client.gpuVms.disableGpuVmBackups({ vm_id: "vm2" });
+    assert.deepEqual(
+        calls.map((c) => [c.method, c.path, c.body, c.headers.get("content-type")]),
+        [
+            ["POST", "/compute/cloud-vms/vm1/backups/disable", {}, "application/json"],
+            ["POST", "/compute/gpu-vms/vm2/backups/disable", {}, "application/json"],
+        ],
+    );
 });
 
 test("VM and firewall-group lists read every page unless limit/offset is given", async () => {

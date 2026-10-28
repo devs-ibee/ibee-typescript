@@ -5,7 +5,15 @@ import { IbeeClient } from "../Client.js";
 import * as core from "../core/index.js";
 import { IbeeEnvironment } from "../environments.js";
 import { IbeeError } from "../errors/index.js";
-import { checkTokenEnvironment, HeldCloudVms, HeldFirewalls, HeldGpuVms, HeldVpcs, hiddenToken } from "./held.js";
+import {
+    checkTokenEnvironment,
+    HeldCloudVms,
+    HeldFirewalls,
+    HeldGpuVms,
+    HeldVpcs,
+    hiddenToken,
+    withEmptyJsonBody,
+} from "./held.js";
 
 export declare namespace Ibee {
     export interface Options extends Omit<IbeeClient.Options, "token" | "environment" | "baseUrl" | "fetcher"> {
@@ -109,7 +117,7 @@ function resolveBaseUrl(value: string | undefined): string {
     return raw.replace(/\/+$/, "");
 }
 
-// The 22 contract operations that require X-Idempotency-Key: every write on a
+// The 18 contract operations that require X-Idempotency-Key: every write on a
 // cloud or GPU VM collection, VM or VM action.
 const KEYED_ROUTE = /(^|\/)compute\/(cloud-vms|gpu-vms)(\/[^/]+(\/actions\/[^/]+)?)?\/?$/;
 // Container Registry plan upgrade reads Idempotency-Key (not X-Idempotency-Key).
@@ -123,14 +131,15 @@ const MAX_RETRY_DELAY_MS = 30_000;
 
 /**
  * Wraps the generated fetcher: fills the default workspace_id and a missing
- * X-Idempotency-Key (Idempotency-Key on Container Registry plan upgrade), and
- * retries only when it is safe (GET/HEAD, or a keyed write) on 429/503 answers
- * that carry no billing/admission code.
+ * X-Idempotency-Key (Idempotency-Key on Container Registry plan upgrade), sends
+ * backups/disable with the body {} (held.ts), and retries only when it is safe
+ * (GET/HEAD, or a keyed write) on 429/503 answers that carry no billing/admission code.
  */
 function ibeeFetcher(workspaceId: string | undefined): core.FetchFunction {
-    return async <R = unknown>(args: core.Fetcher.Args): Promise<core.APIResponse<R, core.Fetcher.Error>> => {
-        const method = args.method.toUpperCase();
-        const path = new URL(args.url).pathname;
+    return async <R = unknown>(given: core.Fetcher.Args): Promise<core.APIResponse<R, core.Fetcher.Error>> => {
+        const method = given.method.toUpperCase();
+        const path = new URL(given.url).pathname;
+        const args = withEmptyJsonBody(given, method, path);
         const queryParameters = { ...args.queryParameters };
         if (queryParameters.workspace_id == null && workspaceId) queryParameters.workspace_id = workspaceId;
         const headers: Record<string, unknown> = { ...args.headers };
