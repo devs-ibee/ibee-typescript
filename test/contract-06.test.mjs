@@ -1,4 +1,4 @@
-// Contract 0.6.2: generated calls, sent as given, answers unchanged. The SDK adds no
+// Contract 0.6.x: generated calls, sent as given, answers unchanged. The SDK adds no
 // client-side logic (no plan lookups, defaults, billing_catalog composition or paging).
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -81,15 +81,15 @@ test("lists make one call with the caller's paging", async () => {
     assert.equal(calls[1].url.searchParams.get("offset"), "100");
 });
 
-test("backups/disable sends the JSON body {} (fern/overrides.yml)", async () => {
+test("backups/disable sends no body (the contract declares none)", async () => {
     const { client, calls } = stubClient(() => ({ json: { policy_id: "p", enabled: false } }));
     await client.cloudVms.disableCloudVmBackups({ vm_id: "vm1" });
     await client.gpuVms.disableGpuVmBackups({ vm_id: "vm2" });
     assert.deepEqual(
-        calls.map((c) => [c.method, c.path, c.body, c.headers.get("content-type")]),
+        calls.map((c) => [c.method, c.path, c.body]),
         [
-            ["POST", "/compute/cloud-vms/vm1/backups/disable", {}, "application/json"],
-            ["POST", "/compute/gpu-vms/vm2/backups/disable", {}, "application/json"],
+            ["POST", "/compute/cloud-vms/vm1/backups/disable", undefined],
+            ["POST", "/compute/gpu-vms/vm2/backups/disable", undefined],
         ],
     );
 });

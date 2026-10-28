@@ -2,9 +2,9 @@
 
 ## 0.6.0
 
-Generated from the API contract 0.6.2 (`contract/ibee-cloud.yaml`, 225 operations):
+Generated from the API contract 0.6.3 (`contract/ibee-cloud.yaml`, 225 operations):
 Container Registry (contract 0.5.0) plus the 0.6 changes (23 operations removed, 29
-added, 1 moved). The SDK is now a pure generated client: the public API runs the
+added, 1 moved; 0.6.3 only tightens two types, see below). The SDK is now a pure generated client: the public API runs the
 portal's own checks (through portal-client-api), so the hand-written "held" layer is
 removed. The SDK sends the request as given and returns the server's answer unchanged.
 
@@ -66,11 +66,14 @@ did and what to do now:
 `POST /object-storage/credentials/{id}/revoke` (revokes the key); the new
 `deleteS3Credential` (`DELETE`) deletes it.
 
-**Types** follow contract 0.6.2, for example `billing_catalog` on VM create is
-`ComputeBillingSelection`, `disableCloudVmBackups` / `disableGpuVmBackups` take no
-fields, `requested_by` is gone from VM action, backup-policy and snapshot bodies,
-restore requests take `target_volume_names`, NAT gateway delete takes
-`public_ip_action`.
+**Types** follow contract 0.6.3, for example `billing_catalog` on VM create is
+`ComputeBillingSelection`; `disableCloudVmBackups` / `disableGpuVmBackups` take no
+fields and send no body; `requested_by` is gone from VM action, backup-policy and
+snapshot bodies; restore requests take `target_volume_names`; NAT gateway delete takes
+`public_ip_action`; `createS3Credential`'s `permission_type` is an enum (`admin_rw`
+(default), `admin_ro`, `object_rw`, `object_ro`); `BlockStoragePlanUsage.iops` and
+`.throughput` are display strings (for example `Up to 10K`), and `throughput_mibps` is
+gone.
 
 ### Added
 
@@ -103,9 +106,6 @@ restore requests take `target_volume_names`, NAT gateway delete takes
 
 ### Changed
 
-- `disableCloudVmBackups` / `disableGpuVmBackups` send the JSON body `{}`:
-  `fern/overrides.yml` declares an empty body because the server answers 422 without
-  one (contract 0.6.2 declares none).
 - `src/.fernignore` keeps only `index.ts`, `version.ts`, `wrapper/Ibee.ts` and
   `errors/IbeeError.ts`.
 
