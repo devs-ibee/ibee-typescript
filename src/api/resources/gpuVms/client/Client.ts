@@ -2485,7 +2485,7 @@ export class GpuVmsClient {
         request: Ibee.DisableGpuVmBackupsRequest,
         requestOptions?: GpuVmsClient.RequestOptions,
     ): Promise<core.WithRawResponse<Ibee.BackupPolicy>> {
-        const { vm_id: vmId, workspace_id: workspaceId } = request;
+        const { vm_id: vmId, workspace_id: workspaceId, ..._body } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
         };
@@ -2504,7 +2504,10 @@ export class GpuVmsClient {
             ),
             method: "POST",
             headers: _headers,
+            contentType: "application/json",
             queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             abortSignal: requestOptions?.abortSignal,
