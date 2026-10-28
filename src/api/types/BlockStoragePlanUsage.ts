@@ -6,8 +6,10 @@ export interface BlockStoragePlanUsage {
     allowed_sizes_gb?: number[] | undefined;
     price_per_gb_month?: number | undefined;
     price_per_gb_month_minor?: number | undefined;
-    iops?: number | undefined;
-    throughput_mibps?: number | undefined;
+    /** Display text from the catalog, for example `Up to 10K`. */
+    iops?: string | undefined;
+    /** Display text from the catalog, for example `Up to 400 MiB/s`. */
+    throughput?: string | undefined;
     /** Accepts any additional properties */
     [key: string]: any;
 }

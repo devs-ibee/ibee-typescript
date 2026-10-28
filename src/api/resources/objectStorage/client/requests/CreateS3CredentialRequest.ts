@@ -11,8 +11,13 @@ export interface CreateS3CredentialRequest {
     workspace_id?: string;
     /** Display name of the key pair. Default `Default Key`. */
     name?: string;
-    /** Permission level: `admin_rw`, `admin_ro`, `object_rw` or `object_ro`. Default `admin_rw`. */
-    permission_type?: string;
+    /**
+     * - `admin_rw`: manage buckets and read/write objects (default).
+     * - `admin_ro`: read buckets and objects.
+     * - `object_rw`: read and write objects only.
+     * - `object_ro`: read objects only.
+     */
+    permission_type?: CreateS3CredentialRequest.PermissionType;
     /**
      * - `all`: the key may use every bucket in the workspace (default).
      * - `specific`: only the buckets in `allowed_buckets`.
@@ -23,6 +28,19 @@ export interface CreateS3CredentialRequest {
 }
 
 export namespace CreateS3CredentialRequest {
+    /**
+     * - `admin_rw`: manage buckets and read/write objects (default).
+     * - `admin_ro`: read buckets and objects.
+     * - `object_rw`: read and write objects only.
+     * - `object_ro`: read objects only.
+     */
+    export const PermissionType = {
+        AdminRw: "admin_rw",
+        AdminRo: "admin_ro",
+        ObjectRw: "object_rw",
+        ObjectRo: "object_ro",
+    } as const;
+    export type PermissionType = (typeof PermissionType)[keyof typeof PermissionType];
     /**
      * - `all`: the key may use every bucket in the workspace (default).
      * - `specific`: only the buckets in `allowed_buckets`.
