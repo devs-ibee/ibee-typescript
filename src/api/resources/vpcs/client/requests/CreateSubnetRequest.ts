@@ -13,9 +13,14 @@ export interface CreateSubnetRequest {
     vpc_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Display name of the subnet. */
     name: string;
+    /** IPv4 CIDR inside the VPC range. Chosen automatically when omitted and `auto_cidr` is true. */
     cidr?: string | null;
+    /** Let the service choose a free CIDR when `cidr` is omitted. Default true. */
     auto_cidr?: boolean;
+    /** Prefix length to use for an automatically chosen CIDR. */
     prefix_length?: number | null;
+    /** DNS resolvers handed to instances in the subnet. Default `1.1.1.1` and `8.8.8.8`. */
     dns?: string[];
 }

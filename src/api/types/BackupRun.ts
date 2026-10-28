@@ -2,68 +2,144 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * One backup run of a VM. A succeeded run is a recovery point that `POST .../backups/restore` accepts through `recovery_point_id`.
+ */
 export interface BackupRun {
+    /** ID of the organization that owns the VM. */
     organization_id: string;
+    /** Display name of the owning organization, when the service has it. */
     organization_name?: (string | null) | undefined;
+    /** ID of the workspace the VM belongs to. */
     workspace_id: string;
+    /** Display name of the workspace, when the service has it. */
     workspace_name?: (string | null) | undefined;
+    /** Unique ID of the backup run. */
     run_id: string;
+    /** ID of an earlier run this run derives from, when the service records one. */
     source_run_id?: (string | null) | undefined;
+    /** ID of the backup record in the backup store, when the service records one. */
     vm_backup_id?: (string | null) | undefined;
+    /** ID of the VM that was backed up. */
     vm_id: string;
+    /** `cloud` or `gpu`. Default `cloud`. */
     vm_type?: (string | null) | undefined;
+    /** Display name of the VM at run time. */
     vm_name?: (string | null) | undefined;
+    /** OS family of the VM (`linux` or `windows`) at run time. */
     os_type?: (string | null) | undefined;
+    /** OS distribution of the VM at run time. */
     os_distro?: (string | null) | undefined;
+    /** Template the VM was created from. */
     template_id?: (string | null) | undefined;
+    /** Backup policy the run belongs to, when a policy created it. */
     policy_id?: (string | null) | undefined;
+    /** ID of the backup chain (a full backup and the incremental runs that follow it) the run belongs to. */
     chain_id?: (string | null) | undefined;
+    /** Value to send as `recovery_point_id` when restoring from this run. */
     recovery_point_id?: (string | null) | undefined;
+    /**
+     * What started the run.
+     * - `scheduled`: the policy schedule.
+     * - `manual`: an on-demand request from a user.
+     * - `api`: an on-demand request through the API.
+     */
     trigger: BackupRun.Trigger;
+    /**
+     * - `full`: a complete copy of the captured volumes.
+     * - `incremental`: only the changes since the previous run in the chain.
+     */
     backup_type: BackupRun.BackupType;
     status: Ibee.BackupStatus;
+    /** Identifier of the storage backend that holds the captured data. */
     storage_backend?: (string | null) | undefined;
+    /** When the run started (ISO 8601); null while queued. */
     started_at?: (string | null) | undefined;
+    /** When the run finished (ISO 8601); null until it does. */
     completed_at?: (string | null) | undefined;
+    /** Size of the captured data in GiB. */
     size_gb?: (number | null) | undefined;
+    /** Provisioned size of the source root disk in GiB at capture time. */
     source_disk_size_gb?: (number | null) | undefined;
+    /** Bytes transferred to the backup store during the run. */
     bytes_transferred?: (number | null) | undefined;
+    /** Bytes the backup occupies in the backup store. */
     backup_stored_size_bytes?: (number | null) | undefined;
+    /** `backup_stored_size_bytes` expressed in GiB. */
     backup_stored_size_gb?: (number | null) | undefined;
+    /** Bytes of source data protected by this recovery point. */
     protected_storage_bytes?: (number | null) | undefined;
+    /** Bytes billed for storing this recovery point. */
     billing_storage_bytes?: (number | null) | undefined;
+    /**
+     * How `billing_storage_bytes` was obtained.
+     * - `metered`: measured in the backup store.
+     * - `metered_from_manifest`: summed from the volume manifest.
+     * - `unavailable`: not measured yet.
+     */
     billing_storage_source?: string | undefined;
+    /** `metered` once storage has been measured for billing; `unavailable` until then. */
     metering_status?: string | undefined;
+    /** Number of volumes in the recovery point. */
     captured_volume_count?: number | undefined;
+    /** True when only the root disk was captured. */
     root_only?: boolean | undefined;
+    /** Hash of the VM's volume layout at capture time; a different hash on the live VM means the layout drifted. */
     captured_topology_hash?: (string | null) | undefined;
+    /**
+     * Which volumes the recovery point contains.
+     * - `root_only`: the root disk only.
+     * - `all_attached`: the root disk and every attached data volume.
+     * - `selective`: the root disk and the data volumes that were selected.
+     */
     capture_scope?: (BackupRun.CaptureScope | null) | undefined;
+    /** Always `backup` for a backup run. */
     recovery_point_type?: BackupRun.RecoveryPointType | undefined;
+    /** One entry per captured volume. */
     volume_manifest?: Ibee.RecoveryVolumeManifestItem[] | undefined;
     volume_manifest_summary?: Ibee.RecoveryPointSummary | undefined;
     live_drift_summary?: Ibee.LiveDriftSummary | undefined;
+    /** Error detail when `status` is `failed`. */
     error_message?: (string | null) | undefined;
+    /** Additional service-specific key-value data. */
     metadata?: Record<string, unknown> | undefined;
 }
 
 export namespace BackupRun {
+    /**
+     * What started the run.
+     * - `scheduled`: the policy schedule.
+     * - `manual`: an on-demand request from a user.
+     * - `api`: an on-demand request through the API.
+     */
     export const Trigger = {
         Scheduled: "scheduled",
         Manual: "manual",
         Api: "api",
     } as const;
     export type Trigger = (typeof Trigger)[keyof typeof Trigger];
+    /**
+     * - `full`: a complete copy of the captured volumes.
+     * - `incremental`: only the changes since the previous run in the chain.
+     */
     export const BackupType = {
         Full: "full",
         Incremental: "incremental",
     } as const;
     export type BackupType = (typeof BackupType)[keyof typeof BackupType];
+    /**
+     * Which volumes the recovery point contains.
+     * - `root_only`: the root disk only.
+     * - `all_attached`: the root disk and every attached data volume.
+     * - `selective`: the root disk and the data volumes that were selected.
+     */
     export const CaptureScope = {
         RootOnly: "root_only",
         AllAttached: "all_attached",
         Selective: "selective",
     } as const;
     export type CaptureScope = (typeof CaptureScope)[keyof typeof CaptureScope];
+    /** Always `backup` for a backup run. */
     export const RecoveryPointType = {
         Backup: "backup",
     } as const;

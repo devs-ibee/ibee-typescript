@@ -14,16 +14,27 @@ export interface UpdateL7LoadBalancerRequest {
     load_balancer_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** New display name. */
     name?: string;
+    /** Replacement default backend list. */
     backends?: Ibee.LoadBalancerBackend[];
     routing?: Ibee.LoadBalancerRouting;
+    health_check?: Ibee.LoadBalancerHealthCheck;
+    policy?: Ibee.LoadBalancerPolicy;
+    observability?: Ibee.LoadBalancerObservability;
     tls?: Ibee.LoadBalancerTls;
+    /** Custom hostname to serve. Point its DNS CNAME at the load balancer's endpoint host. */
     custom_domain?: UpdateL7LoadBalancerRequest.CustomDomain | null;
+    /** Replacement routing rules. */
     rules?: Ibee.LoadBalancerRule[];
 }
 
 export namespace UpdateL7LoadBalancerRequest {
+    /**
+     * Custom hostname to serve. Point its DNS CNAME at the load balancer's endpoint host.
+     */
     export interface CustomDomain {
+        /** Fully qualified domain name to serve. */
         hostname?: string | undefined;
     }
 }

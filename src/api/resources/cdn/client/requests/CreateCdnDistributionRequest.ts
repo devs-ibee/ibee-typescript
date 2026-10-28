@@ -11,18 +11,42 @@
 export interface CreateCdnDistributionRequest {
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Display name of the distribution (1-128 characters). */
     name: string;
+    /**
+     * - `bucket`: serve an Object Storage bucket (default).
+     * - `custom`: serve a custom origin.
+     */
     origin_type?: CreateCdnDistributionRequest.OriginType;
+    /** Bucket name for `bucket` origins, or the custom origin's ID. */
     origin_id: string;
+    /**
+     * Caching behaviour. Default `static-assets`.
+     * - `static-assets`: long-term caching for immutable assets; 1 year at the CDN, browsers revalidate.
+     * - `media`: medium-term caching for video and audio; 30 days at the CDN.
+     * - `short`: short-term caching for frequently changing content; 1 hour at the CDN.
+     * - `no-cache`: no caching, for dynamic responses.
+     */
     cache_policy?: CreateCdnDistributionRequest.CachePolicy;
 }
 
 export namespace CreateCdnDistributionRequest {
+    /**
+     * - `bucket`: serve an Object Storage bucket (default).
+     * - `custom`: serve a custom origin.
+     */
     export const OriginType = {
         Bucket: "bucket",
         Custom: "custom",
     } as const;
     export type OriginType = (typeof OriginType)[keyof typeof OriginType];
+    /**
+     * Caching behaviour. Default `static-assets`.
+     * - `static-assets`: long-term caching for immutable assets; 1 year at the CDN, browsers revalidate.
+     * - `media`: medium-term caching for video and audio; 30 days at the CDN.
+     * - `short`: short-term caching for frequently changing content; 1 hour at the CDN.
+     * - `no-cache`: no caching, for dynamic responses.
+     */
     export const CachePolicy = {
         StaticAssets: "static-assets",
         Media: "media",

@@ -11,16 +11,23 @@
 export interface CreateVpcRequest {
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Display name of the VPC. */
     name: string;
+    /** Optional description. */
     description?: string;
     /** Required network placement site. Copy `site_id` from `GET /networking/sites` and choose an entry where `available` is `true`. Do not use a region name. */
     site_id: string;
+    /** Optional region label stored with the VPC. */
     region?: string | null;
     /** RFC1918 IPv4 CIDR with a prefix between /22 and /28. */
     cidr?: string | null;
+    /** Let the service choose a free CIDR when `cidr` is omitted. Default true. */
     auto_cidr?: boolean;
+    /** Create a first subnet together with the VPC. Default true. */
     create_default_subnet?: boolean;
+    /** CIDR for that first subnet; chosen automatically when omitted. */
     default_subnet_cidr?: string | null;
+    /** Mark the VPC as the workspace's default VPC. Default false. */
     is_default?: boolean;
     /** The VPC's internet model; the server uses `public` when this is omitted. `public` keeps dedicated public IPs available to its VMs. `private` has no shared public edge, but a VM can still be given a Reserved IP. `nat_gateway` is a private VPC with managed outbound NAT and refuses dedicated public IPs. */
     connectivity_type?: CreateVpcRequest.ConnectivityType;

@@ -2,17 +2,29 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * An artifact's SBOM, paged by component.
+ */
 export interface ContainerRegistrySbom {
+    /** Repository the artifact is in. */
     repository_name: string;
+    /** Digest of the artifact. */
     artifact_digest: string;
+    /** When the SBOM was generated (ISO 8601). */
     generated_at?: (string | null) | undefined;
+    /** Media type of the SBOM document, which identifies its format. */
     media_type: string;
+    /** Scanner that generated the SBOM. */
     scanner?: (Ibee.ContainerRegistryScanner | null) | undefined;
+    /** Components on this page. */
     components: Ibee.ContainerRegistrySbomComponent[];
     /** Relationships that touch a component on this page. */
     relationships: ContainerRegistrySbom.Relationships.Item[];
+    /** Total number of components in the SBOM. */
     total_components: number;
+    /** Page number returned (1-based). */
     page: number;
+    /** Page size that was applied. */
     page_size: number;
 }
 
@@ -21,8 +33,11 @@ export namespace ContainerRegistrySbom {
 
     export namespace Relationships {
         export interface Item {
+            /** Component ID the relationship starts from. */
             source: string;
+            /** Component ID the relationship points to. */
             target: string;
+            /** Relationship type as recorded in the SBOM, for example `DEPENDS_ON`. */
             relationship: string;
         }
     }

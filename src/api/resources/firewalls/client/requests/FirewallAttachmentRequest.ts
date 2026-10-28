@@ -13,5 +13,6 @@ export interface FirewallAttachmentRequest {
     firewall_group_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** ID of the VM. */
     vm_id: string;
 }

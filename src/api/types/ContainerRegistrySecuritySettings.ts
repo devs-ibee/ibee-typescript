@@ -2,6 +2,9 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Security settings of a registry.
+ */
 export interface ContainerRegistrySecuritySettings {
     vulnerability_pull_policy?: Ibee.ContainerRegistryPullPolicy | undefined;
 }

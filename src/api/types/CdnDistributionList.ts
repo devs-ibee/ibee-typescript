@@ -2,7 +2,12 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Distributions in the workspace.
+ */
 export interface CdnDistributionList {
+    /** Distributions returned. */
     distributions: Ibee.CdnDistribution[];
+    /** Number of items in `distributions`. */
     count: number;
 }

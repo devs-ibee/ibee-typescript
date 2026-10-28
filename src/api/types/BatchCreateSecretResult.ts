@@ -2,14 +2,30 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Outcome for one secret in a batch create.
+ */
 export interface BatchCreateSecretResult {
+    /** Name of the secret the result refers to. */
     secret_name: string;
+    /**
+     * - `created`: the secret was created.
+     * - `skipped`: a secret with this name already existed.
+     * - `failed`: creation failed; see `error`.
+     */
     status: BatchCreateSecretResult.Status;
+    /** The created secret, when `status` is `created`. */
     secret?: (Ibee.Secret | null) | undefined;
+    /** Error detail when `status` is `failed`. */
     error?: (string | null) | undefined;
 }
 
 export namespace BatchCreateSecretResult {
+    /**
+     * - `created`: the secret was created.
+     * - `skipped`: a secret with this name already existed.
+     * - `failed`: creation failed; see `error`.
+     */
     export const Status = {
         Created: "created",
         Skipped: "skipped",

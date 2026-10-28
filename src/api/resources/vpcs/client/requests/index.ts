@@ -3,7 +3,6 @@ export type { CreateNatGatewayRequest } from "./CreateNatGatewayRequest.js";
 export type { CreateNatPortForwardingRuleBody } from "./CreateNatPortForwardingRuleBody.js";
 export type { CreateSubnetRequest } from "./CreateSubnetRequest.js";
 export { CreateVpcRequest } from "./CreateVpcRequest.js";
-export type { DeleteNatGatewayRequest } from "./DeleteNatGatewayRequest.js";
 export type { DeleteNatPortForwardingRuleRequest } from "./DeleteNatPortForwardingRuleRequest.js";
 export type { DeleteVpcRequest } from "./DeleteVpcRequest.js";
 export type { DeleteVpcSubnetRequest } from "./DeleteVpcSubnetRequest.js";
@@ -16,6 +15,7 @@ export type { ListNetworkingSitesRequest } from "./ListNetworkingSitesRequest.js
 export type { ListVpcNodesRequest } from "./ListVpcNodesRequest.js";
 export type { ListVpcSubnetsRequest } from "./ListVpcSubnetsRequest.js";
 export type { ListVpcsRequest } from "./ListVpcsRequest.js";
+export { NatGatewayDeleteRequest } from "./NatGatewayDeleteRequest.js";
+export type { UpdateNatGatewayPublicIpRequest } from "./UpdateNatGatewayPublicIpRequest.js";
 export { UpdateNatPortForwardingRuleRequest } from "./UpdateNatPortForwardingRuleRequest.js";
-export type { UpdateSubnetRequest } from "./UpdateSubnetRequest.js";
 export type { UpdateVpcRequest } from "./UpdateVpcRequest.js";

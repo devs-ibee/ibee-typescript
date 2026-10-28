@@ -19,9 +19,14 @@ export interface CreateContainerRegistryAccessTokenRequest {
     workspace_id?: string;
     /** Unique among the organization's active tokens. */
     token_name: string;
+    /**
+     * - `PULL`: pull only (default).
+     * - `PULL_PUSH`: pull and push.
+     */
     permission?: Ibee.ContainerRegistryAccessTokenPermission;
     /** 1 to 365, or -1 for a token that does not expire. */
     expires_in_days?: number;
+    /** Optional description (up to 255 characters). */
     description?: string;
     /** Other registries in the same workspace the token may also use. The registry in the path is always included. */
     registry_ids?: string[];

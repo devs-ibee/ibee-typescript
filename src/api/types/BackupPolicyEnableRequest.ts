@@ -2,12 +2,17 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Body for enabling scheduled backups on a VM.
+ */
 export interface BackupPolicyEnableRequest {
     schedule?: Ibee.BackupPolicySchedule | undefined;
+    /** Days a backup run is kept before it is expired (1-365). Default 7. */
     retention_days?: number | undefined;
+    /** Days between full backups (1-30); when `incremental_enabled` is true the runs in between are incremental. Default 7. */
     full_backup_interval_days?: number | undefined;
+    /** Whether runs between full backups capture only changes. Default true. */
     incremental_enabled?: boolean | undefined;
     /** Required. The backup storage SKU from the Billing catalog that the VM engine records for this policy's backups. No public operation lists it yet. */
     billing_catalog: Ibee.BillingCatalogSelection;
-    requested_by?: string | undefined;
 }

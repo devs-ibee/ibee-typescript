@@ -2,16 +2,27 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A registry access token without its secret.
+ */
 export interface ContainerRegistryAccessToken {
+    /** Unique ID of the token. */
     token_id: string;
+    /** Name of the token. */
     token_name: string;
     /** Docker login username (the `username` returned at creation). */
     harbor_username: string;
     permission: Ibee.ContainerRegistryAccessTokenPermission;
+    /** Registries the token may use. */
     registry_ids: string[];
+    /** True when the token has been revoked or disabled and no longer authenticates. */
     disabled: boolean;
+    /** When the token expires (ISO 8601); null for a token that does not expire. */
     expires_at: string | null;
+    /** User who created the token, when it was created by a user. */
     created_by_user_id: string | null;
+    /** When the token was created (ISO 8601). */
     created_at: string;
+    /** When the token was revoked (ISO 8601); null while valid. */
     revoked_at: string | null;
 }

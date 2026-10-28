@@ -2,29 +2,53 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Result of a resize precheck: whether the requested shape can be applied in place, needs a migration, or is blocked.
+ */
 export interface VmResizePrecheck {
+    /**
+     * - `in_place`: the change can be applied on the current host.
+     * - `migration_required`: the VM must move to another host first.
+     * - `blocked`: the change cannot be made; see `reasons`.
+     */
     decision: VmResizePrecheck.Decision;
+    /** Same values as `decision`; present when the engine reports the mode separately. */
     mode?: (VmResizePrecheck.Mode | null) | undefined;
+    /** Why the decision was reached. */
     reasons: string[];
+    /** Non-blocking warnings about the change. */
     warnings: string[];
+    /** Items to confirm before a migration. */
     migration_checklist: string[];
+    /** Steps a migration would perform. */
     migration_steps: string[];
+    /** Whether the VM must be stopped for the change. */
     requires_stop: boolean;
+    /** Whether the change interrupts the VM. */
     downtime_expected: boolean;
+    /** True when the target shape equals the current one. */
     no_changes: boolean;
+    /** VM lifecycle status recorded by the engine. */
     current_state: string;
+    /** Power state observed on the host, when available. */
     live_state?: (string | null) | undefined;
     current: Ibee.VmResizeShape;
     target: Ibee.VmResizeShape;
 }
 
 export namespace VmResizePrecheck {
+    /**
+     * - `in_place`: the change can be applied on the current host.
+     * - `migration_required`: the VM must move to another host first.
+     * - `blocked`: the change cannot be made; see `reasons`.
+     */
     export const Decision = {
         InPlace: "in_place",
         MigrationRequired: "migration_required",
         Blocked: "blocked",
     } as const;
     export type Decision = (typeof Decision)[keyof typeof Decision];
+    /** Same values as `decision`; present when the engine reports the mode separately. */
     export const Mode = {
         InPlace: "in_place",
         MigrationRequired: "migration_required",

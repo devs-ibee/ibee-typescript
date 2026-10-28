@@ -463,6 +463,1354 @@ export class ObjectStorageClient {
     }
 
     /**
+     * Returns the bucket's lifecycle rules, as the portal's Settings › Lifecycle tab shows them. Requires scope: object-storage.read.
+     *
+     * @param {Ibee.GetBucketLifecycleRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.getBucketLifecycle({
+     *         bucket_name: "bucket_name",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public getBucketLifecycle(
+        request: Ibee.GetBucketLifecycleRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.BucketLifecycleConfiguration> {
+        return core.HttpResponsePromise.fromPromise(this.__getBucketLifecycle(request, requestOptions));
+    }
+
+    private async __getBucketLifecycle(
+        request: Ibee.GetBucketLifecycleRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.BucketLifecycleConfiguration>> {
+        const { bucket_name: bucketName, workspace_id: workspaceId } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/lifecycle`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.BucketLifecycleConfiguration, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/object-storage/buckets/{bucket_name}/lifecycle",
+        );
+    }
+
+    /**
+     * Replaces every lifecycle rule of the bucket. Each rule expires objects after a number of days or on a date, optionally only under a prefix. Requires scope: object-storage.write.
+     *
+     * @param {Ibee.SetBucketLifecycleRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.setBucketLifecycle({
+     *         bucket_name: "bucket_name",
+     *         workspace_id: "710995",
+     *         body: {
+     *             rules: [{
+     *                     status: "Enabled"
+     *                 }]
+     *         }
+     *     })
+     */
+    public setBucketLifecycle(
+        request: Ibee.SetBucketLifecycleRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.DeleteResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__setBucketLifecycle(request, requestOptions));
+    }
+
+    private async __setBucketLifecycle(
+        request: Ibee.SetBucketLifecycleRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.DeleteResponse>> {
+        const { bucket_name: bucketName, workspace_id: workspaceId, body: _body } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/lifecycle`,
+            ),
+            method: "PUT",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.DeleteResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "PUT",
+            "/object-storage/buckets/{bucket_name}/lifecycle",
+        );
+    }
+
+    /**
+     * Removes every lifecycle rule from the bucket. Requires scope: object-storage.write.
+     *
+     * @param {Ibee.DeleteBucketLifecycleRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.deleteBucketLifecycle({
+     *         bucket_name: "bucket_name",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public deleteBucketLifecycle(
+        request: Ibee.DeleteBucketLifecycleRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.DeleteResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__deleteBucketLifecycle(request, requestOptions));
+    }
+
+    private async __deleteBucketLifecycle(
+        request: Ibee.DeleteBucketLifecycleRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.DeleteResponse>> {
+        const { bucket_name: bucketName, workspace_id: workspaceId } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/lifecycle`,
+            ),
+            method: "DELETE",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.DeleteResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "DELETE",
+            "/object-storage/buckets/{bucket_name}/lifecycle",
+        );
+    }
+
+    /**
+     * Returns the bucket's CORS rules, as the portal's Settings › CORS tab shows them. Requires scope: object-storage.read.
+     *
+     * @param {Ibee.GetBucketCorsRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.getBucketCors({
+     *         bucket_name: "bucket_name",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public getBucketCors(
+        request: Ibee.GetBucketCorsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.BucketCorsConfiguration> {
+        return core.HttpResponsePromise.fromPromise(this.__getBucketCors(request, requestOptions));
+    }
+
+    private async __getBucketCors(
+        request: Ibee.GetBucketCorsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.BucketCorsConfiguration>> {
+        const { bucket_name: bucketName, workspace_id: workspaceId } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/cors`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.BucketCorsConfiguration, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/object-storage/buckets/{bucket_name}/cors",
+        );
+    }
+
+    /**
+     * Replaces every CORS rule of the bucket. Requires scope: object-storage.write.
+     *
+     * @param {Ibee.SetBucketCorsRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.setBucketCors({
+     *         bucket_name: "bucket_name",
+     *         workspace_id: "710995",
+     *         body: {
+     *             rules: [{
+     *                     allowed_origins: ["allowed_origins"],
+     *                     allowed_methods: ["GET"]
+     *                 }]
+     *         }
+     *     })
+     */
+    public setBucketCors(
+        request: Ibee.SetBucketCorsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.DeleteResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__setBucketCors(request, requestOptions));
+    }
+
+    private async __setBucketCors(
+        request: Ibee.SetBucketCorsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.DeleteResponse>> {
+        const { bucket_name: bucketName, workspace_id: workspaceId, body: _body } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/cors`,
+            ),
+            method: "PUT",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.DeleteResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "PUT",
+            "/object-storage/buckets/{bucket_name}/cors",
+        );
+    }
+
+    /**
+     * Removes every CORS rule from the bucket. Requires scope: object-storage.write.
+     *
+     * @param {Ibee.DeleteBucketCorsRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.deleteBucketCors({
+     *         bucket_name: "bucket_name",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public deleteBucketCors(
+        request: Ibee.DeleteBucketCorsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.DeleteResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__deleteBucketCors(request, requestOptions));
+    }
+
+    private async __deleteBucketCors(
+        request: Ibee.DeleteBucketCorsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.DeleteResponse>> {
+        const { bucket_name: bucketName, workspace_id: workspaceId } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/cors`,
+            ),
+            method: "DELETE",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.DeleteResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "DELETE",
+            "/object-storage/buckets/{bucket_name}/cors",
+        );
+    }
+
+    /**
+     * Returns the default retention of a bucket created with object lock, as the portal's Settings › Lock tab shows it. Answers 404 when the bucket has no object lock. Requires scope: object-storage.read.
+     *
+     * @param {Ibee.GetBucketObjectLockRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.getBucketObjectLock({
+     *         bucket_name: "bucket_name",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public getBucketObjectLock(
+        request: Ibee.GetBucketObjectLockRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.BucketObjectLockConfiguration> {
+        return core.HttpResponsePromise.fromPromise(this.__getBucketObjectLock(request, requestOptions));
+    }
+
+    private async __getBucketObjectLock(
+        request: Ibee.GetBucketObjectLockRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.BucketObjectLockConfiguration>> {
+        const { bucket_name: bucketName, workspace_id: workspaceId } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/object-lock`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.BucketObjectLockConfiguration, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/object-storage/buckets/{bucket_name}/object-lock",
+        );
+    }
+
+    /**
+     * Changes the default retention applied to new objects in a bucket that has object lock. Send `rule: null` to remove the default. Requires scope: object-storage.write.
+     *
+     * @param {Ibee.BucketObjectLockUpdateRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.BadRequestError}
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.setBucketObjectLock({
+     *         bucket_name: "bucket_name",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public setBucketObjectLock(
+        request: Ibee.BucketObjectLockUpdateRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.DeleteResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__setBucketObjectLock(request, requestOptions));
+    }
+
+    private async __setBucketObjectLock(
+        request: Ibee.BucketObjectLockUpdateRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.DeleteResponse>> {
+        const { bucket_name: bucketName, workspace_id: workspaceId, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/object-lock`,
+            ),
+            method: "PUT",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.DeleteResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 400:
+                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "PUT",
+            "/object-storage/buckets/{bucket_name}/object-lock",
+        );
+    }
+
+    /**
+     * Returns the webhook notification rules of the bucket, as the portal's Settings › Event notifications tab shows them. Requires scope: object-storage.read.
+     *
+     * @param {Ibee.GetBucketNotificationsRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.getBucketNotifications({
+     *         bucket_name: "bucket_name",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public getBucketNotifications(
+        request: Ibee.GetBucketNotificationsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.BucketNotificationConfiguration> {
+        return core.HttpResponsePromise.fromPromise(this.__getBucketNotifications(request, requestOptions));
+    }
+
+    private async __getBucketNotifications(
+        request: Ibee.GetBucketNotificationsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.BucketNotificationConfiguration>> {
+        const { bucket_name: bucketName, workspace_id: workspaceId } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/notifications`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.BucketNotificationConfiguration, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/object-storage/buckets/{bucket_name}/notifications",
+        );
+    }
+
+    /**
+     * Replaces every notification rule of the bucket. Each rule posts `upload` or `delete` events, optionally filtered by prefix or suffix, to a webhook URL. Requires scope: object-storage.write.
+     *
+     * @param {Ibee.SetBucketNotificationsRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.setBucketNotifications({
+     *         bucket_name: "bucket_name",
+     *         workspace_id: "710995",
+     *         body: {
+     *             configs: [{
+     *                     events: ["upload"]
+     *                 }]
+     *         }
+     *     })
+     */
+    public setBucketNotifications(
+        request: Ibee.SetBucketNotificationsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.DeleteResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__setBucketNotifications(request, requestOptions));
+    }
+
+    private async __setBucketNotifications(
+        request: Ibee.SetBucketNotificationsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.DeleteResponse>> {
+        const { bucket_name: bucketName, workspace_id: workspaceId, body: _body } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/notifications`,
+            ),
+            method: "PUT",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.DeleteResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "PUT",
+            "/object-storage/buckets/{bucket_name}/notifications",
+        );
+    }
+
+    /**
+     * Removes every notification rule from the bucket. Requires scope: object-storage.write.
+     *
+     * @param {Ibee.DeleteBucketNotificationsRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.deleteBucketNotifications({
+     *         bucket_name: "bucket_name",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public deleteBucketNotifications(
+        request: Ibee.DeleteBucketNotificationsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.DeleteResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__deleteBucketNotifications(request, requestOptions));
+    }
+
+    private async __deleteBucketNotifications(
+        request: Ibee.DeleteBucketNotificationsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.DeleteResponse>> {
+        const { bucket_name: bucketName, workspace_id: workspaceId } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/notifications`,
+            ),
+            method: "DELETE",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.DeleteResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "DELETE",
+            "/object-storage/buckets/{bucket_name}/notifications",
+        );
+    }
+
+    /**
+     * Returns the bucket's custom domains with their status and the CNAME target to point them at, as the portal's Settings › Custom domains tab shows. Requires scope: object-storage.read.
+     *
+     * @param {Ibee.GetBucketCustomDomainsRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.getBucketCustomDomains({
+     *         bucket_name: "bucket_name",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public getBucketCustomDomains(
+        request: Ibee.GetBucketCustomDomainsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.BucketCustomDomainConfig> {
+        return core.HttpResponsePromise.fromPromise(this.__getBucketCustomDomains(request, requestOptions));
+    }
+
+    private async __getBucketCustomDomains(
+        request: Ibee.GetBucketCustomDomainsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.BucketCustomDomainConfig>> {
+        const { bucket_name: bucketName, workspace_id: workspaceId } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/custom-domains`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.BucketCustomDomainConfig, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/object-storage/buckets/{bucket_name}/custom-domains",
+        );
+    }
+
+    /**
+     * Adds a custom hostname that serves the bucket. Create the CNAME record shown in `cname_target`, then check `status` on the list. Requires scope: object-storage.write.
+     *
+     * @param {Ibee.AddBucketCustomDomainRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.BadRequestError}
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.addBucketCustomDomain({
+     *         bucket_name: "bucket_name",
+     *         workspace_id: "710995",
+     *         domain: "domain"
+     *     })
+     */
+    public addBucketCustomDomain(
+        request: Ibee.AddBucketCustomDomainRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.BucketCustomDomain> {
+        return core.HttpResponsePromise.fromPromise(this.__addBucketCustomDomain(request, requestOptions));
+    }
+
+    private async __addBucketCustomDomain(
+        request: Ibee.AddBucketCustomDomainRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.BucketCustomDomain>> {
+        const { bucket_name: bucketName, workspace_id: workspaceId, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/custom-domains`,
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.BucketCustomDomain, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 400:
+                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 409:
+                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/object-storage/buckets/{bucket_name}/custom-domains",
+        );
+    }
+
+    /**
+     * Removes a custom hostname from the bucket. Requires scope: object-storage.write.
+     *
+     * @param {Ibee.RemoveBucketCustomDomainRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.BadRequestError}
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.removeBucketCustomDomain({
+     *         bucket_name: "bucket_name",
+     *         domain: "domain",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public removeBucketCustomDomain(
+        request: Ibee.RemoveBucketCustomDomainRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.BucketCustomDomainRemoved> {
+        return core.HttpResponsePromise.fromPromise(this.__removeBucketCustomDomain(request, requestOptions));
+    }
+
+    private async __removeBucketCustomDomain(
+        request: Ibee.RemoveBucketCustomDomainRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.BucketCustomDomainRemoved>> {
+        const { bucket_name: bucketName, domain, workspace_id: workspaceId } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/custom-domains/${core.url.encodePathParam(domain)}`,
+            ),
+            method: "DELETE",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.BucketCustomDomainRemoved, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 400:
+                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "DELETE",
+            "/object-storage/buckets/{bucket_name}/custom-domains/{domain}",
+        );
+    }
+
+    /**
+     * Returns request and storage metrics of the bucket for the last 24 hours or 7 days, as the portal's Metrics tab shows them. Requires scope: object-storage.read.
+     *
+     * @param {Ibee.GetBucketMetricsRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.getBucketMetrics({
+     *         bucket_name: "bucket_name",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public getBucketMetrics(
+        request: Ibee.GetBucketMetricsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.BucketMetrics> {
+        return core.HttpResponsePromise.fromPromise(this.__getBucketMetrics(request, requestOptions));
+    }
+
+    private async __getBucketMetrics(
+        request: Ibee.GetBucketMetricsRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.BucketMetrics>> {
+        const { bucket_name: bucketName, workspace_id: workspaceId, range } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+            range: range != null ? range : undefined,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/metrics`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.BucketMetrics, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/object-storage/buckets/{bucket_name}/metrics",
+        );
+    }
+
+    /**
      * Lists S3-compatible credentials without secret keys. Requires scope: object-storage.read.
      *
      * @param {Ibee.ListS3CredentialsRequest} request
@@ -712,9 +2060,9 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Revokes a credential so it can no longer authenticate S3 requests. Requires scope: object-storage.write.
+     * Deletes a credential record permanently. Revoke it first with POST /object-storage/credentials/{access_key_id}/revoke; the portal deletes revoked credentials only. Requires scope: object-storage.write.
      *
-     * @param {Ibee.RevokeS3CredentialRequest} request
+     * @param {Ibee.DeleteS3CredentialRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link Ibee.UnauthorizedError}
@@ -724,20 +2072,20 @@ export class ObjectStorageClient {
      * @throws {@link Ibee.ServiceUnavailableError}
      *
      * @example
-     *     await client.objectStorage.revokeS3Credential({
+     *     await client.objectStorage.deleteS3Credential({
      *         access_key_id: "access_key_id",
      *         workspace_id: "710995"
      *     })
      */
-    public revokeS3Credential(
-        request: Ibee.RevokeS3CredentialRequest,
+    public deleteS3Credential(
+        request: Ibee.DeleteS3CredentialRequest,
         requestOptions?: ObjectStorageClient.RequestOptions,
     ): core.HttpResponsePromise<Ibee.S3CredentialRevoked> {
-        return core.HttpResponsePromise.fromPromise(this.__revokeS3Credential(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__deleteS3Credential(request, requestOptions));
     }
 
-    private async __revokeS3Credential(
-        request: Ibee.RevokeS3CredentialRequest,
+    private async __deleteS3Credential(
+        request: Ibee.DeleteS3CredentialRequest,
         requestOptions?: ObjectStorageClient.RequestOptions,
     ): Promise<core.WithRawResponse<Ibee.S3CredentialRevoked>> {
         const { access_key_id: accessKeyId, workspace_id: workspaceId } = request;
@@ -796,6 +2144,94 @@ export class ObjectStorageClient {
             _response.rawResponse,
             "DELETE",
             "/object-storage/credentials/{access_key_id}",
+        );
+    }
+
+    /**
+     * Revokes a credential so it can no longer authenticate S3 requests. The record stays listed as revoked, as in the portal; delete it afterwards with DELETE /object-storage/credentials/{access_key_id}. Requires scope: object-storage.write.
+     *
+     * @param {Ibee.RevokeS3CredentialRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.objectStorage.revokeS3Credential({
+     *         access_key_id: "access_key_id",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public revokeS3Credential(
+        request: Ibee.RevokeS3CredentialRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.S3CredentialRevoked> {
+        return core.HttpResponsePromise.fromPromise(this.__revokeS3Credential(request, requestOptions));
+    }
+
+    private async __revokeS3Credential(
+        request: Ibee.RevokeS3CredentialRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.S3CredentialRevoked>> {
+        const { access_key_id: accessKeyId, workspace_id: workspaceId } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/credentials/${core.url.encodePathParam(accessKeyId)}/revoke`,
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.S3CredentialRevoked, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/object-storage/credentials/{access_key_id}/revoke",
         );
     }
 }

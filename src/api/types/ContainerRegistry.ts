@@ -2,31 +2,52 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A container registry. Images are pushed to and pulled from `registry.ibee.ai/<registry_name>/<repository>:<tag>`.
+ */
 export interface ContainerRegistry {
+    /** Unique ID of the registry. */
     registry_id: string;
     /** Registry name. Images live at `registry.ibee.ai/<registry_name>/<repository>:<tag>`. */
     registry_name: string;
+    /** Always `CUSTOMER` for registries created through the API. */
     registry_kind: ContainerRegistry.RegistryKind;
+    /** ID of the owning organization. */
     organization_id: string;
+    /** ID of the owning workspace. */
     workspace_id: string;
     visibility: Ibee.ContainerRegistryVisibility;
     security: Ibee.ContainerRegistrySecuritySettings;
+    /**
+     * State requested by the caller.
+     * - `ACTIVE`
+     * - `DELETED`
+     */
     desired_state: ContainerRegistry.DesiredState;
     observed_state: Ibee.ContainerRegistryObservedState;
     /** Incremented by every accepted change. */
     generation: number;
     /** The last generation applied; equal to `generation` when settled. */
     observed_generation: number;
+    /** When the registry was created (ISO 8601). */
     created_at: string;
+    /** When the registry was last changed (ISO 8601). */
     updated_at: string;
+    /** When deletion was requested (ISO 8601); null while the registry exists. */
     deleted_at: string | null;
 }
 
 export namespace ContainerRegistry {
+    /** Always `CUSTOMER` for registries created through the API. */
     export const RegistryKind = {
         Customer: "CUSTOMER",
     } as const;
     export type RegistryKind = (typeof RegistryKind)[keyof typeof RegistryKind];
+    /**
+     * State requested by the caller.
+     * - `ACTIVE`
+     * - `DELETED`
+     */
     export const DesiredState = {
         Active: "ACTIVE",
         Deleted: "DELETED",

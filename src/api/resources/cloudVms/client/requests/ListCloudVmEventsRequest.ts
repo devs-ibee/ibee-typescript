@@ -12,5 +12,6 @@ export interface ListCloudVmEventsRequest {
     vm_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Maximum number of items to return (1-500). Default 100. */
     limit?: number;
 }

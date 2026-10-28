@@ -2,30 +2,75 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A billable compute plan: the vCPU, memory, root-disk and (for GPU plans) GPU shape, with its catalog price.
+ */
 export interface ComputePlan {
     /** Plan ID accepted by VM creation. */
     plan_id: string;
     vm_type: Ibee.VmType;
+    /** Display name of the plan. */
     name: string;
+    /** Plan SKU code from the billing catalog. */
     code: string;
+    /** vCPUs included in the plan. */
     cpu: number;
+    /** Memory included in the plan, in MB. */
     ram_mb: number;
+    /** Root disk included in the plan, in GB. */
     disk_gb: number;
+    /** GPUs included in the plan; 0 for cloud plans. */
     gpu_count: number;
+    /** GPU model for GPU plans, for example `A100`; null for cloud plans. */
     gpu_model?: (string | null) | undefined;
+    /** GPU memory in GB as listed in the catalog; null for cloud plans. */
     gpu_memory_gb?: (number | null) | undefined;
+    /** Whether the catalog has a usable price. This does not indicate available compute or GPU capacity; inspect availability separately. */
     selectable: boolean;
+    /** Advisory placement result when include_availability=true. Unknown when not requested, unavailable to query, or not verifiable. Creation can still lose a capacity race. */
+    availability?: ComputePlan.Availability | undefined;
+    /** Whether the requested OS, plan and public-IP requirements currently fit. Null when unknown. */
+    available?: (boolean | null) | undefined;
+    /** Advisory maximum under the requested placement conditions, capped by the engine's batch limit. */
+    max_creatable?: (number | null) | undefined;
+    availability_reason?: (ComputePlan.AvailabilityReason | null) | undefined;
+    /**
+     * - `priced`: the catalog has a price and the plan can be quoted.
+     * - `unpriced`: no catalog price; the plan cannot be used to create a VM.
+     */
     pricing_status: ComputePlan.PricingStatus;
+    /** ISO 4217 code of the currency the price fields are in. */
     currency: string;
     billing_interval: Ibee.BillingInterval;
+    /** Hourly price in the currency's minor unit (for example paise for INR); null when not priced. */
     hourly_price_minor?: (number | null) | undefined;
+    /** Monthly price in the currency's minor unit; null when not priced. */
     monthly_price_minor?: (number | null) | undefined;
+    /** Site the list was filtered by, when a `site_id` was given. */
     site_id?: (string | null) | undefined;
-    /** Canonical billing SKU reference for this plan. Pass this object unmodified as `billing_catalog` when creating a VM with this plan — the same flow the portal uses. Treat it as opaque; its fields may grow over time. Billing charges are always computed server-side from `plan_id`, not from this echoed copy. */
+    /** Canonical billing SKU reference and billing_options for this plan. Choose a supported HOURLY or MONTHLY billing_options entry and merge that complete entry into a copy of this object for VM create; its fields may grow over time. Billing charges are always computed server-side from `plan_id`, not from this echoed copy. */
     billing_catalog?: (Record<string, unknown> | null) | undefined;
 }
 
 export namespace ComputePlan {
+    /** Advisory placement result when include_availability=true. Unknown when not requested, unavailable to query, or not verifiable. Creation can still lose a capacity race. */
+    export const Availability = {
+        Available: "available",
+        Unavailable: "unavailable",
+        Unknown: "unknown",
+    } as const;
+    export type Availability = (typeof Availability)[keyof typeof Availability];
+    export const AvailabilityReason = {
+        OutOfStock: "out_of_stock",
+        ComputeCapacityUnavailable: "compute_capacity_unavailable",
+        PublicIpUnavailable: "public_ip_unavailable",
+        LookupUnavailable: "lookup_unavailable",
+    } as const;
+    export type AvailabilityReason = (typeof AvailabilityReason)[keyof typeof AvailabilityReason];
+    /**
+     * - `priced`: the catalog has a price and the plan can be quoted.
+     * - `unpriced`: no catalog price; the plan cannot be used to create a VM.
+     */
     export const PricingStatus = {
         Priced: "priced",
         Unpriced: "unpriced",

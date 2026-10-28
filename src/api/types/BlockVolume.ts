@@ -2,25 +2,67 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A block storage volume.
+ */
 export interface BlockVolume {
+    /** Unique ID of the volume. */
     id: string;
+    /** ID of the owning organization. */
     organization_id?: string | undefined;
+    /** ID of the owning workspace. */
     workspace_id?: string | undefined;
+    /** Display name of the workspace. */
     workspace_name?: (string | null) | undefined;
+    /** Site the volume lives at. */
     site_id?: (string | null) | undefined;
+    /** Display name of that site. */
     site_name?: (string | null) | undefined;
+    /** Display name of the volume. */
     name: string;
+    /** Size in GB. */
     size_gb: number;
+    /**
+     * Lifecycle state of the volume.
+     * - `creating`: being provisioned.
+     * - `ready`: provisioned and detached.
+     * - `in-use`: attached to a node.
+     * - `attaching`, `detaching`: an attachment change is in progress.
+     * - `resizing`: a resize is in progress.
+     * - `deleting`: being removed.
+     * - `error`: the last operation failed; see its `error`.
+     */
     state: BlockVolume.State;
+    /**
+     * Performance class of the volume.
+     * - `capacity`: lowest cost per GB.
+     * - `balanced`: general purpose.
+     * - `performance`: highest throughput and IOPS.
+     */
     volume_class: BlockVolume.VolumeClass;
+    /** Number of synchronous replicas kept for the volume. */
     replica_count: number;
+    /** Current attachments; empty when detached. */
     attachments: Ibee.BlockVolumeAttachment[];
+    /** When the volume was created (ISO 8601). */
     created_at: string;
+    /** When the volume was last changed (ISO 8601). */
     updated_at: string;
+    /** Additional key-value data, including the `billing_catalog` the volume was created with. */
     metadata?: BlockVolume.Metadata | undefined;
 }
 
 export namespace BlockVolume {
+    /**
+     * Lifecycle state of the volume.
+     * - `creating`: being provisioned.
+     * - `ready`: provisioned and detached.
+     * - `in-use`: attached to a node.
+     * - `attaching`, `detaching`: an attachment change is in progress.
+     * - `resizing`: a resize is in progress.
+     * - `deleting`: being removed.
+     * - `error`: the last operation failed; see its `error`.
+     */
     export const State = {
         Creating: "creating",
         Ready: "ready",
@@ -32,6 +74,12 @@ export namespace BlockVolume {
         Error: "error",
     } as const;
     export type State = (typeof State)[keyof typeof State];
+    /**
+     * Performance class of the volume.
+     * - `capacity`: lowest cost per GB.
+     * - `balanced`: general purpose.
+     * - `performance`: highest throughput and IOPS.
+     */
     export const VolumeClass = {
         Capacity: "capacity",
         Balanced: "balanced",
@@ -39,6 +87,9 @@ export namespace BlockVolume {
     } as const;
     export type VolumeClass = (typeof VolumeClass)[keyof typeof VolumeClass];
 
+    /**
+     * Additional key-value data, including the `billing_catalog` the volume was created with.
+     */
     export interface Metadata {
         /** The Block Storage SKU this volume is billed under. Pass it as `billing_catalog` when attaching the volume to a VM. */
         billing_catalog?: Ibee.BillingCatalogSelection | undefined;

@@ -2,8 +2,14 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Custom hostnames of a distribution.
+ */
 export interface CdnCustomDomainList {
+    /** ID of the distribution. */
     distribution_id: string;
+    /** Hostname IBEE assigned to the distribution; the CNAME target for custom hostnames. */
     default_domain: string;
+    /** Custom hostnames returned. */
     custom_domains: Ibee.CdnCustomDomain[];
 }

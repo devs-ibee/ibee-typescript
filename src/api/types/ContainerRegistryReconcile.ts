@@ -2,8 +2,13 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Acknowledgement that a reconcile of the registry's settings was queued.
+ */
 export interface ContainerRegistryReconcile {
+    /** ID of the registry. */
     registry_id: string;
+    /** Generation the reconcile will apply. */
     generation: number;
     status: Ibee.ContainerRegistryJobStatus;
 }

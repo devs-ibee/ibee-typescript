@@ -2,4 +2,7 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Body for adding a rule to a firewall group.
+ */
 export type CreateFirewallRuleRequest = Ibee.FirewallRuleFields;

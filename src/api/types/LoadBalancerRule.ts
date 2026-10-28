@@ -2,9 +2,16 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * An L7 routing rule.
+ */
 export interface LoadBalancerRule {
+    /** Order in which rules are evaluated; lower values first. Default 1. */
     priority?: number | undefined;
+    /** Request path prefix the rule matches. Default `/`. */
     path_prefix?: string | undefined;
+    /** Header names and values a request must carry to match. */
     headers?: (Record<string, string | null> | null) | undefined;
+    /** Backends for matching requests; the load balancer's own backends are used when omitted. */
     backends?: (Ibee.LoadBalancerBackend[] | null) | undefined;
 }

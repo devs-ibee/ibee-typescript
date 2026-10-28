@@ -2,25 +2,53 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * An isolated virtual network at one site.
+ */
 export interface Vpc {
+    /** Unique ID of the VPC. */
     vpc_id: string;
+    /** Legacy alias of `organization_id`. */
     account_id?: string | undefined;
+    /** ID of the owning organization. */
     organization_id: string;
+    /** ID of the owning workspace. */
     workspace_id: string;
+    /** Site the VPC lives at. */
     site_id: string;
+    /** Display name of the VPC. */
     name: string;
+    /** Description of the VPC. */
     description?: string | undefined;
+    /** Region label stored with the VPC, when set. */
     region?: (string | null) | undefined;
+    /** IPv4 CIDR of the VPC. */
     cidr: string;
     status: Ibee.NetworkingResourceStatus;
+    /** Whether this is the workspace's default VPC. */
     is_default?: boolean | undefined;
+    /**
+     * The VPC's internet model.
+     * - `public`: instances may have dedicated public IPs.
+     * - `nat_gateway`: private VPC with managed outbound NAT; dedicated public IPs are not allowed.
+     * - `private`: no managed internet path.
+     */
     connectivity_type: Vpc.ConnectivityType;
+    /** Error detail when `status` is `error`. */
     error_message?: (string | null) | undefined;
+    /** When the resource was created (ISO 8601). */
     created_at: string;
+    /** When the resource was last changed (ISO 8601). */
     updated_at: string;
 }
 
 export namespace Vpc {
+    /**
+     * The VPC's internet model.
+     * - `public`: instances may have dedicated public IPs.
+     * - `nat_gateway`: private VPC with managed outbound NAT; dedicated public IPs are not allowed.
+     * - `private`: no managed internet path.
+     */
     export const ConnectivityType = {
         Public: "public",
         Private: "private",

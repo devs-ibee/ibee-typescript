@@ -1,8 +1,7 @@
-export type { AcknowledgeGpuVmMountGuidanceRequest } from "./AcknowledgeGpuVmMountGuidanceRequest.js";
 export type { AttachGpuVmVolumeRequest } from "./AttachGpuVmVolumeRequest.js";
-export type { CreateGpuVmBackupRunRequest } from "./CreateGpuVmBackupRunRequest.js";
 export { CreateGpuVmRequest } from "./CreateGpuVmRequest.js";
 export type { CreateGpuVmSnapshotRequest } from "./CreateGpuVmSnapshotRequest.js";
+export type { DeleteGpuVmBackupRunRequest } from "./DeleteGpuVmBackupRunRequest.js";
 export type { DeleteGpuVmRequest } from "./DeleteGpuVmRequest.js";
 export type { DeleteGpuVmSnapshotRequest } from "./DeleteGpuVmSnapshotRequest.js";
 export type { DetachGpuVmVolumeRequest } from "./DetachGpuVmVolumeRequest.js";
@@ -17,16 +16,15 @@ export type { GetGpuVmMetricsTimeseriesRequest } from "./GetGpuVmMetricsTimeseri
 export type { GetGpuVmRequest } from "./GetGpuVmRequest.js";
 export type { GetGpuVmSnapshotRequest } from "./GetGpuVmSnapshotRequest.js";
 export type { GetGpuVmSnapshotRestoreRequest } from "./GetGpuVmSnapshotRestoreRequest.js";
+export type { ListAllGpuVmBackupRunsRequest } from "./ListAllGpuVmBackupRunsRequest.js";
+export type { ListAllGpuVmSnapshotsRequest } from "./ListAllGpuVmSnapshotsRequest.js";
 export type { ListGpuVmBackupRunsRequest } from "./ListGpuVmBackupRunsRequest.js";
 export type { ListGpuVmEventsRequest } from "./ListGpuVmEventsRequest.js";
 export type { ListGpuVmSnapshotsRequest } from "./ListGpuVmSnapshotsRequest.js";
 export type { ListGpuVmsRequest } from "./ListGpuVmsRequest.js";
 export type { PrecheckGpuVmResizeRequest } from "./PrecheckGpuVmResizeRequest.js";
 export type { RebootGpuVmRequest } from "./RebootGpuVmRequest.js";
-export type { RescheduleGpuVmBackupRequest } from "./RescheduleGpuVmBackupRequest.js";
-export type { ResizeGpuVmPlanRequest } from "./ResizeGpuVmPlanRequest.js";
 export type { ResizeGpuVmRequest } from "./ResizeGpuVmRequest.js";
-export type { ResizeGpuVmRootDiskRequest } from "./ResizeGpuVmRootDiskRequest.js";
 export type { RestoreGpuVmBackupRequest } from "./RestoreGpuVmBackupRequest.js";
 export type { RestoreGpuVmSnapshotRequest } from "./RestoreGpuVmSnapshotRequest.js";
 export type { StartGpuVmRequest } from "./StartGpuVmRequest.js";

@@ -2,9 +2,16 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A page of repositories.
+ */
 export interface ContainerRegistryRepositoryList {
+    /** Repositories on this page. */
     items: Ibee.ContainerRegistryRepository[];
+    /** Total number of items matching the request. */
     total: number;
+    /** Page number returned (1-based). */
     page: number;
+    /** Page size that was applied. */
     page_size: number;
 }

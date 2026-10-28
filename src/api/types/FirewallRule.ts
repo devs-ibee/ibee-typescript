@@ -2,10 +2,18 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A rule in a firewall group.
+ */
 export interface FirewallRule extends Ibee.FirewallRuleFields {
+    /** Unique ID of the rule. */
     rule_id: string;
+    /** Whether the rule is applied. */
     enabled: boolean;
+    /** True for rules the platform manages. */
     system_managed: boolean;
+    /** When the rule was created (ISO 8601). */
     created_at: string;
+    /** When the rule was last changed (ISO 8601). */
     updated_at: string;
 }

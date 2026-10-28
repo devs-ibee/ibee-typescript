@@ -2,14 +2,25 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * An artifact (image manifest or manifest index) in a repository.
+ */
 export interface ContainerRegistryArtifact {
+    /** Artifact ID in the registry backend. */
     id: number;
+    /** Artifact type reported by the registry, for example `IMAGE`. */
     type?: (string | null) | undefined;
+    /** OCI or Docker media type of the manifest. */
     media_type?: (string | null) | undefined;
+    /** Content digest, for example `sha256:...`. */
     digest: string;
+    /** Size of the artifact in bytes. */
     size?: number | undefined;
+    /** When the artifact was pushed (ISO 8601). */
     push_time?: (string | null) | undefined;
+    /** When the artifact was last pulled (ISO 8601). */
     pull_time?: (string | null) | undefined;
+    /** Tags pointing at the artifact; null when untagged. */
     tags?: (Ibee.ContainerRegistryTag[] | null) | undefined;
     /** Scanner summary keyed by report media type, as the scanner returns it. */
     scan_overview?: (Record<string, unknown> | null) | undefined;

@@ -195,6 +195,104 @@ export class ReservedIpsClient {
     }
 
     /**
+     * Turns the automatically assigned public IPv4 of a VM into a Reserved IP that survives the VM, as the portal's Convert Existing IP does. The address stays on the VM. Billing for the Reserved IP starts now. Requires scope: network.write.
+     *
+     * @param {Ibee.ConvertReservedIpRequest} request
+     * @param {ReservedIpsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.PaymentRequiredError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.reservedIps.convertReservedIp({
+     *         workspace_id: "710995",
+     *         vm_id: "vm_id",
+     *         site_id: "site_id"
+     *     })
+     */
+    public convertReservedIp(
+        request: Ibee.ConvertReservedIpRequest,
+        requestOptions?: ReservedIpsClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.ReservedIp> {
+        return core.HttpResponsePromise.fromPromise(this.__convertReservedIp(request, requestOptions));
+    }
+
+    private async __convertReservedIp(
+        request: Ibee.ConvertReservedIpRequest,
+        requestOptions?: ReservedIpsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.ReservedIp>> {
+        const { workspace_id: workspaceId, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                "networking/reserved-ips/convert",
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.ReservedIp, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 402:
+                    throw new Ibee.PaymentRequiredError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/networking/reserved-ips/convert",
+        );
+    }
+
+    /**
      * Returns a reserved public IPv4 address, including its label, reverse DNS, and the VM it is attached to. Requires scope: network.read.
      *
      * @param {Ibee.GetReservedIpRequest} request
@@ -561,6 +659,101 @@ export class ReservedIpsClient {
             _response.rawResponse,
             "POST",
             "/networking/reserved-ips/{reserved_ip_id}/attach",
+        );
+    }
+
+    /**
+     * Attaches the Reserved IP to the VM's direct public interface, for VMs that are not in a VPC. Use `attach` for VMs with a VPC interface. Requires scope: network.write.
+     *
+     * @param {Ibee.AttachReservedIpDirectRequest} request
+     * @param {ReservedIpsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.reservedIps.attachReservedIpDirect({
+     *         reserved_ip_id: "reserved_ip_id",
+     *         workspace_id: "710995",
+     *         vm_id: "vm_id"
+     *     })
+     */
+    public attachReservedIpDirect(
+        request: Ibee.AttachReservedIpDirectRequest,
+        requestOptions?: ReservedIpsClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.ReservedIp> {
+        return core.HttpResponsePromise.fromPromise(this.__attachReservedIpDirect(request, requestOptions));
+    }
+
+    private async __attachReservedIpDirect(
+        request: Ibee.AttachReservedIpDirectRequest,
+        requestOptions?: ReservedIpsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.ReservedIp>> {
+        const { reserved_ip_id: reservedIpId, workspace_id: workspaceId, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `networking/reserved-ips/${core.url.encodePathParam(reservedIpId)}/attach-direct`,
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.ReservedIp, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 409:
+                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/networking/reserved-ips/{reserved_ip_id}/attach-direct",
         );
     }
 

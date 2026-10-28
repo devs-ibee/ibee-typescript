@@ -18,19 +18,43 @@ export interface UpdateNatPortForwardingRuleRequest {
     port_forwarding_rule_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Display name of the rule. */
     name?: string;
+    /**
+     * - `tcp`
+     * - `udp`
+     */
     protocol?: UpdateNatPortForwardingRuleRequest.Protocol;
+    /** Port on the gateway's public address (1-65535). */
     external_port?: number;
+    /** Private IPv4 address of the VM inside the VPC that receives the traffic. */
     internal_ip?: string;
+    /** Port on the VM that receives the traffic (1-65535). */
     internal_port?: number;
+    /** `vm`: forward to one VM's private IP. `vip`: forward to a Virtual IP announced by the VMs in `target_vm_ids`. */
+    target_type?: UpdateNatPortForwardingRuleRequest.TargetType;
+    /** VMs that announce the Virtual IP. Required with `vip`, must be empty with `vm`. */
+    target_vm_ids?: string[];
+    /** Free-text note stored with the rule. */
     note?: string;
+    /** Whether the rule is applied. */
     enabled?: boolean;
 }
 
 export namespace UpdateNatPortForwardingRuleRequest {
+    /**
+     * - `tcp`
+     * - `udp`
+     */
     export const Protocol = {
         Tcp: "tcp",
         Udp: "udp",
     } as const;
     export type Protocol = (typeof Protocol)[keyof typeof Protocol];
+    /** `vm`: forward to one VM's private IP. `vip`: forward to a Virtual IP announced by the VMs in `target_vm_ids`. */
+    export const TargetType = {
+        Vm: "vm",
+        Vip: "vip",
+    } as const;
+    export type TargetType = (typeof TargetType)[keyof typeof TargetType];
 }

@@ -2,23 +2,46 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * An OS image (template) that VM creation accepts.
+ */
 export interface ComputeImage {
     /** Template ID accepted by VM creation. */
     template_id: string;
+    /** Display name of the image. */
     name: string;
+    /** Description of the image, when the catalog has one. */
     description?: (string | null) | undefined;
+    /** OS distribution, for example `ubuntu`. */
     os_distro: string;
+    /**
+     * OS family.
+     * - `linux`
+     * - `windows`
+     */
     os_type: ComputeImage.OsType;
+    /** Distribution version, for example `22.04`. */
     distro_version?: (string | null) | undefined;
+    /** CPU architecture, for example `x86_64`. */
     architecture: string;
+    /** Disk image format, for example `qcow2`, when known. */
     image_format?: (string | null) | undefined;
+    /** Image size in bytes; 0 when unknown. */
     size_bytes: number;
+    /** Whether the image can be used for GPU VMs. */
     gpu_compatible: boolean;
+    /** VM types the image can be used with. */
     compatible_vm_types: Ibee.VmType[];
+    /** Sites where the image is available. */
     site_ids: string[];
 }
 
 export namespace ComputeImage {
+    /**
+     * OS family.
+     * - `linux`
+     * - `windows`
+     */
     export const OsType = {
         Linux: "linux",
         Windows: "windows",

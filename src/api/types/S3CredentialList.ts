@@ -2,6 +2,10 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * S3 access key pairs in the workspace.
+ */
 export interface S3CredentialList {
+    /** Key pairs returned. */
     credentials: Ibee.S3Credential[];
 }

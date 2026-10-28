@@ -13,5 +13,6 @@ export interface UpdateBucketRequest {
     bucket_name: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Whether the bucket allows unauthenticated read access. */
     is_public: boolean;
 }

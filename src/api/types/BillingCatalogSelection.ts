@@ -12,6 +12,7 @@ export interface BillingCatalogSelection {
     product_id?: (BillingCatalogSelection.ProductId | null) | undefined;
     /** Billing catalog product code. */
     product_code?: (string | null) | undefined;
+    /** Display name of the SKU, as listed in the billing catalog. */
     display_name?: (string | null) | undefined;
     /** Accepts any additional properties */
     [key: string]: any;

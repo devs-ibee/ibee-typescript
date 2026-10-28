@@ -2,10 +2,15 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Body for changing a backup policy. Only the fields sent are changed.
+ */
 export interface BackupPolicyUpdateRequest {
     schedule?: Ibee.BackupPolicySchedule | undefined;
+    /** Days a backup run is kept before it is expired (1-365). */
     retention_days?: (number | null) | undefined;
+    /** Days between full backups (1-30). */
     full_backup_interval_days?: (number | null) | undefined;
+    /** Whether runs between full backups capture only changes. */
     incremental_enabled?: (boolean | null) | undefined;
-    requested_by?: string | undefined;
 }

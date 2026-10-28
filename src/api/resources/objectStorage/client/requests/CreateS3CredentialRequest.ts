@@ -9,13 +9,24 @@
 export interface CreateS3CredentialRequest {
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Display name of the key pair. Default `Default Key`. */
     name?: string;
+    /** Permission level: `admin_rw`, `admin_ro`, `object_rw` or `object_ro`. Default `admin_rw`. */
     permission_type?: string;
+    /**
+     * - `all`: the key may use every bucket in the workspace (default).
+     * - `specific`: only the buckets in `allowed_buckets`.
+     */
     bucket_scope?: CreateS3CredentialRequest.BucketScope;
+    /** Bucket names the key may use when `bucket_scope` is `specific`. */
     allowed_buckets?: string[];
 }
 
 export namespace CreateS3CredentialRequest {
+    /**
+     * - `all`: the key may use every bucket in the workspace (default).
+     * - `specific`: only the buckets in `allowed_buckets`.
+     */
     export const BucketScope = {
         All: "all",
         Specific: "specific",

@@ -2,7 +2,12 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Backup runs of a VM, newest first.
+ */
 export interface BackupRunList {
+    /** Backup runs on this page. */
     runs: Ibee.BackupRun[];
+    /** Total number of runs matching the request. */
     total: number;
 }

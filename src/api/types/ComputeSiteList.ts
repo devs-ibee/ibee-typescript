@@ -2,7 +2,12 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Sites returned by `GET /compute/sites`.
+ */
 export interface ComputeSiteList {
+    /** Available sites. */
     sites: Ibee.ComputeSite[];
+    /** Number of items in `sites`. */
     count: number;
 }

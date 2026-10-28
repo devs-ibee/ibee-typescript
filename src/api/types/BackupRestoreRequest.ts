@@ -2,6 +2,10 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Body for restoring a VM from a backup run.
+ */
 export interface BackupRestoreRequest extends Ibee.RecoveryRestoreRequest {
+    /** Recovery point to restore: the `recovery_point_id` of a succeeded backup run. */
     recovery_point_id: string;
 }

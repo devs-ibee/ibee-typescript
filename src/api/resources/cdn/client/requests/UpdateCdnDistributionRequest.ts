@@ -12,12 +12,28 @@ export interface UpdateCdnDistributionRequest {
     distribution_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** New display name. */
     name?: string;
+    /**
+     * New caching behaviour.
+     * - `static-assets`: long-term caching for immutable assets; 1 year at the CDN, browsers revalidate.
+     * - `media`: medium-term caching for video and audio; 30 days at the CDN.
+     * - `short`: short-term caching for frequently changing content; 1 hour at the CDN.
+     * - `no-cache`: no caching, for dynamic responses.
+     */
     cache_policy?: UpdateCdnDistributionRequest.CachePolicy;
+    /** Whether the distribution serves traffic. */
     enabled?: boolean;
 }
 
 export namespace UpdateCdnDistributionRequest {
+    /**
+     * New caching behaviour.
+     * - `static-assets`: long-term caching for immutable assets; 1 year at the CDN, browsers revalidate.
+     * - `media`: medium-term caching for video and audio; 30 days at the CDN.
+     * - `short`: short-term caching for frequently changing content; 1 hour at the CDN.
+     * - `no-cache`: no caching, for dynamic responses.
+     */
     export const CachePolicy = {
         StaticAssets: "static-assets",
         Media: "media",

@@ -17,14 +17,28 @@ export interface CreateSecretIdentityScopeRequest {
     identity_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Store the identity gets access to. */
     store_id: string;
+    /**
+     * - `read_only`: the identity can read secrets in the store.
+     * - `read_write`: the identity can also create and update them.
+     * Default `read_only`.
+     */
     access_mode?: CreateSecretIdentityScopeRequest.AccessMode;
+    /** Whether the identity may read non-current versions of a secret. */
     allow_version_read?: boolean;
+    /** Whether the identity may roll a secret back to an earlier version. */
     allow_rollback?: boolean;
+    /** Whether the identity may destroy secret versions. */
     allow_destroy?: boolean;
 }
 
 export namespace CreateSecretIdentityScopeRequest {
+    /**
+     * - `read_only`: the identity can read secrets in the store.
+     * - `read_write`: the identity can also create and update them.
+     * Default `read_only`.
+     */
     export const AccessMode = {
         ReadOnly: "read_only",
         ReadWrite: "read_write",

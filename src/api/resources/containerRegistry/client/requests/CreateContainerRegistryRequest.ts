@@ -24,6 +24,10 @@ export interface CreateContainerRegistryRequest {
     registry_name: string;
     /** Must equal `registry_name`. */
     confirm_registry_name: string;
+    /**
+     * - `PRIVATE`: pulls need an access token (default).
+     * - `PUBLIC`: anonymous pulls are allowed; egress is charged.
+     */
     visibility?: Ibee.ContainerRegistryVisibility;
     /** Required to be `true` when `visibility` is `PUBLIC`. */
     acknowledge_public_egress_charges?: boolean;

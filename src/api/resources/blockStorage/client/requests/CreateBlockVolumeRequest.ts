@@ -6,25 +6,46 @@
  *         workspace_id: "710995",
  *         name: "name",
  *         size_gb: 1,
- *         site_id: "site_id"
+ *         site_id: "68b99bd78a8eda32ff3f16ea"
  *     }
  */
 export interface CreateBlockVolumeRequest {
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Display name of the volume (1-255 characters). */
     name: string;
+    /** Size in GB (1-10000). */
     size_gb: number;
+    /** Site to create the volume at. */
     site_id: string;
+    /** Display name of that site, as shown in the portal. */
     site_name?: string | null;
     /** Optional public selector returned by the server-owned Block Storage catalog. The edge resolves all price and catalog metadata; callers cannot submit pricing. */
     sku_code?: string | null;
+    /**
+     * Performance class of the volume.
+     * - `capacity`: lowest cost per GB.
+     * - `balanced`: general purpose.
+     * - `performance`: highest throughput and IOPS.
+     * Default `balanced`.
+     */
     volume_class?: CreateBlockVolumeRequest.VolumeClass;
+    /** Number of synchronous replicas kept for the volume (1-5). Default 2. */
     replica_count?: number;
+    /** Whether volume backups are enabled. Default true. */
     backup_enabled?: boolean;
+    /** Caller-chosen key that makes a retried request return the original operation instead of starting a new one. */
     idempotency_key?: string | null;
 }
 
 export namespace CreateBlockVolumeRequest {
+    /**
+     * Performance class of the volume.
+     * - `capacity`: lowest cost per GB.
+     * - `balanced`: general purpose.
+     * - `performance`: highest throughput and IOPS.
+     * Default `balanced`.
+     */
     export const VolumeClass = {
         Capacity: "capacity",
         Balanced: "balanced",

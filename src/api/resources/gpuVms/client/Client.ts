@@ -51,11 +51,21 @@ export class GpuVmsClient {
         request: Ibee.ListGpuVmsRequest = {},
         requestOptions?: GpuVmsClient.RequestOptions,
     ): Promise<core.WithRawResponse<Ibee.GpuVm[]>> {
-        const { workspace_id: workspaceId, limit, offset } = request;
+        const {
+            workspace_id: workspaceId,
+            limit,
+            offset,
+            search,
+            sort_by: sortBy,
+            sort_direction: sortDirection,
+        } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
             limit,
             offset,
+            search,
+            sort_by: sortBy != null ? sortBy : undefined,
+            sort_direction: sortDirection != null ? sortDirection : undefined,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -121,7 +131,7 @@ export class GpuVmsClient {
      *     await client.gpuVms.createGpuVm({
      *         workspace_id: "710995",
      *         name: "ml-training-01",
-     *         site_id: "site_id",
+     *         site_id: "68b99bd78a8eda32ff3f16ea",
      *         os_distro: "ubuntu",
      *         os_type: "linux",
      *         template_id: "tmpl_ubuntu_2204_cuda",
@@ -129,9 +139,15 @@ export class GpuVmsClient {
      *         ram_mb: 32768,
      *         gpu_count: 1,
      *         gpu_model: "A100",
-     *         plan_id: "plan_id",
+     *         plan_id: "019f25b7-c1b3-7a9e-bfb9-8c83e323b517",
      *         billing_catalog: {
-     *             "key": "value"
+     *             sku_id: "sku_id",
+     *             sku_code: "sku_code",
+     *             billing_interval: "HOURLY",
+     *             committed: false,
+     *             commitment_period: "HOURLY",
+     *             unit_price_minor: 1,
+     *             price_currency: "INR"
      *         }
      *     })
      */
@@ -1051,209 +1067,6 @@ export class GpuVmsClient {
     }
 
     /**
-     * Moves a GPU VM to a different CPU and memory plan. Downgrades require explicit confirmation. Requires scope: vm.write.
-     *
-     * @param {Ibee.ResizeGpuVmPlanRequest} request
-     * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.BadRequestError}
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.ConflictError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     *
-     * @example
-     *     await client.gpuVms.resizeGpuVmPlan({
-     *         vm_id: "vm_id",
-     *         workspace_id: "710995",
-     *         body: {
-     *             cpu: 1,
-     *             ram_mb: 1
-     *         }
-     *     })
-     */
-    public resizeGpuVmPlan(
-        request: Ibee.ResizeGpuVmPlanRequest,
-        requestOptions?: GpuVmsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.OperationAccepted> {
-        return core.HttpResponsePromise.fromPromise(this.__resizeGpuVmPlan(request, requestOptions));
-    }
-
-    private async __resizeGpuVmPlan(
-        request: Ibee.ResizeGpuVmPlanRequest,
-        requestOptions?: GpuVmsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.OperationAccepted>> {
-        const { vm_id: vmId, workspace_id: workspaceId, "X-Idempotency-Key": idempotencyKey, body: _body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            mergeOnlyDefinedHeaders({ "X-Idempotency-Key": idempotencyKey }),
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `compute/gpu-vms/${core.url.encodePathParam(vmId)}/actions/resize-plan`,
-            ),
-            method: "PATCH",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.OperationAccepted, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 400:
-                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 409:
-                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "PATCH",
-            "/compute/gpu-vms/{vm_id}/actions/resize-plan",
-        );
-    }
-
-    /**
-     * Increases a GPU VM's root disk size, for example to fit larger models or datasets. Shrinking a root disk is not supported. Requires scope: vm.write.
-     *
-     * @param {Ibee.ResizeGpuVmRootDiskRequest} request
-     * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.BadRequestError}
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.ConflictError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     *
-     * @example
-     *     await client.gpuVms.resizeGpuVmRootDisk({
-     *         vm_id: "vm_id",
-     *         workspace_id: "710995",
-     *         body: {
-     *             new_size_gb: 1
-     *         }
-     *     })
-     */
-    public resizeGpuVmRootDisk(
-        request: Ibee.ResizeGpuVmRootDiskRequest,
-        requestOptions?: GpuVmsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.OperationAccepted> {
-        return core.HttpResponsePromise.fromPromise(this.__resizeGpuVmRootDisk(request, requestOptions));
-    }
-
-    private async __resizeGpuVmRootDisk(
-        request: Ibee.ResizeGpuVmRootDiskRequest,
-        requestOptions?: GpuVmsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.OperationAccepted>> {
-        const { vm_id: vmId, workspace_id: workspaceId, "X-Idempotency-Key": idempotencyKey, body: _body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            mergeOnlyDefinedHeaders({ "X-Idempotency-Key": idempotencyKey }),
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `compute/gpu-vms/${core.url.encodePathParam(vmId)}/actions/resize-root-disk`,
-            ),
-            method: "PATCH",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.OperationAccepted, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 400:
-                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 409:
-                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "PATCH",
-            "/compute/gpu-vms/{vm_id}/actions/resize-root-disk",
-        );
-    }
-
-    /**
      * Attaches a persistent block storage volume to a GPU VM, for datasets, checkpoints, or model weights. Requires scope: vm.write.
      *
      * @param {Ibee.AttachGpuVmVolumeRequest} request
@@ -1456,103 +1269,6 @@ export class GpuVmsClient {
             _response.rawResponse,
             "POST",
             "/compute/gpu-vms/{vm_id}/actions/detach-volume",
-        );
-    }
-
-    /**
-     * Records that you have reviewed the guest mount instructions for a data volume attached to a GPU VM. Requires scope: vm.write.
-     *
-     * @param {Ibee.AcknowledgeGpuVmMountGuidanceRequest} request
-     * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.BadRequestError}
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     *
-     * @example
-     *     await client.gpuVms.acknowledgeGpuVmMountGuidance({
-     *         vm_id: "vm_id",
-     *         workspace_id: "710995",
-     *         body: {
-     *             volume_id: "volume_id"
-     *         }
-     *     })
-     */
-    public acknowledgeGpuVmMountGuidance(
-        request: Ibee.AcknowledgeGpuVmMountGuidanceRequest,
-        requestOptions?: GpuVmsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.MountGuidanceAcknowledge> {
-        return core.HttpResponsePromise.fromPromise(this.__acknowledgeGpuVmMountGuidance(request, requestOptions));
-    }
-
-    private async __acknowledgeGpuVmMountGuidance(
-        request: Ibee.AcknowledgeGpuVmMountGuidanceRequest,
-        requestOptions?: GpuVmsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.MountGuidanceAcknowledge>> {
-        const { vm_id: vmId, workspace_id: workspaceId, body: _body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `compute/gpu-vms/${core.url.encodePathParam(vmId)}/mount-guidance/acknowledge`,
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.MountGuidanceAcknowledge, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 400:
-                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "POST",
-            "/compute/gpu-vms/{vm_id}/mount-guidance/acknowledge",
         );
     }
 
@@ -2117,6 +1833,85 @@ export class GpuVmsClient {
     }
 
     /**
+     * Lists snapshot sets of every Gpu VM in the workspace, as the portal's Snapshots page does. Requires scope: vm.read.
+     *
+     * @param {Ibee.ListAllGpuVmSnapshotsRequest} request
+     * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.gpuVms.listAllGpuVmSnapshots({
+     *         workspace_id: "710995"
+     *     })
+     */
+    public listAllGpuVmSnapshots(
+        request: Ibee.ListAllGpuVmSnapshotsRequest = {},
+        requestOptions?: GpuVmsClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.SnapshotSetList> {
+        return core.HttpResponsePromise.fromPromise(this.__listAllGpuVmSnapshots(request, requestOptions));
+    }
+
+    private async __listAllGpuVmSnapshots(
+        request: Ibee.ListAllGpuVmSnapshotsRequest = {},
+        requestOptions?: GpuVmsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.SnapshotSetList>> {
+        const { workspace_id: workspaceId, limit, offset, search } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+            limit,
+            offset,
+            search,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                "compute/gpu-vm-snapshots",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.SnapshotSetList, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/compute/gpu-vm-snapshots");
+    }
+
+    /**
      * Returns one workspace-owned GPU VM snapshot set. Requires scope: vm.read.
      *
      * @param {Ibee.GetGpuVmSnapshotRequest} request
@@ -2676,8 +2471,7 @@ export class GpuVmsClient {
      * @example
      *     await client.gpuVms.disableGpuVmBackups({
      *         vm_id: "vm_id",
-     *         workspace_id: "710995",
-     *         body: {}
+     *         workspace_id: "710995"
      *     })
      */
     public disableGpuVmBackups(
@@ -2691,7 +2485,7 @@ export class GpuVmsClient {
         request: Ibee.DisableGpuVmBackupsRequest,
         requestOptions?: GpuVmsClient.RequestOptions,
     ): Promise<core.WithRawResponse<Ibee.BackupPolicy>> {
-        const { vm_id: vmId, workspace_id: workspaceId, body: _body } = request;
+        const { vm_id: vmId, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
         };
@@ -2710,10 +2504,7 @@ export class GpuVmsClient {
             ),
             method: "POST",
             headers: _headers,
-            contentType: "application/json",
             queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             abortSignal: requestOptions?.abortSignal,
@@ -2752,103 +2543,6 @@ export class GpuVmsClient {
             _response.rawResponse,
             "POST",
             "/compute/gpu-vms/{vm_id}/backups/disable",
-        );
-    }
-
-    /**
-     * Sets when a GPU VM's next automated backup runs. Requires scope: vm.write.
-     *
-     * @param {Ibee.RescheduleGpuVmBackupRequest} request
-     * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.BadRequestError}
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     *
-     * @example
-     *     await client.gpuVms.rescheduleGpuVmBackup({
-     *         vm_id: "vm_id",
-     *         workspace_id: "710995",
-     *         body: {
-     *             next_run_at: "2024-01-15T09:30:00Z"
-     *         }
-     *     })
-     */
-    public rescheduleGpuVmBackup(
-        request: Ibee.RescheduleGpuVmBackupRequest,
-        requestOptions?: GpuVmsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.BackupPolicy> {
-        return core.HttpResponsePromise.fromPromise(this.__rescheduleGpuVmBackup(request, requestOptions));
-    }
-
-    private async __rescheduleGpuVmBackup(
-        request: Ibee.RescheduleGpuVmBackupRequest,
-        requestOptions?: GpuVmsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.BackupPolicy>> {
-        const { vm_id: vmId, workspace_id: workspaceId, body: _body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `compute/gpu-vms/${core.url.encodePathParam(vmId)}/backups/policy/next-run-at`,
-            ),
-            method: "PATCH",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.BackupPolicy, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 400:
-                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "PATCH",
-            "/compute/gpu-vms/{vm_id}/backups/policy/next-run-at",
         );
     }
 
@@ -2936,109 +2630,6 @@ export class GpuVmsClient {
             _response.error,
             _response.rawResponse,
             "GET",
-            "/compute/gpu-vms/{vm_id}/backups/runs",
-        );
-    }
-
-    /**
-     * Queues a manual backup of a GPU VM using its backup configuration. Requires scope: vm.write.
-     *
-     * @param {Ibee.CreateGpuVmBackupRunRequest} request
-     * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.BadRequestError}
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.ConflictError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     *
-     * @example
-     *     await client.gpuVms.createGpuVmBackupRun({
-     *         vm_id: "vm_id",
-     *         workspace_id: "710995",
-     *         body: {
-     *             billing_catalog: {
-     *                 sku_id: "sku_id",
-     *                 sku_code: "sku_code"
-     *             }
-     *         }
-     *     })
-     */
-    public createGpuVmBackupRun(
-        request: Ibee.CreateGpuVmBackupRunRequest,
-        requestOptions?: GpuVmsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.BackupRun> {
-        return core.HttpResponsePromise.fromPromise(this.__createGpuVmBackupRun(request, requestOptions));
-    }
-
-    private async __createGpuVmBackupRun(
-        request: Ibee.CreateGpuVmBackupRunRequest,
-        requestOptions?: GpuVmsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.BackupRun>> {
-        const { vm_id: vmId, workspace_id: workspaceId, body: _body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `compute/gpu-vms/${core.url.encodePathParam(vmId)}/backups/runs`,
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.BackupRun, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 400:
-                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 409:
-                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "POST",
             "/compute/gpu-vms/{vm_id}/backups/runs",
         );
     }
@@ -3144,6 +2735,87 @@ export class GpuVmsClient {
     }
 
     /**
+     * Lists backup runs and recovery points of every Gpu VM in the workspace, as the portal's Backups page does. Filter by `vm_id` or `status`. Requires scope: vm.read.
+     *
+     * @param {Ibee.ListAllGpuVmBackupRunsRequest} request
+     * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.gpuVms.listAllGpuVmBackupRuns({
+     *         workspace_id: "710995"
+     *     })
+     */
+    public listAllGpuVmBackupRuns(
+        request: Ibee.ListAllGpuVmBackupRunsRequest = {},
+        requestOptions?: GpuVmsClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.BackupRunList> {
+        return core.HttpResponsePromise.fromPromise(this.__listAllGpuVmBackupRuns(request, requestOptions));
+    }
+
+    private async __listAllGpuVmBackupRuns(
+        request: Ibee.ListAllGpuVmBackupRunsRequest = {},
+        requestOptions?: GpuVmsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.BackupRunList>> {
+        const { workspace_id: workspaceId, vm_id: vmId, status, limit, offset, search } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+            vm_id: vmId,
+            status: Array.isArray(status) ? status.map((item) => item) : status != null ? status : undefined,
+            limit,
+            offset,
+            search,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                "compute/gpu-vm-backups/runs",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.BackupRunList, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/compute/gpu-vm-backups/runs");
+    }
+
+    /**
      * Returns one workspace-owned GPU VM backup run or recovery point. Requires scope: vm.read.
      *
      * @param {Ibee.GetGpuVmBackupRunRequest} request
@@ -3224,6 +2896,97 @@ export class GpuVmsClient {
             _response.error,
             _response.rawResponse,
             "GET",
+            "/compute/gpu-vm-backups/runs/{run_id}",
+        );
+    }
+
+    /**
+     * Deletes one backup run and its recovery point, as the portal's Backups page does. Requires scope: vm.write.
+     *
+     * @param {Ibee.DeleteGpuVmBackupRunRequest} request
+     * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.gpuVms.deleteGpuVmBackupRun({
+     *         run_id: "run_id",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public deleteGpuVmBackupRun(
+        request: Ibee.DeleteGpuVmBackupRunRequest,
+        requestOptions?: GpuVmsClient.RequestOptions,
+    ): core.HttpResponsePromise<void> {
+        return core.HttpResponsePromise.fromPromise(this.__deleteGpuVmBackupRun(request, requestOptions));
+    }
+
+    private async __deleteGpuVmBackupRun(
+        request: Ibee.DeleteGpuVmBackupRunRequest,
+        requestOptions?: GpuVmsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<void>> {
+        const { run_id: runId, workspace_id: workspaceId } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `compute/gpu-vm-backups/runs/${core.url.encodePathParam(runId)}`,
+            ),
+            method: "DELETE",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: undefined, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 409:
+                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "DELETE",
             "/compute/gpu-vm-backups/runs/{run_id}",
         );
     }

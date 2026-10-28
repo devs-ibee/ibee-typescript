@@ -2,15 +2,26 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Body for attaching a block storage volume to a VM.
+ */
 export interface VmAttachVolumeRequest {
+    /** ID of the block storage volume to attach. */
     volume_id: string;
+    /**
+     * - `single-writer`: only this VM may write to the volume (default).
+     * - `multi-writer`: the volume may be attached to several VMs.
+     */
     mode?: VmAttachVolumeRequest.Mode | undefined;
     /** Required. The Block Storage SKU from the Billing catalog that the VM engine records for this attachment. Copy it from the volume's `metadata.billing_catalog` (`GET /block-storage/volumes/{volume_id}`). */
     billing_catalog: Ibee.BillingCatalogSelection;
-    requested_by?: string | undefined;
 }
 
 export namespace VmAttachVolumeRequest {
+    /**
+     * - `single-writer`: only this VM may write to the volume (default).
+     * - `multi-writer`: the volume may be attached to several VMs.
+     */
     export const Mode = {
         SingleWriter: "single-writer",
         MultiWriter: "multi-writer",

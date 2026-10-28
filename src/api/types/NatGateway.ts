@@ -2,17 +2,30 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A managed NAT gateway that gives a VPC's VMs outbound internet access through one public address.
+ */
 export interface NatGateway {
+    /** Unique ID of the gateway. */
     nat_gateway_id: string;
+    /** VPC the gateway serves. */
     vpc_id: string;
+    /** Subnet the gateway is placed in. */
     subnet_id?: (string | null) | undefined;
+    /** ID of the owning organization. */
     organization_id?: string | undefined;
+    /** ID of the owning workspace. */
     workspace_id?: string | undefined;
+    /** Site the gateway lives at. */
     site_id: string;
+    /** Display name of the gateway. */
     name: string;
+    /** ID of the public IP the gateway uses. */
     public_ip_id: string;
+    /** Public IPv4 address of the gateway. */
     public_ip: string;
     status: Ibee.NetworkingResourceStatus;
     pricing?: Ibee.NatPricing | undefined;
+    /** Error detail when `status` is `error`. */
     error_message?: (string | null) | undefined;
 }

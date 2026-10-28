@@ -12,6 +12,11 @@ import type * as Ibee from "../../../../index.js";
 export interface ListComputeImagesRequest {
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /**
+     * Kind of VM the images are for. Required.
+     * - `cloud`
+     * - `gpu`
+     */
     vm_type: Ibee.VmType;
     /** Optional exact placement filter. Copy `site_id` from `GET /compute/sites`. */
     site_id?: string;

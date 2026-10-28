@@ -2,7 +2,12 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Snapshot sets of a VM.
+ */
 export interface SnapshotSetList {
+    /** Snapshot sets on this page. */
     snapshots: Ibee.SnapshotSet[];
+    /** Total number of snapshot sets matching the request. */
     total: number;
 }

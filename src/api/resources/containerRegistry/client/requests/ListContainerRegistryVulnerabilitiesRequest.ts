@@ -14,11 +14,25 @@ export interface ListContainerRegistryVulnerabilitiesRequest {
     registry_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /**
+     * Return only findings of this severity.
+     * - `Critical`
+     * - `High`
+     * - `Medium`
+     * - `Low`
+     * - `Unknown`
+     * - `None`
+     */
     severity?: Ibee.ListContainerRegistryVulnerabilitiesRequestSeverity;
+    /** Return only findings for this CVE or advisory ID. */
     cve_id?: string;
+    /** Return only findings on artifacts in this repository. */
     repository_name?: string;
+    /** Return only findings on the artifact with this digest. */
     digest?: string;
+    /** Return only findings on artifacts carrying this tag. */
     tag?: string;
+    /** Return only findings in this package. */
     package?: string;
     /** Page number. */
     page?: number;

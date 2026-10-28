@@ -2,11 +2,18 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Plans returned by `GET /compute/plans`.
+ */
 export interface ComputePlanList {
+    /** Plans matching the request. */
     plans: Ibee.ComputePlan[];
+    /** Number of items in `plans`. */
     count: number;
     vm_type: Ibee.VmType;
+    /** Site filter that was applied, when one was given. */
     site_id?: (string | null) | undefined;
+    /** ISO 4217 code of the currency the prices are quoted in. */
     currency: string;
     billing_interval: Ibee.BillingInterval;
 }

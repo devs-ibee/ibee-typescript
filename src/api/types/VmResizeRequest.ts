@@ -4,8 +4,10 @@
  * At least one target value must be supplied.
  */
 export interface VmResizeRequest {
+    /** Target vCPUs. */
     cpu?: number | undefined;
+    /** Target memory in MB. */
     ram_mb?: number | undefined;
+    /** Target root disk size in GB. */
     disk_gb?: number | undefined;
-    requested_by?: string | undefined;
 }

@@ -2,18 +2,33 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A subnet of a VPC.
+ */
 export interface Subnet {
+    /** Unique ID of the subnet. */
     subnet_id: string;
+    /** VPC the subnet belongs to. */
     vpc_id: string;
+    /** ID of the owning organization. */
     organization_id?: string | undefined;
+    /** ID of the owning workspace. */
     workspace_id?: string | undefined;
+    /** Site the subnet lives at. */
     site_id: string;
+    /** Display name of the subnet. */
     name: string;
+    /** IPv4 CIDR of the subnet. */
     cidr: string;
+    /** Gateway IPv4 address of the subnet. */
     gateway: string;
+    /** DNS resolvers handed to instances in the subnet. */
     dns: string[];
     status: Ibee.NetworkingResourceStatus;
+    /** Error detail when `status` is `error`. */
     error_message?: (string | null) | undefined;
+    /** When the resource was created (ISO 8601). */
     created_at: string;
+    /** When the resource was last changed (ISO 8601). */
     updated_at: string;
 }

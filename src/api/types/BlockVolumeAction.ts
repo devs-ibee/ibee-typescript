@@ -2,6 +2,9 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * The volume after an action, together with the operation the action created.
+ */
 export interface BlockVolumeAction {
     volume: Ibee.BlockVolume;
     operation: Ibee.BlockVolumeOperation;
