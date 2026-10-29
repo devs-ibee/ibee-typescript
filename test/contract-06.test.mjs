@@ -81,15 +81,15 @@ test("lists make one call with the caller's paging", async () => {
     assert.equal(calls[1].url.searchParams.get("offset"), "100");
 });
 
-test("backups/disable sends no body (the contract declares none)", async () => {
+test("backups/disable sends the empty object given (contract 0.7.1; the production engine refuses no body)", async () => {
     const { client, calls } = stubClient(() => ({ json: { policy_id: "p", enabled: false } }));
-    await client.cloudVms.disableCloudVmBackups({ vm_id: "vm1" });
-    await client.gpuVms.disableGpuVmBackups({ vm_id: "vm2" });
+    await client.cloudVms.disableCloudVmBackups({ vm_id: "vm1", body: {} });
+    await client.gpuVms.disableGpuVmBackups({ vm_id: "vm2", body: {} });
     assert.deepEqual(
         calls.map((c) => [c.method, c.path, c.body]),
         [
-            ["POST", "/compute/cloud-vms/vm1/backups/disable", undefined],
-            ["POST", "/compute/gpu-vms/vm2/backups/disable", undefined],
+            ["POST", "/compute/cloud-vms/vm1/backups/disable", {}],
+            ["POST", "/compute/gpu-vms/vm2/backups/disable", {}],
         ],
     );
 });

@@ -67,8 +67,8 @@ did and what to do now:
 `deleteS3Credential` (`DELETE`) deletes it.
 
 **Types** follow contract 0.7.1, for example `billing_catalog` on VM create is
-`ComputeBillingSelection`; `disableCloudVmBackups` / `disableGpuVmBackups` take an
-optional body: pass `{}` (contract 0.7.1; the production engine answers 422 to no body); `requested_by` is gone from VM action, backup-policy and
+`ComputeBillingSelection`; `disableCloudVmBackups` / `disableGpuVmBackups` take
+`body`: pass `{}` (contract 0.7.1; the production engine answers 422 to no body); `requested_by` is gone from VM action, backup-policy and
 snapshot bodies; restore requests take `target_volume_names`; NAT gateway delete takes
 `public_ip_action`; `createS3Credential`'s `permission_type` is an enum (`admin_rw`
 (default), `admin_ro`, `object_rw`, `object_ro`); `BlockStoragePlanUsage.iops` and
