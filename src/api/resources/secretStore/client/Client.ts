@@ -195,7 +195,7 @@ export class SecretStoreClient {
     }
 
     /**
-     * Gets one secret store. Requires scope: secret-store.read.
+     * Gets one secret store. A permanently deleted store answers 403, not 404. Requires scope: secret-store.read.
      *
      * @param {Ibee.GetSecretStoreRequest} request
      * @param {SecretStoreClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -456,7 +456,7 @@ export class SecretStoreClient {
     }
 
     /**
-     * Irreversibly deletes a store and all store-scoped secrets, versions, identities, and policies. Requires scope: secret-store.write.
+     * Irreversibly deletes a store and all store-scoped secrets, versions, identities, and policies. Afterwards, reads of the store answer 403. Requires scope: secret-store.write.
      *
      * @param {Ibee.PermanentlyDeleteSecretStoreRequest} request
      * @param {SecretStoreClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -838,7 +838,7 @@ export class SecretStoreClient {
     }
 
     /**
-     * Gets one secret metadata record. Secret value is not returned. Requires scope: secret-store.read.
+     * Gets one secret metadata record. Secret value is not returned. A permanently deleted secret answers 403, not 404. Requires scope: secret-store.read.
      *
      * @param {Ibee.GetSecretRequest} request
      * @param {SecretStoreClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1388,7 +1388,7 @@ export class SecretStoreClient {
     }
 
     /**
-     * Irreversibly deletes all versions and metadata for a secret. Requires scope: secret-store.write.
+     * Irreversibly deletes all versions and metadata for a secret. Afterwards, reads of the secret answer 403. Requires scope: secret-store.write.
      *
      * @param {Ibee.PermanentlyDeleteSecretRequest} request
      * @param {SecretStoreClient.RequestOptions} requestOptions - Request-specific configuration.

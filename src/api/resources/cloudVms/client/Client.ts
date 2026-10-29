@@ -118,7 +118,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Creates a cloud VM. Returns an operation you can poll for status. Requires scope: vm.write.
+     * Creates a cloud VM. Returns an operation you can poll for status. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.CreateCloudVmRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -307,7 +307,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Deletes a cloud VM. Returns an operation you can poll for status. A VM with an automatically assigned public IP needs `public_ip_action` in the body. Requires scope: vm.write.
+     * Deletes a cloud VM. Returns an operation you can poll for status. A VM with an automatically assigned public IP needs `public_ip_action` in the body. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.DeleteCloudVmRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -403,7 +403,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Starts a stopped cloud VM. Requires scope: vm.write.
+     * Starts a stopped cloud VM. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.StartCloudVmRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -499,7 +499,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Stops a running cloud VM. Requires scope: vm.write.
+     * Stops a running cloud VM. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.StopCloudVmRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -595,7 +595,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Reboots a cloud VM. Requires scope: vm.write.
+     * Reboots a cloud VM. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.RebootCloudVmRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -776,7 +776,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Adds or removes SSH keys, resets the Linux user password, or changes SSH password authentication on a cloud VM without rebooting it. Requires scope: vm.write.
+     * Adds or removes SSH keys, resets the Linux user password, or changes SSH password authentication on a cloud VM without rebooting it. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.UpdateCloudVmAccessRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -970,7 +970,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Changes a cloud VM's CPU and memory, and optionally grows its root disk, after the same precheck the portal runs. Requires scope: vm.write.
+     * Changes a cloud VM's CPU and memory, and optionally grows its root disk, after the same precheck the portal runs. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.ResizeCloudVmRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1069,7 +1069,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Attaches a persistent block storage volume to a cloud VM. Requires scope: vm.write.
+     * Attaches a persistent block storage volume to a cloud VM. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.AttachCloudVmVolumeRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1174,7 +1174,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Detaches a persistent block storage volume from a cloud VM. Unmount its filesystem in the guest first unless force is used. Requires scope: vm.write.
+     * Detaches a persistent block storage volume from a cloud VM. Unmount its filesystem in the guest first unless force is used. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.DetachCloudVmVolumeRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1735,7 +1735,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Restores a cloud VM snapshot by replacing the VM, creating a new VM, or restoring a single volume. Requires scope: vm.write.
+     * Restores a cloud VM snapshot by replacing the VM, creating a new VM, or restoring a single volume. Asynchronous: the response carries `restore_id`; poll the restore status read until `status` is `succeeded`, `failed` or `cancelled`. If your client times out, read the status; never resubmit. Requires scope: vm.write.
      *
      * @param {Ibee.RestoreCloudVmSnapshotRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2458,7 +2458,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Stops future automated backups for a cloud VM without deleting existing recovery points. Requires scope: vm.write.
+     * Stops future automated backups for a cloud VM without deleting existing recovery points. Send an empty JSON object body (`{}`); the virtualization engine rejects a request with no body. Requires scope: vm.write.
      *
      * @param {Ibee.DisableCloudVmBackupsRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2472,8 +2472,9 @@ export class CloudVmsClient {
      *
      * @example
      *     await client.cloudVms.disableCloudVmBackups({
-     *         vm_id: "vm_id",
-     *         workspace_id: "710995"
+     *         vm_id: "vm-7f3c2d1e",
+     *         workspace_id: "710995",
+     *         body: {}
      *     })
      */
     public disableCloudVmBackups(
@@ -2487,7 +2488,7 @@ export class CloudVmsClient {
         request: Ibee.DisableCloudVmBackupsRequest,
         requestOptions?: CloudVmsClient.RequestOptions,
     ): Promise<core.WithRawResponse<Ibee.BackupPolicy>> {
-        const { vm_id: vmId, workspace_id: workspaceId } = request;
+        const { vm_id: vmId, workspace_id: workspaceId, body: _body } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
         };
@@ -2506,7 +2507,10 @@ export class CloudVmsClient {
             ),
             method: "POST",
             headers: _headers,
+            contentType: "application/json",
             queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             abortSignal: requestOptions?.abortSignal,
@@ -2637,7 +2641,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Restores a cloud VM backup recovery point by replacing the VM, creating a new VM, or restoring a single volume. Requires scope: vm.write.
+     * Restores a cloud VM backup recovery point by replacing the VM, creating a new VM, or restoring a single volume. Asynchronous: the response carries `restore_id`; poll the restore status read until `status` is `succeeded`, `failed` or `cancelled`. If your client times out, read the status; never resubmit. Requires scope: vm.write.
      *
      * @param {Ibee.RestoreCloudVmBackupRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.

@@ -114,7 +114,7 @@ export class GpuVmsClient {
     }
 
     /**
-     * Creates a GPU VM. Returns an operation you can poll for status. Requires scope: vm.write.
+     * Creates a GPU VM. Returns an operation you can poll for status. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.CreateGpuVmRequest} request
      * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -305,7 +305,7 @@ export class GpuVmsClient {
     }
 
     /**
-     * Deletes a GPU VM. Returns an operation you can poll for status. A VM with an automatically assigned public IP needs `public_ip_action` in the body. Requires scope: vm.write.
+     * Deletes a GPU VM. Returns an operation you can poll for status. A VM with an automatically assigned public IP needs `public_ip_action` in the body. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.DeleteGpuVmRequest} request
      * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -401,7 +401,7 @@ export class GpuVmsClient {
     }
 
     /**
-     * Starts a stopped GPU VM. Requires scope: vm.write.
+     * Starts a stopped GPU VM. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.StartGpuVmRequest} request
      * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -497,7 +497,7 @@ export class GpuVmsClient {
     }
 
     /**
-     * Stops a running GPU VM. Requires scope: vm.write.
+     * Stops a running GPU VM. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.StopGpuVmRequest} request
      * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -593,7 +593,7 @@ export class GpuVmsClient {
     }
 
     /**
-     * Reboots a GPU VM. Requires scope: vm.write.
+     * Reboots a GPU VM. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.RebootGpuVmRequest} request
      * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -774,7 +774,7 @@ export class GpuVmsClient {
     }
 
     /**
-     * Adds or removes SSH keys, resets the Linux user password, or changes SSH password authentication on a GPU VM without rebooting it or interrupting running GPU workloads. Requires scope: vm.write.
+     * Adds or removes SSH keys, resets the Linux user password, or changes SSH password authentication on a GPU VM without rebooting it or interrupting running GPU workloads. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.UpdateGpuVmAccessRequest} request
      * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -968,7 +968,7 @@ export class GpuVmsClient {
     }
 
     /**
-     * Changes a GPU VM's CPU and memory, and optionally grows its root disk, after the same precheck the portal runs. Requires scope: vm.write.
+     * Changes a GPU VM's CPU and memory, and optionally grows its root disk, after the same precheck the portal runs. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.ResizeGpuVmRequest} request
      * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1067,7 +1067,7 @@ export class GpuVmsClient {
     }
 
     /**
-     * Attaches a persistent block storage volume to a GPU VM, for datasets, checkpoints, or model weights. Requires scope: vm.write.
+     * Attaches a persistent block storage volume to a GPU VM, for datasets, checkpoints, or model weights. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.AttachGpuVmVolumeRequest} request
      * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1172,7 +1172,7 @@ export class GpuVmsClient {
     }
 
     /**
-     * Detaches a persistent block storage volume from a GPU VM. Stop jobs using it and unmount its filesystem in the guest first unless force is used. Requires scope: vm.write.
+     * Detaches a persistent block storage volume from a GPU VM. Stop jobs using it and unmount its filesystem in the guest first unless force is used. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.DetachGpuVmVolumeRequest} request
      * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1733,7 +1733,7 @@ export class GpuVmsClient {
     }
 
     /**
-     * Restores a GPU VM snapshot by replacing the VM, creating a new GPU VM, or restoring a single volume. Requires scope: vm.write.
+     * Restores a GPU VM snapshot by replacing the VM, creating a new GPU VM, or restoring a single volume. Asynchronous: the response carries `restore_id`; poll the restore status read until `status` is `succeeded`, `failed` or `cancelled`. If your client times out, read the status; never resubmit. Requires scope: vm.write.
      *
      * @param {Ibee.RestoreGpuVmSnapshotRequest} request
      * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2456,7 +2456,7 @@ export class GpuVmsClient {
     }
 
     /**
-     * Stops future automated backups for a GPU VM without deleting existing recovery points. Requires scope: vm.write.
+     * Stops future automated backups for a GPU VM without deleting existing recovery points. Send an empty JSON object body (`{}`); the virtualization engine rejects a request with no body. Requires scope: vm.write.
      *
      * @param {Ibee.DisableGpuVmBackupsRequest} request
      * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2470,8 +2470,9 @@ export class GpuVmsClient {
      *
      * @example
      *     await client.gpuVms.disableGpuVmBackups({
-     *         vm_id: "vm_id",
-     *         workspace_id: "710995"
+     *         vm_id: "gpu-7f3c2d1e",
+     *         workspace_id: "710995",
+     *         body: {}
      *     })
      */
     public disableGpuVmBackups(
@@ -2485,7 +2486,7 @@ export class GpuVmsClient {
         request: Ibee.DisableGpuVmBackupsRequest,
         requestOptions?: GpuVmsClient.RequestOptions,
     ): Promise<core.WithRawResponse<Ibee.BackupPolicy>> {
-        const { vm_id: vmId, workspace_id: workspaceId } = request;
+        const { vm_id: vmId, workspace_id: workspaceId, body: _body } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
         };
@@ -2504,7 +2505,10 @@ export class GpuVmsClient {
             ),
             method: "POST",
             headers: _headers,
+            contentType: "application/json",
             queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             abortSignal: requestOptions?.abortSignal,
@@ -2635,7 +2639,7 @@ export class GpuVmsClient {
     }
 
     /**
-     * Restores a GPU VM backup recovery point by replacing the VM, creating a new GPU VM, or restoring a single volume. Requires scope: vm.write.
+     * Restores a GPU VM backup recovery point by replacing the VM, creating a new GPU VM, or restoring a single volume. Asynchronous: the response carries `restore_id`; poll the restore status read until `status` is `succeeded`, `failed` or `cancelled`. If your client times out, read the status; never resubmit. Requires scope: vm.write.
      *
      * @param {Ibee.RestoreGpuVmBackupRequest} request
      * @param {GpuVmsClient.RequestOptions} requestOptions - Request-specific configuration.

@@ -1450,7 +1450,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Returns the bucket's custom domains with their status and the CNAME target to point them at, as the portal's Settings › Custom domains tab shows. Requires scope: object-storage.read.
+     * Returns the bucket's custom domains with their status and the CNAME target to point them at, as the portal's Settings › Custom domains tab shows. Answers 404 when the bucket has no custom domain. Requires scope: object-storage.read.
      *
      * @param {Ibee.GetBucketCustomDomainsRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1633,7 +1633,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Removes a custom hostname from the bucket. Requires scope: object-storage.write.
+     * Removes a custom hostname from the bucket. Answers 400 when the bucket has no custom domain. Requires scope: object-storage.write.
      *
      * @param {Ibee.RemoveBucketCustomDomainRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.

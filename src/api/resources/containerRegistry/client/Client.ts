@@ -210,6 +210,8 @@ export class ContainerRegistryClient {
      * until `observed_state` is `ACTIVE`. Requires scope:
      * container-registry.write.
      *
+     * Asynchronous: `observed_state` moves from `PROVISIONING` to `ACTIVE` or `ERROR`; poll `GET /container-registry/registries/{registry_id}`.
+     *
      * @param {Ibee.CreateContainerRegistryRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -398,7 +400,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Starts deleting a registry; returns 202 with `observed_state: DELETING`. The registry must be empty: 409 with `detail.code: registry_not_empty` otherwise (see Empty registry). The name is never reused. Requires scope: container-registry.write.
+     * Starts deleting a registry; returns 202 with `observed_state: DELETING`. The registry must be empty: 409 with `detail.code: registry_not_empty` otherwise (see Empty registry). The name is never reused. Asynchronous: `observed_state` moves through `DELETING` to `DELETED`; poll `GET /container-registry/registries/{registry_id}` until it answers 404 or `DELETED`. Requires scope: container-registry.write.
      *
      * @param {Ibee.DeleteContainerRegistryRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -781,6 +783,8 @@ export class ContainerRegistryClient {
      * the original operation (202 while pending, 200 once applied); the same
      * key with a different plan returns 409. Requires scope:
      * container-registry.write.
+     *
+     * Asynchronous: the package operation moves from `PENDING` to `APPLIED` or `CANCELLED`; read `GET /container-registry/registries/{registry_id}/package`.
      *
      * @param {Ibee.UpgradeContainerRegistryPackageRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1358,7 +1362,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Permanently deletes a repository and all of its images. Requires `confirm=true`. Requires scope: container-registry.write.
+     * Permanently deletes a repository and all of its images. Requires `confirm=true`. Deleting a repository that does not exist answers 200. Requires scope: container-registry.write.
      *
      * @param {Ibee.DeleteContainerRegistryRepositoryRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1561,7 +1565,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Permanently deletes one image and every tag that points to it. Requires `confirm=true`. Requires scope: container-registry.write.
+     * Permanently deletes one image and every tag that points to it. Requires `confirm=true`. Deleting an artifact that does not exist answers 200. Requires scope: container-registry.write.
      *
      * @param {Ibee.DeleteContainerRegistryArtifactRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.

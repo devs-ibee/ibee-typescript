@@ -3,8 +3,9 @@
 /**
  * @example
  *     {
- *         vm_id: "vm_id",
- *         workspace_id: "710995"
+ *         vm_id: "gpu-7f3c2d1e",
+ *         workspace_id: "710995",
+ *         body: {}
  *     }
  */
 export interface DisableGpuVmBackupsRequest {
@@ -12,4 +13,5 @@ export interface DisableGpuVmBackupsRequest {
     vm_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    body: Record<string, unknown>;
 }
