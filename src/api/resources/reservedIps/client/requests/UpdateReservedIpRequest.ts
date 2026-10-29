@@ -12,6 +12,8 @@ export interface UpdateReservedIpRequest {
     reserved_ip_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** New label (the portal's **Name**). */
     label?: string;
+    /** Reverse DNS hostname for the address, as a fully qualified domain name. */
     reverse_dns?: string;
 }

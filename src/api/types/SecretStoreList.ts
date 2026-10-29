@@ -2,9 +2,16 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A page of secret stores.
+ */
 export interface SecretStoreList {
+    /** Stores on this page. */
     stores?: Ibee.SecretStore[] | undefined;
+    /** Total number of items matching the request. */
     total?: number | undefined;
+    /** Page number returned (1-based). */
     page?: number | undefined;
+    /** Page size that was applied. */
     limit?: number | undefined;
 }

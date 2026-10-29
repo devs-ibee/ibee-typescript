@@ -13,5 +13,6 @@ export interface GetGpuVmBandwidthRequest {
     vm_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Calendar month to report, as `YYYY-MM` (for example `2026-08`). */
     month: string;
 }

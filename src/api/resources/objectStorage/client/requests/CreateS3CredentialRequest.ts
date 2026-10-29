@@ -9,13 +9,42 @@
 export interface CreateS3CredentialRequest {
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Display name of the key pair. Default `Default Key`. */
     name?: string;
-    permission_type?: string;
+    /**
+     * - `admin_rw`: manage buckets and read/write objects (default).
+     * - `admin_ro`: read buckets and objects.
+     * - `object_rw`: read and write objects only.
+     * - `object_ro`: read objects only.
+     */
+    permission_type?: CreateS3CredentialRequest.PermissionType;
+    /**
+     * - `all`: the key may use every bucket in the workspace (default).
+     * - `specific`: only the buckets in `allowed_buckets`.
+     */
     bucket_scope?: CreateS3CredentialRequest.BucketScope;
+    /** Bucket names the key may use when `bucket_scope` is `specific`. */
     allowed_buckets?: string[];
 }
 
 export namespace CreateS3CredentialRequest {
+    /**
+     * - `admin_rw`: manage buckets and read/write objects (default).
+     * - `admin_ro`: read buckets and objects.
+     * - `object_rw`: read and write objects only.
+     * - `object_ro`: read objects only.
+     */
+    export const PermissionType = {
+        AdminRw: "admin_rw",
+        AdminRo: "admin_ro",
+        ObjectRw: "object_rw",
+        ObjectRo: "object_ro",
+    } as const;
+    export type PermissionType = (typeof PermissionType)[keyof typeof PermissionType];
+    /**
+     * - `all`: the key may use every bucket in the workspace (default).
+     * - `specific`: only the buckets in `allowed_buckets`.
+     */
     export const BucketScope = {
         All: "all",
         Specific: "specific",

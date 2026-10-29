@@ -18,5 +18,5 @@ export interface RestoreCloudVmSnapshotRequest {
     workspace_id?: string;
     /** Source VM ID for the snapshot. */
     vm_id: string;
-    body: Ibee.RecoveryRestoreRequest;
+    body: Ibee.SnapshotRestoreRequest;
 }

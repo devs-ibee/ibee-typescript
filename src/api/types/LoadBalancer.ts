@@ -2,26 +2,49 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A load balancer.
+ */
 export interface LoadBalancer {
+    /** Unique ID of the load balancer. */
     lb_id: string;
+    /** ID of the owning organization. */
     organization_id: string;
+    /** ID of the owning workspace. */
     workspace_id: string;
+    /** Display name of the workspace. */
     workspace_name?: string | undefined;
+    /** Display name of the load balancer. */
     name: string;
+    /**
+     * - `l4`: TCP or TLS pass-through.
+     * - `l7`: HTTP or HTTPS.
+     */
     layer: LoadBalancer.Layer;
     protocol: Ibee.LoadBalancerProtocol;
     status: Ibee.LoadBalancerStatus;
     endpoint: Ibee.LoadBalancerEndpoint;
+    /** Public hostname of the load balancer. */
     url: string;
+    /** URL with scheme and, for L4, port: for example `https://host` or `tcp://host:443`. */
     endpoint_url: string;
+    /** Kubernetes namespace the load balancer runs in. */
     namespace?: string | undefined;
+    /** Backends the load balancer sends traffic to. */
     backends: Ibee.LoadBalancerBackend[];
+    /** L7 routing rules; null for L4 load balancers. */
     rules?: (Ibee.LoadBalancerRule[] | null) | undefined;
+    /** When the resource was created (ISO 8601). */
     created_at: string;
+    /** When the resource was last changed (ISO 8601). */
     updated_at: string;
 }
 
 export namespace LoadBalancer {
+    /**
+     * - `l4`: TCP or TLS pass-through.
+     * - `l7`: HTTP or HTTPS.
+     */
     export const Layer = {
         L4: "l4",
         L7: "l7",

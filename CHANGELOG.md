@@ -1,5 +1,124 @@
 # Changelog
 
+## 0.6.0
+
+Generated from the API contract 0.7.1 (`contract/ibee-cloud.yaml`, 225 operations):
+Container Registry (contract 0.5.0) plus the 0.6 changes (23 operations removed, 29
+added, 1 moved; 0.6.3 only tightens two types, see below). The SDK is now a pure generated client: the public API runs the
+portal's own checks (through portal-client-api), so the hand-written "held" layer is
+removed. The SDK sends the request as given and returns the server's answer unchanged.
+
+### Breaking changes
+
+**The held layer is removed** (`src/wrapper/held.ts`; the `HeldCloudVms`,
+`HeldGpuVms`, `HeldVpcs`, `HeldFirewalls`, `HeldVmCreate`, `HeldVmCreateFields`,
+`HeldVmDelete`, `HeldVmAttach`, `HeldVmResize` and `HeldResizeFields` types). What it
+did and what to do now:
+
+- `createCloudVm` / `createGpuVm` no longer look up the plan or fill
+  `billing_catalog`, and no longer accept `billing_term` or `windows_license` or add
+  the Reserved IP SKU. Pass `billing_catalog` as the contract's
+  `ComputeBillingSelection`: the plan's `billing_catalog` from `listComputePlans` with
+  one `billing_options` entry (`HOURLY` or `MONTHLY`) merged in whole, keeping
+  `price_currency` (recipe in the README). The server answers 400
+  `compute_billing_term_required` without a term and 400
+  `invalid_compute_billing_selection` for a partial or mismatching one. There is no
+  `YEARLY` term. `MONTHLY` is a one-month commitment: delete and resize answer 409
+  `VM_COMMITTED` during it.
+- `attachCloudVmVolume` / `attachGpuVmVolume` no longer read the volume: pass
+  `billing_catalog` (the volume's `metadata.billing_catalog`), as the contract requires.
+- `resizeCloudVm` / `resizeGpuVm` no longer take `plan_id`: pass `cpu`, `ram_mb`,
+  `disk_gb`.
+- `deleteCloudVm` / `deleteGpuVm` take `body` as generated (`{}`, or with
+  `public_ip_action` `release` / `reserve`, which the server requires for a VM with an
+  automatically assigned public IP). Nothing is defaulted.
+- `listCloudVms`, `listGpuVms` and `listFirewallGroups` make one call: pass `limit` /
+  `offset` (the server returns 10 by default). They no longer read every page.
+- `createVpc` / `createNatGateway` are typed as the contract has them (no
+  `nat_billing_catalog` / `billing_catalog` extra field).
+- The token-environment check is gone: a token is sent to the configured gateway as
+  given and the gateway answers.
+- Retries: idempotent requests (GET/HEAD, and writes that carry an idempotency key;
+  never VM create) are retried on 429, 502, 503 and 504. The client no longer inspects
+  the body for billing or admission codes before retrying.
+
+**Removed methods** (their operations left the contract):
+
+- `cloudVms.resizeCloudVmPlan`, `cloudVms.resizeCloudVmRootDisk`,
+  `gpuVms.resizeGpuVmPlan`, `gpuVms.resizeGpuVmRootDisk`: use `resizeCloudVm` /
+  `resizeGpuVm` (`precheckCloudVmResize` / `precheckGpuVmResize` first if you want the
+  decision).
+- `cloudVms.acknowledgeCloudVmMountGuidance`, `gpuVms.acknowledgeGpuVmMountGuidance`.
+- `cloudVms.createCloudVmBackupRun`, `gpuVms.createGpuVmBackupRun` (manual backup run),
+  `cloudVms.rescheduleCloudVmBackup`, `gpuVms.rescheduleGpuVmBackup` (next-run-at).
+- `ibee.vmConsole`: `createVmConsoleSession`, `getVmConsoleSession`,
+  `closeVmConsoleSession`.
+- `blockStorage.attachBlockVolume`, `blockStorage.detachBlockVolume`: use
+  `attachCloudVmVolume` / `detachCloudVmVolume` (GPU the same).
+- `cdn.generateCdnUrl`.
+- `vpcs.updateVpcSubnet`.
+- `secretStore.patchSecretValue`, `secretStore.updateSecretIdentity`,
+  `secretStore.updateSecretIdentityScope`, `secretStore.updateSecretStore`.
+- `containerRegistry.emptyContainerRegistry`.
+- `ibee.billing`: `checkResourceEligibility`.
+
+**Moved:** `objectStorage.revokeS3Credential` is now
+`POST /object-storage/credentials/{id}/revoke` (revokes the key); the new
+`deleteS3Credential` (`DELETE`) deletes it.
+
+**Types** follow contract 0.7.1, for example `billing_catalog` on VM create is
+`ComputeBillingSelection`; `disableCloudVmBackups` / `disableGpuVmBackups` take
+`body`: pass `{}` (contract 0.7.1; the production engine answers 422 to no body); `requested_by` is gone from VM action, backup-policy and
+snapshot bodies; restore requests take `target_volume_names`; NAT gateway delete takes
+`public_ip_action`; `createS3Credential`'s `permission_type` is an enum (`admin_rw`
+(default), `admin_ro`, `object_rw`, `object_ro`); `BlockStoragePlanUsage.iops` and
+`.throughput` are display strings (for example `Up to 10K`), and `throughput_mibps` is
+gone.
+
+### Added
+
+- `ibee.containerRegistry`: the Container Registry operations with their types.
+  Registries (name check, list, create, get, delete, visibility, retry provisioning),
+  storage plan (get, upgrade), access tokens (list, create, rotate, revoke),
+  repositories (list, delete), artifacts (list, delete, rescan), security settings
+  (get, update), vulnerabilities (summary, list), SBOMs (list, get, download) and
+  metrics. Paging is `page`/`page_size` (at most 100), as the contract has it.
+- Object storage: `getBucketLifecycle`, `setBucketLifecycle`, `deleteBucketLifecycle`,
+  `getBucketCors`, `setBucketCors`, `deleteBucketCors`, `getBucketObjectLock`,
+  `setBucketObjectLock`, `getBucketNotifications`, `setBucketNotifications`,
+  `deleteBucketNotifications`, `getBucketCustomDomains`, `addBucketCustomDomain`,
+  `removeBucketCustomDomain`, `getBucketMetrics`, `deleteS3Credential`. Answers come
+  back as sent (the CORS read currently uses S3 casing such as `AllowedOrigins`; the
+  write takes snake_case).
+- Compute: `computeCatalog.listSnapshotStoragePlans` and `listBackupStoragePlans` (the
+  SKUs snapshot create and backup enable need); `cloudVms.listAllCloudVmSnapshots`,
+  `listAllCloudVmBackupRuns`, `deleteCloudVmBackupRun` and `gpuVms.listAllGpuVmSnapshots`,
+  `listAllGpuVmBackupRuns`, `deleteGpuVmBackupRun`; `listComputePlans` takes
+  `billing_interval`.
+- `blockStorage.listBlockStoragePlans`, `cdn.getCdnDistributionMetrics`,
+  `reservedIps.convertReservedIp`, `reservedIps.attachReservedIpDirect`,
+  `vpcs.updateNatGatewayPublicIp`.
+- `X-Idempotency-Key` is filled when you pass none on the 18 operations whose contract
+  declares it (every VM write), and `Idempotency-Key` on Container Registry plan
+  upgrade (`upgradeContainerRegistryPackage`); a retry reuses the key.
+- `scripts/check-contract-calls.mjs` also checks that the idempotency-key and retry
+  routes in `src/wrapper/Ibee.ts` match exactly the operations the contract declares.
+
+### Changed
+
+- `src/.fernignore` keeps only `index.ts`, `version.ts`, `wrapper/Ibee.ts` and
+  `errors/IbeeError.ts`.
+
+### Notes
+
+- What stays hand-written: configuration (token, workspace, environment / base URL;
+  the token is kept out of the client's enumerable state), the idempotency keys and
+  retries above, and `IbeeError`'s fields read from the server's answer (`code`,
+  `serverMessage`, `billingReason`, `admissionContextId`, `requestId`).
+- An access token's `secret` is returned only by create and rotate. Debug logs (the
+  `logging` option) redact credentials in headers, query parameters and URLs and carry
+  no request or response bodies.
+
 ## 0.5.2
 
 Generated from the API contract 0.4.1, now vendored at `contract/ibee-cloud.yaml`,

@@ -2,32 +2,66 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A restore job started from a backup run or a snapshot set.
+ */
 export interface RecoveryRestore {
+    /** ID of the organization that owns the VM. */
     organization_id: string;
+    /** Display name of the owning organization, when the service has it. */
     organization_name?: (string | null) | undefined;
+    /** ID of the workspace the VM belongs to. */
     workspace_id: string;
+    /** Display name of the workspace, when the service has it. */
     workspace_name?: (string | null) | undefined;
+    /** Unique ID of the restore job. */
     restore_id: string;
+    /** VM the recovery point was taken from. */
     source_vm_id: string;
+    /**
+     * - `replace`: restored onto the source VM.
+     * - `new_vm`: restored into a new VM.
+     * - `volume_only`: a single volume was restored.
+     */
     target_mode: RecoveryRestore.TargetMode;
+    /** VM that received the restore: the source VM for `replace`, the new VM for `new_vm`. */
     target_vm_id?: (string | null) | undefined;
+    /** Display name of the target VM. */
     target_vm_name?: (string | null) | undefined;
+    /** Recovery point that was restored. */
     recovery_point_id: string;
+    /**
+     * - `backup`: the recovery point is a backup run.
+     * - `snapshot`: the recovery point is a snapshot set.
+     */
     recovery_point_type?: RecoveryRestore.RecoveryPointType | undefined;
     status: Ibee.BackupStatus;
+    /** When the restore started (ISO 8601); null while queued. */
     started_at?: (string | null) | undefined;
+    /** When the restore finished (ISO 8601); null until it does. */
     completed_at?: (string | null) | undefined;
+    /** Error detail when `status` is `failed`. */
     error_message?: (string | null) | undefined;
+    /** Additional service-specific key-value data. */
     metadata?: Record<string, unknown> | undefined;
 }
 
 export namespace RecoveryRestore {
+    /**
+     * - `replace`: restored onto the source VM.
+     * - `new_vm`: restored into a new VM.
+     * - `volume_only`: a single volume was restored.
+     */
     export const TargetMode = {
         Replace: "replace",
         NewVm: "new_vm",
         VolumeOnly: "volume_only",
     } as const;
     export type TargetMode = (typeof TargetMode)[keyof typeof TargetMode];
+    /**
+     * - `backup`: the recovery point is a backup run.
+     * - `snapshot`: the recovery point is a snapshot set.
+     */
     export const RecoveryPointType = {
         Backup: "backup",
         Snapshot: "snapshot",

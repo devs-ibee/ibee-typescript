@@ -12,9 +12,26 @@ import type * as Ibee from "../../../../index.js";
 export interface ListComputePlansRequest {
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /**
+     * Kind of VM the plans are for. Required.
+     * - `cloud`
+     * - `gpu`
+     */
     vm_type: Ibee.VmType;
     /** Optional exact placement filter. Copy `site_id` from `GET /compute/sites`. */
     site_id?: string;
+    /** ISO 4217 code of the currency to quote prices in. Default `INR`. */
     currency?: string;
+    /**
+     * Billing period to quote prices for.
+     * - `HOURLY`
+     * - `MONTHLY` (default)
+     */
     billing_interval?: Ibee.BillingInterval;
+    /** Include an advisory placement check. Requires site_id. This does not reserve stock. */
+    include_availability?: boolean;
+    /** OS pool to check when include_availability is true. */
+    os_type?: Ibee.ListComputePlansRequestOsType;
+    /** Include public IPv4 capacity in the advisory placement check. */
+    requires_public_ip?: boolean;
 }

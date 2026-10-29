@@ -14,13 +14,34 @@ export interface AttachVpcNodeRequest {
     vpc_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** ID of the VM to attach. */
     vm_id: string;
+    /** Subnet of the VPC to attach the VM to. */
     subnet_id: string;
+    /**
+     * How the VM reaches the internet from this subnet.
+     * - `private`: no internet path.
+     * - `public_ip`: a Reserved IP is attached to the allocation.
+     * - `nat`: outbound traffic goes through the VPC's NAT gateway.
+     *
+     * Default `private`.
+     */
     connectivity?: AttachVpcNodeRequest.Connectivity;
+    /** Private IPv4 address to give the VM in the subnet. Chosen automatically when omitted. */
+    requested_private_ip?: string;
+    /** Reserved IP to attach to the VM. Only valid with `public_ip` connectivity. */
     reserved_public_ip_id?: string | null;
 }
 
 export namespace AttachVpcNodeRequest {
+    /**
+     * How the VM reaches the internet from this subnet.
+     * - `private`: no internet path.
+     * - `public_ip`: a Reserved IP is attached to the allocation.
+     * - `nat`: outbound traffic goes through the VPC's NAT gateway.
+     *
+     * Default `private`.
+     */
     export const Connectivity = {
         Private: "private",
         PublicIp: "public_ip",

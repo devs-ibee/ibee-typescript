@@ -2,7 +2,12 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Identities in the workspace.
+ */
 export interface SecretIdentityList {
+    /** Identities returned. */
     identities: Ibee.SecretIdentity[];
+    /** Total number of identities. */
     total: number;
 }

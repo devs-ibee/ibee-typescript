@@ -2,9 +2,16 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A page of secrets.
+ */
 export interface SecretList {
+    /** Secrets on this page. */
     secrets?: Ibee.Secret[] | undefined;
+    /** Total number of items matching the request. */
     total?: number | undefined;
+    /** Page number returned (1-based). */
     page?: number | undefined;
+    /** Page size that was applied. */
     limit?: number | undefined;
 }

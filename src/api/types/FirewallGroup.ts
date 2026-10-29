@@ -2,17 +2,32 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A stateful firewall group: a named set of rules applied to the VMs attached to it.
+ */
 export interface FirewallGroup {
+    /** Unique ID of the group. */
     firewall_group_id: string;
+    /** ID of the owning organization. */
     organization_id: string;
+    /** ID of the owning workspace. */
     workspace_id: string;
+    /** Display name of the workspace. */
     workspace_name?: string | undefined;
+    /** Display name of the group. */
     name: string;
+    /** Description of the group. */
     description?: (string | null) | undefined;
+    /** Whether this is the workspace's default group. */
     is_default: boolean;
+    /** Status of the group; `active` when usable. */
     status: string;
+    /** Number of VMs the group is attached to. */
     linked_instance_count?: number | undefined;
+    /** Rules in the group. */
     rules: Ibee.FirewallRule[];
+    /** When the resource was created (ISO 8601). */
     created_at: string;
+    /** When the resource was last changed (ISO 8601). */
     updated_at: string;
 }

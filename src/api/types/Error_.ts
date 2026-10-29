@@ -4,7 +4,7 @@
  * Error body. A refusal from the gateway's authorization step (auth-service ext-authz) carries `error` and the other fields below except `detail`; each of them is present, null when it does not apply. A refusal from the product service behind the gateway carries `detail` instead.
  */
 export interface Error_ {
-    /** Machine-readable code from the gateway's authorization step, for example `invalid_api_key`, `insufficient_scope`, `organization_restricted`, `organization_suspended`, `verification_required` or `billing_denied`. The response descriptions list the codes for each status. */
+    /** Machine-readable code from the gateway's authorization step, for example `invalid_api_key`, `insufficient_scope`, `organization_restricted`, `organization_suspended`, `verification_required`, `product_not_enabled` or `billing_denied`. The response descriptions list the codes for each status. */
     error?: (string | null) | undefined;
     /** The scope the token lacks, with `insufficient_scope`. */
     required_scope?: (string | null) | undefined;

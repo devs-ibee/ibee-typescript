@@ -14,6 +14,8 @@ export interface ListCloudVmBackupRunsRequest {
     workspace_id?: string;
     /** Maximum number of records to return. */
     limit?: number;
+    /** Number of items to skip before the first returned item. Default 0. */
     offset?: number;
+    /** Return only backup runs whose fields contain this text. */
     search?: string;
 }

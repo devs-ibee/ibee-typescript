@@ -2,26 +2,48 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A VM's scheduled-backup policy and the result of its last run.
+ */
 export interface BackupPolicy {
+    /** ID of the organization that owns the VM. */
     organization_id: string;
+    /** Display name of the owning organization, when the service has it. */
     organization_name?: (string | null) | undefined;
+    /** ID of the workspace the VM belongs to. */
     workspace_id: string;
+    /** Display name of the workspace, when the service has it. */
     workspace_name?: (string | null) | undefined;
+    /** Unique ID of the backup policy. */
     policy_id: string;
+    /** ID of the VM the policy protects. */
     vm_id: string;
+    /** Display name of the VM, as recorded on the policy. */
     vm_name?: (string | null) | undefined;
+    /** OS family of the VM (`linux` or `windows`), as recorded on the policy. */
     os_type?: (string | null) | undefined;
+    /** OS distribution of the VM, as recorded on the policy. */
     os_distro?: (string | null) | undefined;
+    /** Template the VM was created from, as recorded on the policy. */
     template_id?: (string | null) | undefined;
+    /** Whether scheduled runs are active. */
     enabled: boolean;
     schedule: Ibee.BackupPolicySchedule;
+    /** Days a backup run is kept before it is expired. */
     retention_days: number;
+    /** Days between full backups. */
     full_backup_interval_days: number;
+    /** Whether runs between full backups capture only changes. */
     incremental_enabled: boolean;
+    /** Identifier of the storage backend that holds the captured data. */
     storage_backend: string;
+    /** When the next scheduled run is due; null when none is scheduled. */
     next_run_at?: (string | null) | undefined;
+    /** When the most recent run started; null before the first run. */
     last_run_at?: (string | null) | undefined;
     last_status?: Ibee.BackupStatus | undefined;
+    /** When the policy was created (ISO 8601). */
     created_at: string;
+    /** When the policy was last changed (ISO 8601). */
     updated_at: string;
 }

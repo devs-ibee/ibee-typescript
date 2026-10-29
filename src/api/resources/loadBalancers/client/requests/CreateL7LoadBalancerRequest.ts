@@ -17,23 +17,42 @@ import type * as Ibee from "../../../../index.js";
 export interface CreateL7LoadBalancerRequest {
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Display name of the load balancer. */
     name: string;
+    /**
+     * - `http`
+     * - `https`
+     */
     protocol: CreateL7LoadBalancerRequest.Protocol;
+    /** Default backends for requests no rule matches. */
     backends: Ibee.LoadBalancerBackend[];
     routing?: Ibee.LoadBalancerRouting;
+    health_check?: Ibee.LoadBalancerHealthCheck;
+    policy?: Ibee.LoadBalancerPolicy;
+    observability?: Ibee.LoadBalancerObservability;
     tls?: Ibee.LoadBalancerTls;
+    /** Custom hostname to serve. Point its DNS CNAME at the load balancer's endpoint host. */
     custom_domain?: CreateL7LoadBalancerRequest.CustomDomain | null;
+    /** Path- and header-based routing rules. */
     rules?: Ibee.LoadBalancerRule[];
 }
 
 export namespace CreateL7LoadBalancerRequest {
+    /**
+     * - `http`
+     * - `https`
+     */
     export const Protocol = {
         Http: "http",
         Https: "https",
     } as const;
     export type Protocol = (typeof Protocol)[keyof typeof Protocol];
 
+    /**
+     * Custom hostname to serve. Point its DNS CNAME at the load balancer's endpoint host.
+     */
     export interface CustomDomain {
+        /** Fully qualified domain name to serve. */
         hostname?: string | undefined;
     }
 }

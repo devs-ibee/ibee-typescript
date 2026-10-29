@@ -12,5 +12,6 @@ export interface DeleteBlockVolumeRequest {
     volume_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Delete the volume even if it is still attached. Default false. */
     force?: boolean;
 }

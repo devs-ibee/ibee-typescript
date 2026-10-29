@@ -25,5 +25,6 @@ export interface BatchCreateSecretsRequest {
     store_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Secrets to create (1-500). */
     secrets: Ibee.BatchCreateSecretItem[];
 }

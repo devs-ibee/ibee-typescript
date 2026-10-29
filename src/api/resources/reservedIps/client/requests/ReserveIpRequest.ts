@@ -12,5 +12,6 @@ export interface ReserveIpRequest {
     workspace_id?: string;
     /** Site whose public IP pool allocates the address. Copy an available `site_id` from `GET /networking/sites`; use the target VM or VPC's site when the address will be attached. */
     site_id: string;
+    /** Optional label for the address (up to 120 characters), shown as its name in the portal. */
     label?: string;
 }

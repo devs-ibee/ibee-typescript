@@ -1,4 +1,6 @@
 export type { AttachReservedIpBody } from "./AttachReservedIpBody.js";
+export type { AttachReservedIpDirectRequest } from "./AttachReservedIpDirectRequest.js";
+export type { ConvertReservedIpRequest } from "./ConvertReservedIpRequest.js";
 export type { DetachReservedIpRequest } from "./DetachReservedIpRequest.js";
 export type { GetReservedIpRequest } from "./GetReservedIpRequest.js";
 export type { ListReservedIpsRequest } from "./ListReservedIpsRequest.js";

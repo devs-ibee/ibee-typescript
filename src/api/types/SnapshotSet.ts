@@ -2,49 +2,100 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A snapshot set: a point-in-time capture of a VM's root disk and, depending on `capture_scope`, its data volumes. It is a recovery point that the snapshot restore action accepts.
+ */
 export interface SnapshotSet {
+    /** ID of the organization that owns the VM. */
     organization_id: string;
+    /** Display name of the owning organization, when the service has it. */
     organization_name?: (string | null) | undefined;
+    /** ID of the workspace the VM belongs to. */
     workspace_id: string;
+    /** Display name of the workspace, when the service has it. */
     workspace_name?: (string | null) | undefined;
+    /** Unique ID of the snapshot set. */
     snapshot_set_id: string;
+    /** ID of the VM the snapshot was taken from. */
     vm_id: string;
+    /** Display name of the VM at capture time. */
     vm_name?: (string | null) | undefined;
     vm_type?: Ibee.VmType | undefined;
+    /** Display name of the snapshot set. */
     name: string;
+    /** Description given at creation. */
     description?: (string | null) | undefined;
+    /** Recovery point ID of this snapshot set. */
     recovery_point_id: string;
+    /** Always `snapshot` for a snapshot set. */
     recovery_point_type?: SnapshotSet.RecoveryPointType | undefined;
+    /**
+     * Which volumes the recovery point contains.
+     * - `root_only`: the root disk only.
+     * - `all_attached`: the root disk and every attached data volume.
+     * - `selective`: the root disk and the data volumes that were selected.
+     */
     capture_scope?: SnapshotSet.CaptureScope | undefined;
     status: Ibee.BackupStatus;
+    /** Number of volumes in the snapshot set. */
     captured_volume_count?: number | undefined;
+    /** True when only the root disk was captured. */
     root_only?: boolean | undefined;
+    /** Size of the captured data in GiB. */
     size_gb?: (number | null) | undefined;
+    /** Provisioned size of the source root disk in GiB at capture time. */
     source_disk_size_gb?: (number | null) | undefined;
+    /** Size in GiB as shown in the portal. */
     display_size_gb?: (number | null) | undefined;
+    /** `display_size_gb` expressed in bytes. */
     display_storage_bytes?: (number | null) | undefined;
+    /** Bytes of protected data as reported by the storage backend. */
     backend_protected_storage_bytes?: (number | null) | undefined;
+    /** Bytes of source data protected by this snapshot set. */
     protected_storage_bytes?: (number | null) | undefined;
+    /** Bytes billed for storing this snapshot set. */
     billing_storage_bytes?: (number | null) | undefined;
+    /**
+     * How `billing_storage_bytes` was obtained.
+     * - `metered`: measured in the backup store.
+     * - `metered_from_manifest`: summed from the volume manifest.
+     * - `unavailable`: not measured yet.
+     */
     billing_storage_source?: string | undefined;
+    /** `metered` once storage has been measured for billing; `unavailable` until then. */
     metering_status?: string | undefined;
+    /** Identifier of the storage backend that holds the captured data. */
     storage_backend?: (string | null) | undefined;
+    /** Hash of the VM's volume layout at capture time; a different hash on the live VM means the layout drifted. */
     captured_topology_hash?: (string | null) | undefined;
+    /** ID of the captured root disk. */
     root_volume_id?: (string | null) | undefined;
+    /** Display name of the captured root disk. */
     root_volume_name?: (string | null) | undefined;
+    /** One entry per captured volume. */
     volume_manifest?: Ibee.RecoveryVolumeManifestItem[] | undefined;
     volume_manifest_summary?: Ibee.RecoveryPointSummary | undefined;
     live_drift_summary?: Ibee.LiveDriftSummary | undefined;
+    /** Additional service-specific key-value data. */
     metadata?: Record<string, unknown> | undefined;
+    /** When the snapshot set was created (ISO 8601). */
     created_at: string;
+    /** When the snapshot set was last updated (ISO 8601). */
     updated_at: string;
 }
 
 export namespace SnapshotSet {
+    /** Always `snapshot` for a snapshot set. */
     export const RecoveryPointType = {
         Snapshot: "snapshot",
     } as const;
     export type RecoveryPointType = (typeof RecoveryPointType)[keyof typeof RecoveryPointType];
+    /**
+     * Which volumes the recovery point contains.
+     * - `root_only`: the root disk only.
+     * - `all_attached`: the root disk and every attached data volume.
+     * - `selective`: the root disk and the data volumes that were selected.
+     */
     export const CaptureScope = {
         RootOnly: "root_only",
         AllAttached: "all_attached",

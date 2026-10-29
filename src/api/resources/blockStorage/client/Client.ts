@@ -26,6 +26,85 @@ export class BlockStorageClient {
     }
 
     /**
+     * Returns the block storage plans with their sizes, performance and prices, as the portal's Create Volume page shows them. Pick a `sku_code` for createBlockVolume. Requires scope: block-storage.read.
+     *
+     * @param {Ibee.ListBlockStoragePlansRequest} request
+     * @param {BlockStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.blockStorage.listBlockStoragePlans({
+     *         workspace_id: "710995"
+     *     })
+     */
+    public listBlockStoragePlans(
+        request: Ibee.ListBlockStoragePlansRequest = {},
+        requestOptions?: BlockStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.BlockStoragePlanList> {
+        return core.HttpResponsePromise.fromPromise(this.__listBlockStoragePlans(request, requestOptions));
+    }
+
+    private async __listBlockStoragePlans(
+        request: Ibee.ListBlockStoragePlansRequest = {},
+        requestOptions?: BlockStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.BlockStoragePlanList>> {
+        const { workspace_id: workspaceId, site_id: siteId, currency, billing_interval: billingInterval } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+            site_id: siteId,
+            currency,
+            billing_interval: billingInterval != null ? billingInterval : undefined,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                "block-storage/plans",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.BlockStoragePlanList, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/block-storage/plans");
+    }
+
+    /**
      * Lists the block storage volumes in a workspace, with their size, status, and attached VM. Requires scope: block-storage.read.
      *
      * @param {Ibee.ListBlockVolumesRequest} request
@@ -102,7 +181,7 @@ export class BlockStorageClient {
     }
 
     /**
-     * The public edge resolves authoritative pricing from the server-owned product catalog and validates billing before forwarding this request to the existing portal volume flow. Client-supplied price or billing catalog objects are not accepted.
+     * The public edge resolves authoritative pricing from the server-owned product catalog and validates billing before forwarding this request to the existing portal volume flow. Client-supplied price or billing catalog objects are not accepted. Asynchronous: the response carries the volume operation; poll `GET /block-storage/volumes/{volume_id}/operations` until its `status` is `succeeded` or `failed`.
      *
      * @param {Ibee.CreateBlockVolumeRequest} request
      * @param {BlockStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -119,7 +198,7 @@ export class BlockStorageClient {
      *         workspace_id: "710995",
      *         name: "name",
      *         size_gb: 1,
-     *         site_id: "site_id"
+     *         site_id: "68b99bd78a8eda32ff3f16ea"
      *     })
      */
     public createBlockVolume(
@@ -278,7 +357,7 @@ export class BlockStorageClient {
     }
 
     /**
-     * Permanently deletes a block storage volume and its data. Requires scope: block-storage.write.
+     * Permanently deletes a block storage volume and its data. Asynchronous: the response carries the volume operation; poll `GET /block-storage/volumes/{volume_id}/operations` until its `status` is `succeeded` or `failed`. Requires scope: block-storage.write.
      *
      * @param {Ibee.DeleteBlockVolumeRequest} request
      * @param {BlockStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -455,197 +534,7 @@ export class BlockStorageClient {
     }
 
     /**
-     * Attaches a block storage volume to a VM so it can be mounted in the guest. Requires scope: block-storage.write.
-     *
-     * @param {Ibee.AttachBlockVolumeRequest} request
-     * @param {BlockStorageClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.ConflictError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     *
-     * @example
-     *     await client.blockStorage.attachBlockVolume({
-     *         volume_id: "volume_id",
-     *         workspace_id: "710995",
-     *         node_name: "node_name"
-     *     })
-     */
-    public attachBlockVolume(
-        request: Ibee.AttachBlockVolumeRequest,
-        requestOptions?: BlockStorageClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.BlockVolumeAction> {
-        return core.HttpResponsePromise.fromPromise(this.__attachBlockVolume(request, requestOptions));
-    }
-
-    private async __attachBlockVolume(
-        request: Ibee.AttachBlockVolumeRequest,
-        requestOptions?: BlockStorageClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.BlockVolumeAction>> {
-        const { volume_id: volumeId, workspace_id: workspaceId, ..._body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `block-storage/volumes/${core.url.encodePathParam(volumeId)}/attachments`,
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.BlockVolumeAction, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 409:
-                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "POST",
-            "/block-storage/volumes/{volume_id}/attachments",
-        );
-    }
-
-    /**
-     * Detaches a block storage volume from its VM. Unmount it in the guest first. Requires scope: block-storage.write.
-     *
-     * @param {Ibee.DetachBlockVolumeRequest} request
-     * @param {BlockStorageClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.ConflictError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     *
-     * @example
-     *     await client.blockStorage.detachBlockVolume({
-     *         volume_id: "volume_id",
-     *         workspace_id: "710995",
-     *         node_name: "node_name"
-     *     })
-     */
-    public detachBlockVolume(
-        request: Ibee.DetachBlockVolumeRequest,
-        requestOptions?: BlockStorageClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.BlockVolumeAction> {
-        return core.HttpResponsePromise.fromPromise(this.__detachBlockVolume(request, requestOptions));
-    }
-
-    private async __detachBlockVolume(
-        request: Ibee.DetachBlockVolumeRequest,
-        requestOptions?: BlockStorageClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.BlockVolumeAction>> {
-        const { volume_id: volumeId, workspace_id: workspaceId, ..._body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `block-storage/volumes/${core.url.encodePathParam(volumeId)}/detach`,
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.BlockVolumeAction, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 409:
-                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "POST",
-            "/block-storage/volumes/{volume_id}/detach",
-        );
-    }
-
-    /**
-     * Block volumes can only be increased in size.
+     * Block volumes can only be increased in size. Asynchronous: the response carries the volume operation; poll `GET /block-storage/volumes/{volume_id}/operations` until its `status` is `succeeded` or `failed`.
      *
      * @param {Ibee.ResizeBlockVolumeRequest} request
      * @param {BlockStorageClient.RequestOptions} requestOptions - Request-specific configuration.

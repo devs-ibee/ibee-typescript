@@ -2,15 +2,27 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A port-forwarding rule on a NAT gateway.
+ */
 export interface NatPortForwardingRule extends Ibee.CreateNatPortForwardingRuleRequest {
+    /** Unique ID of the rule. */
     port_forward_rule_id: string;
+    /** VPC the rule belongs to. */
     vpc_id: string;
+    /** NAT gateway the rule is configured on. */
     nat_gateway_id: string;
+    /** ID of the owning organization. */
     organization_id?: string | undefined;
+    /** ID of the owning workspace. */
     workspace_id?: string | undefined;
+    /** Site the gateway lives at. */
     site_id?: string | undefined;
     status: Ibee.NetworkingResourceStatus;
+    /** Error detail when `status` is `error`. */
     error_message?: (string | null) | undefined;
+    /** When the rule was created (ISO 8601). */
     created_at: string;
+    /** When the rule was last changed (ISO 8601). */
     updated_at: string;
 }

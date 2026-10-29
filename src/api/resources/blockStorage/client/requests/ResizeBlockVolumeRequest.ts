@@ -13,13 +13,28 @@ export interface ResizeBlockVolumeRequest {
     volume_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** New size in GB. */
     new_size_gb: number;
+    /**
+     * Current power state of the VM, when the caller knows it.
+     * - `running`
+     * - `stopped`
+     * - `suspended`
+     */
     vm_state?: ResizeBlockVolumeRequest.VmState | null;
+    /** Permit the resize while the volume is attached to a running VM. Default false. */
     allow_online?: boolean;
+    /** Caller-chosen key that makes a retried request return the original operation instead of starting a new one. */
     idempotency_key?: string | null;
 }
 
 export namespace ResizeBlockVolumeRequest {
+    /**
+     * Current power state of the VM, when the caller knows it.
+     * - `running`
+     * - `stopped`
+     * - `suspended`
+     */
     export const VmState = {
         Running: "running",
         Stopped: "stopped",

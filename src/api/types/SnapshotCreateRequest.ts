@@ -2,17 +2,34 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Body for creating a snapshot set of a VM.
+ */
 export interface SnapshotCreateRequest {
+    /** Display name for the snapshot set. */
     name: string;
+    /** Optional description (up to 1024 characters). */
     description?: (string | null) | undefined;
+    /**
+     * Which volumes to capture.
+     * - `root_only`: the root disk only.
+     * - `all_attached`: the root disk and every attached data volume (default).
+     * - `selective`: the root disk and the volumes in `selected_data_volume_ids`.
+     */
     mode?: SnapshotCreateRequest.Mode | undefined;
+    /** Data volume IDs to include when `mode` is `selective`. */
     selected_data_volume_ids?: string[] | undefined;
     /** Required. The snapshot storage SKU from the Billing catalog that the VM engine records for this snapshot. No public operation lists it yet. */
     billing_catalog: Ibee.BillingCatalogSelection;
-    requested_by?: string | undefined;
 }
 
 export namespace SnapshotCreateRequest {
+    /**
+     * Which volumes to capture.
+     * - `root_only`: the root disk only.
+     * - `all_attached`: the root disk and every attached data volume (default).
+     * - `selective`: the root disk and the volumes in `selected_data_volume_ids`.
+     */
     export const Mode = {
         RootOnly: "root_only",
         AllAttached: "all_attached",

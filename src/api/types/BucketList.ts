@@ -2,8 +2,14 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A page of buckets.
+ */
 export interface BucketList {
+    /** Buckets on this page. */
     buckets?: Ibee.Bucket[] | undefined;
+    /** True when more buckets exist beyond this page. */
     is_truncated?: boolean | undefined;
+    /** Token to pass as `continuation_token` to fetch the next page; null on the last page. */
     next_continuation_token?: (string | null) | undefined;
 }

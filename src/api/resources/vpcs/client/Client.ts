@@ -888,101 +888,6 @@ export class VpcsClient {
     }
 
     /**
-     * Renames a VPC subnet or changes its DNS settings. Requires scope: network.write.
-     *
-     * @param {Ibee.UpdateSubnetRequest} request
-     * @param {VpcsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.BadRequestError}
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     *
-     * @example
-     *     await client.vpcs.updateVpcSubnet({
-     *         vpc_id: "vpc_id",
-     *         subnet_id: "subnet_id",
-     *         workspace_id: "710995"
-     *     })
-     */
-    public updateVpcSubnet(
-        request: Ibee.UpdateSubnetRequest,
-        requestOptions?: VpcsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.Subnet> {
-        return core.HttpResponsePromise.fromPromise(this.__updateVpcSubnet(request, requestOptions));
-    }
-
-    private async __updateVpcSubnet(
-        request: Ibee.UpdateSubnetRequest,
-        requestOptions?: VpcsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.Subnet>> {
-        const { vpc_id: vpcId, subnet_id: subnetId, workspace_id: workspaceId, ..._body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `networking/vpcs/${core.url.encodePathParam(vpcId)}/subnets/${core.url.encodePathParam(subnetId)}`,
-            ),
-            method: "PATCH",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.Subnet, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 400:
-                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "PATCH",
-            "/networking/vpcs/{vpc_id}/subnets/{subnet_id}",
-        );
-    }
-
-    /**
      * Lists the VMs attached to a VPC. Requires scope: network.read.
      *
      * @param {Ibee.ListVpcNodesRequest} request
@@ -1437,7 +1342,7 @@ export class VpcsClient {
     /**
      * Deletes a NAT gateway from a VPC. VMs that relied on it lose outbound internet access. Requires scope: network.write.
      *
-     * @param {Ibee.DeleteNatGatewayRequest} request
+     * @param {Ibee.NatGatewayDeleteRequest} request
      * @param {VpcsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link Ibee.UnauthorizedError}
@@ -1455,17 +1360,17 @@ export class VpcsClient {
      *     })
      */
     public deleteNatGateway(
-        request: Ibee.DeleteNatGatewayRequest,
+        request: Ibee.NatGatewayDeleteRequest,
         requestOptions?: VpcsClient.RequestOptions,
     ): core.HttpResponsePromise<void> {
         return core.HttpResponsePromise.fromPromise(this.__deleteNatGateway(request, requestOptions));
     }
 
     private async __deleteNatGateway(
-        request: Ibee.DeleteNatGatewayRequest,
+        request: Ibee.NatGatewayDeleteRequest,
         requestOptions?: VpcsClient.RequestOptions,
     ): Promise<core.WithRawResponse<void>> {
-        const { vpc_id: vpcId, nat_gateway_id: natGatewayId, workspace_id: workspaceId } = request;
+        const { vpc_id: vpcId, nat_gateway_id: natGatewayId, workspace_id: workspaceId, ..._body } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
         };
@@ -1484,7 +1389,10 @@ export class VpcsClient {
             ),
             method: "DELETE",
             headers: _headers,
+            contentType: "application/json",
             queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             abortSignal: requestOptions?.abortSignal,
@@ -1523,6 +1431,102 @@ export class VpcsClient {
             _response.rawResponse,
             "DELETE",
             "/networking/vpcs/{vpc_id}/nat-gateways/{nat_gateway_id}",
+        );
+    }
+
+    /**
+     * Replaces the NAT gateway's public IP with a Reserved IP, keeping the port-forwarding rules, as the portal's NAT card does. Requires scope: network.write.
+     *
+     * @param {Ibee.UpdateNatGatewayPublicIpRequest} request
+     * @param {VpcsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.vpcs.updateNatGatewayPublicIp({
+     *         vpc_id: "vpc_id",
+     *         nat_gateway_id: "nat_gateway_id",
+     *         workspace_id: "710995",
+     *         reserved_public_ip_id: "reserved_public_ip_id"
+     *     })
+     */
+    public updateNatGatewayPublicIp(
+        request: Ibee.UpdateNatGatewayPublicIpRequest,
+        requestOptions?: VpcsClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.NatGateway> {
+        return core.HttpResponsePromise.fromPromise(this.__updateNatGatewayPublicIp(request, requestOptions));
+    }
+
+    private async __updateNatGatewayPublicIp(
+        request: Ibee.UpdateNatGatewayPublicIpRequest,
+        requestOptions?: VpcsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.NatGateway>> {
+        const { vpc_id: vpcId, nat_gateway_id: natGatewayId, workspace_id: workspaceId, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `networking/vpcs/${core.url.encodePathParam(vpcId)}/nat-gateways/${core.url.encodePathParam(natGatewayId)}/public-ip`,
+            ),
+            method: "PUT",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.NatGateway, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 409:
+                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "PUT",
+            "/networking/vpcs/{vpc_id}/nat-gateways/{nat_gateway_id}/public-ip",
         );
     }
 

@@ -12,5 +12,6 @@ export interface UpdateCdnWebsiteConfigRequest {
     distribution_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Object served for directory requests. Default `index.html`. */
     index_document?: string;
 }

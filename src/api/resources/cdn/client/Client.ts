@@ -26,93 +26,6 @@ export class CdnClient {
     }
 
     /**
-     * Generates a time-limited CDN URL for an object in an object storage bucket, with optional download disposition. Requires scope: cdn.write.
-     *
-     * @param {Ibee.GenerateCdnUrlRequest} request
-     * @param {CdnClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     *
-     * @example
-     *     await client.cdn.generateCdnUrl({
-     *         workspace_id: "710995",
-     *         bucket_name: "bucket_name",
-     *         object_key: "object_key"
-     *     })
-     */
-    public generateCdnUrl(
-        request: Ibee.GenerateCdnUrlRequest,
-        requestOptions?: CdnClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.GeneratedCdnUrl> {
-        return core.HttpResponsePromise.fromPromise(this.__generateCdnUrl(request, requestOptions));
-    }
-
-    private async __generateCdnUrl(
-        request: Ibee.GenerateCdnUrlRequest,
-        requestOptions?: CdnClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.GeneratedCdnUrl>> {
-        const { workspace_id: workspaceId, ..._body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                "cdn/generate-url",
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.GeneratedCdnUrl, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/cdn/generate-url");
-    }
-
-    /**
      * Lists the CDN distributions in a workspace. Requires scope: cdn.read.
      *
      * @param {Ibee.ListCdnDistributionsRequest} request
@@ -542,6 +455,92 @@ export class CdnClient {
             _response.rawResponse,
             "PATCH",
             "/cdn/distributions/{distribution_id}",
+        );
+    }
+
+    /**
+     * Returns traffic, cache and origin metrics of the distribution for the last 24 hours, 7 days or 30 days, as the portal's Metrics tab shows them. Requires scope: cdn.read.
+     *
+     * @param {Ibee.GetCdnDistributionMetricsRequest} request
+     * @param {CdnClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.cdn.getCdnDistributionMetrics({
+     *         distribution_id: "distribution_id",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public getCdnDistributionMetrics(
+        request: Ibee.GetCdnDistributionMetricsRequest,
+        requestOptions?: CdnClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.CdnDistributionMetrics> {
+        return core.HttpResponsePromise.fromPromise(this.__getCdnDistributionMetrics(request, requestOptions));
+    }
+
+    private async __getCdnDistributionMetrics(
+        request: Ibee.GetCdnDistributionMetricsRequest,
+        requestOptions?: CdnClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.CdnDistributionMetrics>> {
+        const { distribution_id: distributionId, workspace_id: workspaceId, range } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+            range: range != null ? range : undefined,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `cdn/distributions/${core.url.encodePathParam(distributionId)}/metrics`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.CdnDistributionMetrics, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/cdn/distributions/{distribution_id}/metrics",
         );
     }
 

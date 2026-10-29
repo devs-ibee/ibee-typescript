@@ -18,5 +18,5 @@ export interface RestoreGpuVmSnapshotRequest {
     workspace_id?: string;
     /** Source GPU VM ID for the snapshot. */
     vm_id: string;
-    body: Ibee.RecoveryRestoreRequest;
+    body: Ibee.SnapshotRestoreRequest;
 }

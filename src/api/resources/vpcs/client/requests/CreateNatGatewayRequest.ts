@@ -12,7 +12,10 @@ export interface CreateNatGatewayRequest {
     vpc_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Subnet the gateway is placed in; chosen by the service when omitted. */
     subnet_id?: string | null;
+    /** Reserved IP to use as the gateway's public address; a platform-assigned address is used when omitted. */
     reserved_public_ip_id?: string | null;
+    /** Display name of the gateway. Default `NAT Gateway`. */
     name?: string;
 }

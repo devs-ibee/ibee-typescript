@@ -11,9 +11,18 @@ import type * as Ibee from "../../../../index.js";
 export interface ListLoadBalancersRequest {
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Return only load balancers in this status. */
     status?: Ibee.LoadBalancerStatus;
+    /**
+     * Return only load balancers of this layer.
+     * - `l4`
+     * - `l7`
+     */
     layer?: Ibee.ListLoadBalancersRequestLayer;
+    /** Return only load balancers that accept this protocol. */
     protocol?: Ibee.LoadBalancerProtocol;
+    /** Maximum number of items to return (1-500). Default 100. */
     limit?: number;
+    /** Number of items to skip before the first returned item. Default 0. */
     skip?: number;
 }

@@ -13,5 +13,6 @@ export interface CreateCdnCustomDomainRequest {
     distribution_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Fully qualified hostname to serve, for example `cdn.example.com`. */
     domain: string;
 }

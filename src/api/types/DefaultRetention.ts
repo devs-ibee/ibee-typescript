@@ -4,12 +4,22 @@
  * Optional default object retention. Supply exactly one of `days` or `years`, and set `object_lock_enabled` to `true`.
  */
 export interface DefaultRetention {
+    /**
+     * - `GOVERNANCE`: retention can be overridden by users with the bypass permission.
+     * - `COMPLIANCE`: retention cannot be shortened or removed until it expires.
+     */
     mode: DefaultRetention.Mode;
+    /** Retention period in days (1-36500). Supply either `days` or `years`. */
     days?: (number | null) | undefined;
+    /** Retention period in years (1-100). Supply either `days` or `years`. */
     years?: (number | null) | undefined;
 }
 
 export namespace DefaultRetention {
+    /**
+     * - `GOVERNANCE`: retention can be overridden by users with the bypass permission.
+     * - `COMPLIANCE`: retention cannot be shortened or removed until it expires.
+     */
     export const Mode = {
         Governance: "GOVERNANCE",
         Compliance: "COMPLIANCE",

@@ -10,7 +10,10 @@
 export interface CreateFirewallGroupRequest {
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Display name of the group. */
     name: string;
+    /** Optional description. */
     description?: string | null;
+    /** Mark the group as the workspace's default group. Default false. */
     is_default?: boolean;
 }

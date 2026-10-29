@@ -3,8 +3,8 @@ export { CreateCdnDistributionRequest } from "./CreateCdnDistributionRequest.js"
 export type { DeleteCdnCustomDomainRequest } from "./DeleteCdnCustomDomainRequest.js";
 export type { DeleteCdnDistributionRequest } from "./DeleteCdnDistributionRequest.js";
 export type { DeleteCdnWebsiteConfigRequest } from "./DeleteCdnWebsiteConfigRequest.js";
-export { GenerateCdnUrlRequest } from "./GenerateCdnUrlRequest.js";
 export type { GetCdnCustomDomainRequest } from "./GetCdnCustomDomainRequest.js";
+export type { GetCdnDistributionMetricsRequest } from "./GetCdnDistributionMetricsRequest.js";
 export type { GetCdnDistributionRequest } from "./GetCdnDistributionRequest.js";
 export type { GetCdnWebsiteConfigRequest } from "./GetCdnWebsiteConfigRequest.js";
 export type { ListCdnCustomDomainsRequest } from "./ListCdnCustomDomainsRequest.js";

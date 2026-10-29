@@ -14,5 +14,15 @@ export interface GetGpuVmMetricsTimeseriesRequest {
     vm_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /**
+     * Time window to return, ending now.
+     * - `30m`
+     * - `1h`
+     * - `6h`
+     * - `24h`
+     * - `7d`
+     *
+     * Default `1h`.
+     */
     range?: Ibee.GetGpuVmMetricsTimeseriesRequestRange;
 }

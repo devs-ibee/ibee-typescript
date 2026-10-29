@@ -2,11 +2,19 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * When a backup policy runs. Times are interpreted in `timezone`.
+ */
 export interface BackupPolicySchedule {
     frequency?: Ibee.BackupFrequency | undefined;
+    /** IANA time zone name used for `hour` and `minute`. Default `UTC`. */
     timezone?: string | undefined;
+    /** Hour of the day the run is due (0-23). Default 20. */
     hour?: number | undefined;
+    /** Minute of the hour the run is due (0-59). Default 0. */
     minute?: number | undefined;
+    /** Day of the week for weekly schedules: 0 = Monday to 6 = Sunday. Required when `frequency` is `weekly`. */
     day_of_week?: (number | null) | undefined;
+    /** Spread window in minutes (5-180) after the scheduled time within which the run may start, so runs are not all launched at the same instant. Default 30. */
     window_minutes?: number | undefined;
 }

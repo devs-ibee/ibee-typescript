@@ -2,13 +2,22 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Provisioning status of a load balancer.
+ */
 export interface LoadBalancerStatusResponse {
+    /** ID of the load balancer. */
     lb_id: string;
     status: Ibee.LoadBalancerStatus;
     endpoint: Ibee.LoadBalancerEndpoint;
+    /** Public hostname of the load balancer. */
     url: string;
+    /** URL with scheme and, for L4, port. */
     endpoint_url: string;
+    /** Provisioning conditions reported by the platform, passed through as returned. */
     conditions?: Record<string, unknown>[] | undefined;
+    /** Error detail when `status` is `failed`. */
     error_message?: (string | null) | undefined;
+    /** When the status last changed (ISO 8601). */
     updated_at: string;
 }

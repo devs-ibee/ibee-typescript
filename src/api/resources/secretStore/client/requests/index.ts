@@ -21,7 +21,6 @@ export type { ListSecretIdentityScopesRequest } from "./ListSecretIdentityScopes
 export type { ListSecretStoresRequest } from "./ListSecretStoresRequest.js";
 export type { ListSecretsRequest } from "./ListSecretsRequest.js";
 export type { ListSecretVersionsRequest } from "./ListSecretVersionsRequest.js";
-export type { PatchSecretValueRequest } from "./PatchSecretValueRequest.js";
 export type { PermanentlyDeleteSecretRequest } from "./PermanentlyDeleteSecretRequest.js";
 export type { PermanentlyDeleteSecretStoreRequest } from "./PermanentlyDeleteSecretStoreRequest.js";
 export type { RevokeSecretIdentitySessionsRequest } from "./RevokeSecretIdentitySessionsRequest.js";
@@ -29,7 +28,4 @@ export type { RollbackSecretRequest } from "./RollbackSecretRequest.js";
 export type { RotateSecretIdentitySecretIdRequest } from "./RotateSecretIdentitySecretIdRequest.js";
 export type { UnarchiveSecretStoreRequest } from "./UnarchiveSecretStoreRequest.js";
 export type { UndeleteSecretRequest } from "./UndeleteSecretRequest.js";
-export { UpdateSecretIdentityRequest } from "./UpdateSecretIdentityRequest.js";
-export { UpdateSecretIdentityScopeRequest } from "./UpdateSecretIdentityScopeRequest.js";
-export type { UpdateSecretStoreRequest } from "./UpdateSecretStoreRequest.js";
 export type { UpdateSecretValueRequest } from "./UpdateSecretValueRequest.js";

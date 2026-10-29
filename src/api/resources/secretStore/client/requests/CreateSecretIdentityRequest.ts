@@ -28,7 +28,13 @@ export interface CreateSecretIdentityRequest {
     workspace_id?: string;
     /** Authentication method used by the application. */
     auth_method: CreateSecretIdentityRequest.AuthMethod;
+    /** Display name of the identity (1-128 characters). */
     name: string;
+    /**
+     * Default access mode for the identity's tokens.
+     * - `read_only` (default)
+     * - `read_write`
+     */
     token_policy_mode?: CreateSecretIdentityRequest.TokenPolicyMode;
     /** Required when auth_method is kubernetes. */
     k8s_namespace?: string | null;
@@ -43,6 +49,11 @@ export namespace CreateSecretIdentityRequest {
         Kubernetes: "kubernetes",
     } as const;
     export type AuthMethod = (typeof AuthMethod)[keyof typeof AuthMethod];
+    /**
+     * Default access mode for the identity's tokens.
+     * - `read_only` (default)
+     * - `read_write`
+     */
     export const TokenPolicyMode = {
         ReadOnly: "read_only",
         ReadWrite: "read_write",

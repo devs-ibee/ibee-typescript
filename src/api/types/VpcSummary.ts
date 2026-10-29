@@ -2,7 +2,11 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A VPC with its attached-node count and NAT gateway pricing.
+ */
 export interface VpcSummary extends Ibee.Vpc {
+    /** Number of VMs attached to the VPC. */
     node_count?: number | undefined;
     nat_pricing?: Ibee.NatPricing | undefined;
 }

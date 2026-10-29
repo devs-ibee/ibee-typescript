@@ -2,7 +2,12 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Scopes of an identity.
+ */
 export interface SecretIdentityScopeList {
+    /** Scopes returned. */
     scopes: Ibee.SecretIdentityScope[];
+    /** Total number of scopes. */
     total: number;
 }

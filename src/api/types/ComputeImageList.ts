@@ -2,9 +2,15 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Images returned by `GET /compute/images`.
+ */
 export interface ComputeImageList {
+    /** Images matching the request. */
     images: Ibee.ComputeImage[];
+    /** Number of items in `images`. */
     count: number;
     vm_type: Ibee.VmType;
+    /** Site filter that was applied, when one was given. */
     site_id?: (string | null) | undefined;
 }

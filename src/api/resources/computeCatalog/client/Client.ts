@@ -136,6 +136,9 @@ export class ComputeCatalogClient {
             site_id: siteId,
             currency,
             billing_interval: billingInterval,
+            include_availability: includeAvailability,
+            os_type: osType,
+            requires_public_ip: requiresPublicIp,
         } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -143,6 +146,9 @@ export class ComputeCatalogClient {
             site_id: siteId,
             currency,
             billing_interval: billingInterval != null ? billingInterval : undefined,
+            include_availability: includeAvailability,
+            os_type: osType != null ? osType : undefined,
+            requires_public_ip: requiresPublicIp,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -277,5 +283,168 @@ export class ComputeCatalogClient {
         }
 
         return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/compute/images");
+    }
+
+    /**
+     * Select a priced item and send its billing_catalog unchanged when creating a snapshot. Discovery does not reserve capacity or create a resource.
+     *
+     * @param {Ibee.ListSnapshotStoragePlansRequest} request
+     * @param {ComputeCatalogClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.computeCatalog.listSnapshotStoragePlans({
+     *         workspace_id: "710995"
+     *     })
+     */
+    public listSnapshotStoragePlans(
+        request: Ibee.ListSnapshotStoragePlansRequest = {},
+        requestOptions?: ComputeCatalogClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.RecoveryStoragePlanList> {
+        return core.HttpResponsePromise.fromPromise(this.__listSnapshotStoragePlans(request, requestOptions));
+    }
+
+    private async __listSnapshotStoragePlans(
+        request: Ibee.ListSnapshotStoragePlansRequest = {},
+        requestOptions?: ComputeCatalogClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.RecoveryStoragePlanList>> {
+        const { workspace_id: workspaceId, site_id: siteId, currency, billing_interval: billingInterval } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+            site_id: siteId,
+            currency,
+            billing_interval: billingInterval != null ? billingInterval : undefined,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                "compute/plans/snapshot-storage",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.RecoveryStoragePlanList, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/compute/plans/snapshot-storage",
+        );
+    }
+
+    /**
+     * Select a priced item and send its billing_catalog unchanged when enabling backups or creating a manual backup run.
+     *
+     * @param {Ibee.ListBackupStoragePlansRequest} request
+     * @param {ComputeCatalogClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.computeCatalog.listBackupStoragePlans({
+     *         workspace_id: "710995"
+     *     })
+     */
+    public listBackupStoragePlans(
+        request: Ibee.ListBackupStoragePlansRequest = {},
+        requestOptions?: ComputeCatalogClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.RecoveryStoragePlanList> {
+        return core.HttpResponsePromise.fromPromise(this.__listBackupStoragePlans(request, requestOptions));
+    }
+
+    private async __listBackupStoragePlans(
+        request: Ibee.ListBackupStoragePlansRequest = {},
+        requestOptions?: ComputeCatalogClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.RecoveryStoragePlanList>> {
+        const { workspace_id: workspaceId, site_id: siteId, currency, billing_interval: billingInterval } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+            site_id: siteId,
+            currency,
+            billing_interval: billingInterval != null ? billingInterval : undefined,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                "compute/plans/backup-storage",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.RecoveryStoragePlanList, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/compute/plans/backup-storage");
     }
 }

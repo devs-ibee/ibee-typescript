@@ -24,6 +24,8 @@ export interface Bucket {
     object_count?: number | undefined;
     /** Total size in bytes of the objects stored in the bucket. Returned by the read and list endpoints only. */
     total_size?: number | undefined;
+    /** When the bucket was created (ISO 8601). */
     created_at: string | null;
+    /** When the bucket settings were last changed (ISO 8601). */
     updated_at: string | null;
 }

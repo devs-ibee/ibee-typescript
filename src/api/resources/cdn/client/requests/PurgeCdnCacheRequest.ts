@@ -14,14 +14,32 @@ export interface PurgeCdnCacheRequest {
     distribution_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /**
+     * - `url`: purge the paths in `paths`.
+     * - `hostname`: purge everything for the hostnames in `hostnames`.
+     * - `tag`: purge content tagged with `tags`.
+     * - `prefix`: purge paths starting with `prefixes`.
+     * - `all`: purge the whole distribution.
+     */
     mode: PurgeCdnCacheRequest.Mode;
+    /** Paths to purge, for `url` mode. */
     paths?: string[];
+    /** Hostnames to purge, for `hostname` mode. */
     hostnames?: string[];
+    /** Cache tags to purge, for `tag` mode. */
     tags?: string[];
+    /** Path prefixes to purge, for `prefix` mode. */
     prefixes?: string[];
 }
 
 export namespace PurgeCdnCacheRequest {
+    /**
+     * - `url`: purge the paths in `paths`.
+     * - `hostname`: purge everything for the hostnames in `hostnames`.
+     * - `tag`: purge content tagged with `tags`.
+     * - `prefix`: purge paths starting with `prefixes`.
+     * - `all`: purge the whole distribution.
+     */
     export const Mode = {
         Url: "url",
         Hostname: "hostname",

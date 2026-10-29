@@ -2,10 +2,18 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Version history of a secret.
+ */
 export interface SecretVersions {
+    /** Unique ID of the secret. */
     secret_id: string;
+    /** Name of the secret within the store. */
     secret_name: string;
+    /** Version number of the current value. */
     current_version: number;
+    /** Lowest version number still retained. */
     oldest_version: number;
+    /** Map of version number (as a string) to its summary. */
     versions: Record<string, Ibee.SecretVersionSummary>;
 }

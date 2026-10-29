@@ -2,9 +2,16 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * Result of a batch create.
+ */
 export interface BatchCreateSecretsResponse {
+    /** One result per requested secret, in request order. */
     results: Ibee.BatchCreateSecretResult[];
+    /** Number of secrets created. */
     created_count: number;
+    /** Number of secrets skipped because they already existed. */
     skipped_count: number;
+    /** Number of secrets that failed to create. */
     failed_count: number;
 }

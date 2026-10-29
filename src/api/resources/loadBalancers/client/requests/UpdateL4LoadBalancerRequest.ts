@@ -14,8 +14,13 @@ export interface UpdateL4LoadBalancerRequest {
     load_balancer_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** New display name. */
     name?: string;
+    /** Replacement backend list. */
     backends?: Ibee.LoadBalancerBackend[];
     routing?: Ibee.LoadBalancerRouting;
+    health_check?: Ibee.LoadBalancerHealthCheck;
+    policy?: Ibee.LoadBalancerPolicy;
+    observability?: Ibee.LoadBalancerObservability;
     tls?: Ibee.LoadBalancerTls;
 }

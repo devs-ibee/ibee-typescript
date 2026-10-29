@@ -51,11 +51,25 @@ export class CloudVmsClient {
         request: Ibee.ListCloudVmsRequest = {},
         requestOptions?: CloudVmsClient.RequestOptions,
     ): Promise<core.WithRawResponse<Ibee.CloudVm[]>> {
-        const { workspace_id: workspaceId, limit, offset } = request;
+        const {
+            workspace_id: workspaceId,
+            limit,
+            offset,
+            search,
+            sort_by: sortBy,
+            sort_direction: sortDirection,
+            status,
+            date,
+        } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
             limit,
             offset,
+            search,
+            sort_by: sortBy != null ? sortBy : undefined,
+            sort_direction: sortDirection != null ? sortDirection : undefined,
+            status: status != null ? status : undefined,
+            date,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -104,7 +118,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Creates a cloud VM. Returns an operation you can poll for status. Requires scope: vm.write.
+     * Creates a cloud VM. Returns an operation you can poll for status. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.CreateCloudVmRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -121,15 +135,21 @@ export class CloudVmsClient {
      *     await client.cloudVms.createCloudVm({
      *         workspace_id: "710995",
      *         name: "web-server-01",
-     *         site_id: "site_id",
+     *         site_id: "68b99bd78a8eda32ff3f16ea",
      *         os_distro: "ubuntu",
      *         os_type: "linux",
      *         template_id: "tmpl_ubuntu_2204",
      *         cpu: 2,
      *         ram_mb: 4096,
-     *         plan_id: "plan_id",
+     *         plan_id: "019f25b7-c1b3-7a9e-bfb9-8c83e323b517",
      *         billing_catalog: {
-     *             "key": "value"
+     *             sku_id: "sku_id",
+     *             sku_code: "sku_code",
+     *             billing_interval: "HOURLY",
+     *             committed: false,
+     *             commitment_period: "HOURLY",
+     *             unit_price_minor: 1,
+     *             price_currency: "INR"
      *         }
      *     })
      */
@@ -287,7 +307,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Deletes a cloud VM. Returns an operation you can poll for status. A VM with an automatically assigned public IP needs `public_ip_action` in the body. Requires scope: vm.write.
+     * Deletes a cloud VM. Returns an operation you can poll for status. A VM with an automatically assigned public IP needs `public_ip_action` in the body. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.DeleteCloudVmRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -383,7 +403,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Starts a stopped cloud VM. Requires scope: vm.write.
+     * Starts a stopped cloud VM. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.StartCloudVmRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -479,7 +499,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Stops a running cloud VM. Requires scope: vm.write.
+     * Stops a running cloud VM. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.StopCloudVmRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -575,7 +595,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Reboots a cloud VM. Requires scope: vm.write.
+     * Reboots a cloud VM. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.RebootCloudVmRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -756,7 +776,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Adds or removes SSH keys, resets the Linux user password, or changes SSH password authentication on a cloud VM without rebooting it. Requires scope: vm.write.
+     * Adds or removes SSH keys, resets the Linux user password, or changes SSH password authentication on a cloud VM without rebooting it. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.UpdateCloudVmAccessRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -950,7 +970,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Changes a cloud VM's CPU and memory, and optionally grows its root disk, after the same precheck the portal runs. Requires scope: vm.write.
+     * Changes a cloud VM's CPU and memory, and optionally grows its root disk, after the same precheck the portal runs. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.ResizeCloudVmRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1049,210 +1069,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Moves a cloud VM to a different CPU and memory plan. Downgrades require explicit confirmation. Requires scope: vm.write.
-     *
-     * @param {Ibee.ResizeCloudVmPlanRequest} request
-     * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.BadRequestError}
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.ConflictError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     *
-     * @example
-     *     await client.cloudVms.resizeCloudVmPlan({
-     *         vm_id: "vm_id",
-     *         workspace_id: "710995",
-     *         body: {
-     *             cpu: 1,
-     *             ram_mb: 1
-     *         }
-     *     })
-     */
-    public resizeCloudVmPlan(
-        request: Ibee.ResizeCloudVmPlanRequest,
-        requestOptions?: CloudVmsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.OperationAccepted> {
-        return core.HttpResponsePromise.fromPromise(this.__resizeCloudVmPlan(request, requestOptions));
-    }
-
-    private async __resizeCloudVmPlan(
-        request: Ibee.ResizeCloudVmPlanRequest,
-        requestOptions?: CloudVmsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.OperationAccepted>> {
-        const { vm_id: vmId, workspace_id: workspaceId, "X-Idempotency-Key": idempotencyKey, body: _body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            mergeOnlyDefinedHeaders({ "X-Idempotency-Key": idempotencyKey }),
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `compute/cloud-vms/${core.url.encodePathParam(vmId)}/actions/resize-plan`,
-            ),
-            method: "PATCH",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.OperationAccepted, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 400:
-                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 409:
-                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "PATCH",
-            "/compute/cloud-vms/{vm_id}/actions/resize-plan",
-        );
-    }
-
-    /**
-     * Increases a cloud VM's root disk size. Shrinking a root disk is not supported. Requires scope: vm.write.
-     *
-     * @param {Ibee.ResizeCloudVmRootDiskRequest} request
-     * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.BadRequestError}
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.ConflictError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     *
-     * @example
-     *     await client.cloudVms.resizeCloudVmRootDisk({
-     *         vm_id: "vm_id",
-     *         workspace_id: "710995",
-     *         body: {
-     *             new_size_gb: 1
-     *         }
-     *     })
-     */
-    public resizeCloudVmRootDisk(
-        request: Ibee.ResizeCloudVmRootDiskRequest,
-        requestOptions?: CloudVmsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.OperationAccepted> {
-        return core.HttpResponsePromise.fromPromise(this.__resizeCloudVmRootDisk(request, requestOptions));
-    }
-
-    private async __resizeCloudVmRootDisk(
-        request: Ibee.ResizeCloudVmRootDiskRequest,
-        requestOptions?: CloudVmsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.OperationAccepted>> {
-        const { vm_id: vmId, workspace_id: workspaceId, "X-Idempotency-Key": idempotencyKey, body: _body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            mergeOnlyDefinedHeaders({ "X-Idempotency-Key": idempotencyKey }),
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `compute/cloud-vms/${core.url.encodePathParam(vmId)}/actions/resize-root-disk`,
-            ),
-            method: "PATCH",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.OperationAccepted, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 400:
-                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 409:
-                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "PATCH",
-            "/compute/cloud-vms/{vm_id}/actions/resize-root-disk",
-        );
-    }
-
-    /**
-     * Attaches a persistent block storage volume to a cloud VM. Requires scope: vm.write.
+     * Attaches a persistent block storage volume to a cloud VM. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.AttachCloudVmVolumeRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1357,7 +1174,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Detaches a persistent block storage volume from a cloud VM. Unmount its filesystem in the guest first unless force is used. Requires scope: vm.write.
+     * Detaches a persistent block storage volume from a cloud VM. Unmount its filesystem in the guest first unless force is used. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.DetachCloudVmVolumeRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1454,103 +1271,6 @@ export class CloudVmsClient {
             _response.rawResponse,
             "POST",
             "/compute/cloud-vms/{vm_id}/actions/detach-volume",
-        );
-    }
-
-    /**
-     * Records that you have reviewed the guest mount instructions for a data volume attached to a cloud VM. Requires scope: vm.write.
-     *
-     * @param {Ibee.AcknowledgeCloudVmMountGuidanceRequest} request
-     * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.BadRequestError}
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     *
-     * @example
-     *     await client.cloudVms.acknowledgeCloudVmMountGuidance({
-     *         vm_id: "vm_id",
-     *         workspace_id: "710995",
-     *         body: {
-     *             volume_id: "volume_id"
-     *         }
-     *     })
-     */
-    public acknowledgeCloudVmMountGuidance(
-        request: Ibee.AcknowledgeCloudVmMountGuidanceRequest,
-        requestOptions?: CloudVmsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.MountGuidanceAcknowledge> {
-        return core.HttpResponsePromise.fromPromise(this.__acknowledgeCloudVmMountGuidance(request, requestOptions));
-    }
-
-    private async __acknowledgeCloudVmMountGuidance(
-        request: Ibee.AcknowledgeCloudVmMountGuidanceRequest,
-        requestOptions?: CloudVmsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.MountGuidanceAcknowledge>> {
-        const { vm_id: vmId, workspace_id: workspaceId, body: _body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `compute/cloud-vms/${core.url.encodePathParam(vmId)}/mount-guidance/acknowledge`,
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.MountGuidanceAcknowledge, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 400:
-                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "POST",
-            "/compute/cloud-vms/{vm_id}/mount-guidance/acknowledge",
         );
     }
 
@@ -2015,7 +1735,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Restores a cloud VM snapshot by replacing the VM, creating a new VM, or restoring a single volume. Requires scope: vm.write.
+     * Restores a cloud VM snapshot by replacing the VM, creating a new VM, or restoring a single volume. Asynchronous: the response carries `restore_id`; poll the restore status read until `status` is `succeeded`, `failed` or `cancelled`. If your client times out, read the status; never resubmit. Requires scope: vm.write.
      *
      * @param {Ibee.RestoreCloudVmSnapshotRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2112,6 +1832,85 @@ export class CloudVmsClient {
             "POST",
             "/compute/cloud-vm-snapshots/{snapshot_set_id}/actions/restore",
         );
+    }
+
+    /**
+     * Lists snapshot sets of every Cloud VM in the workspace, as the portal's Snapshots page does. Requires scope: vm.read.
+     *
+     * @param {Ibee.ListAllCloudVmSnapshotsRequest} request
+     * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.cloudVms.listAllCloudVmSnapshots({
+     *         workspace_id: "710995"
+     *     })
+     */
+    public listAllCloudVmSnapshots(
+        request: Ibee.ListAllCloudVmSnapshotsRequest = {},
+        requestOptions?: CloudVmsClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.SnapshotSetList> {
+        return core.HttpResponsePromise.fromPromise(this.__listAllCloudVmSnapshots(request, requestOptions));
+    }
+
+    private async __listAllCloudVmSnapshots(
+        request: Ibee.ListAllCloudVmSnapshotsRequest = {},
+        requestOptions?: CloudVmsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.SnapshotSetList>> {
+        const { workspace_id: workspaceId, limit, offset, search } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+            limit,
+            offset,
+            search,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                "compute/cloud-vm-snapshots",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.SnapshotSetList, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/compute/cloud-vm-snapshots");
     }
 
     /**
@@ -2659,7 +2458,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Stops future automated backups for a cloud VM without deleting existing recovery points. Requires scope: vm.write.
+     * Stops future automated backups for a cloud VM without deleting existing recovery points. Send an empty JSON object body (`{}`); the virtualization engine rejects a request with no body. Requires scope: vm.write.
      *
      * @param {Ibee.DisableCloudVmBackupsRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2673,7 +2472,7 @@ export class CloudVmsClient {
      *
      * @example
      *     await client.cloudVms.disableCloudVmBackups({
-     *         vm_id: "vm_id",
+     *         vm_id: "vm-7f3c2d1e",
      *         workspace_id: "710995",
      *         body: {}
      *     })
@@ -2750,103 +2549,6 @@ export class CloudVmsClient {
             _response.rawResponse,
             "POST",
             "/compute/cloud-vms/{vm_id}/backups/disable",
-        );
-    }
-
-    /**
-     * Sets when a cloud VM's next automated backup runs. Requires scope: vm.write.
-     *
-     * @param {Ibee.RescheduleCloudVmBackupRequest} request
-     * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.BadRequestError}
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     *
-     * @example
-     *     await client.cloudVms.rescheduleCloudVmBackup({
-     *         vm_id: "vm_id",
-     *         workspace_id: "710995",
-     *         body: {
-     *             next_run_at: "2024-01-15T09:30:00Z"
-     *         }
-     *     })
-     */
-    public rescheduleCloudVmBackup(
-        request: Ibee.RescheduleCloudVmBackupRequest,
-        requestOptions?: CloudVmsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.BackupPolicy> {
-        return core.HttpResponsePromise.fromPromise(this.__rescheduleCloudVmBackup(request, requestOptions));
-    }
-
-    private async __rescheduleCloudVmBackup(
-        request: Ibee.RescheduleCloudVmBackupRequest,
-        requestOptions?: CloudVmsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.BackupPolicy>> {
-        const { vm_id: vmId, workspace_id: workspaceId, body: _body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `compute/cloud-vms/${core.url.encodePathParam(vmId)}/backups/policy/next-run-at`,
-            ),
-            method: "PATCH",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.BackupPolicy, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 400:
-                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "PATCH",
-            "/compute/cloud-vms/{vm_id}/backups/policy/next-run-at",
         );
     }
 
@@ -2939,110 +2641,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Queues a manual backup of a cloud VM using its backup configuration. Requires scope: vm.write.
-     *
-     * @param {Ibee.CreateCloudVmBackupRunRequest} request
-     * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.BadRequestError}
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.ConflictError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     *
-     * @example
-     *     await client.cloudVms.createCloudVmBackupRun({
-     *         vm_id: "vm_id",
-     *         workspace_id: "710995",
-     *         body: {
-     *             billing_catalog: {
-     *                 sku_id: "sku_id",
-     *                 sku_code: "sku_code"
-     *             }
-     *         }
-     *     })
-     */
-    public createCloudVmBackupRun(
-        request: Ibee.CreateCloudVmBackupRunRequest,
-        requestOptions?: CloudVmsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.BackupRun> {
-        return core.HttpResponsePromise.fromPromise(this.__createCloudVmBackupRun(request, requestOptions));
-    }
-
-    private async __createCloudVmBackupRun(
-        request: Ibee.CreateCloudVmBackupRunRequest,
-        requestOptions?: CloudVmsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.BackupRun>> {
-        const { vm_id: vmId, workspace_id: workspaceId, body: _body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `compute/cloud-vms/${core.url.encodePathParam(vmId)}/backups/runs`,
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.BackupRun, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 400:
-                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 409:
-                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "POST",
-            "/compute/cloud-vms/{vm_id}/backups/runs",
-        );
-    }
-
-    /**
-     * Restores a cloud VM backup recovery point by replacing the VM, creating a new VM, or restoring a single volume. Requires scope: vm.write.
+     * Restores a cloud VM backup recovery point by replacing the VM, creating a new VM, or restoring a single volume. Asynchronous: the response carries `restore_id`; poll the restore status read until `status` is `succeeded`, `failed` or `cancelled`. If your client times out, read the status; never resubmit. Requires scope: vm.write.
      *
      * @param {Ibee.RestoreCloudVmBackupRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -3142,6 +2741,92 @@ export class CloudVmsClient {
     }
 
     /**
+     * Lists backup runs and recovery points of every Cloud VM in the workspace, as the portal's Backups page does. Filter by `vm_id` or `status`. Requires scope: vm.read.
+     *
+     * @param {Ibee.ListAllCloudVmBackupRunsRequest} request
+     * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.cloudVms.listAllCloudVmBackupRuns({
+     *         workspace_id: "710995"
+     *     })
+     */
+    public listAllCloudVmBackupRuns(
+        request: Ibee.ListAllCloudVmBackupRunsRequest = {},
+        requestOptions?: CloudVmsClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.BackupRunList> {
+        return core.HttpResponsePromise.fromPromise(this.__listAllCloudVmBackupRuns(request, requestOptions));
+    }
+
+    private async __listAllCloudVmBackupRuns(
+        request: Ibee.ListAllCloudVmBackupRunsRequest = {},
+        requestOptions?: CloudVmsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.BackupRunList>> {
+        const { workspace_id: workspaceId, vm_id: vmId, status, limit, offset, search } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+            vm_id: vmId,
+            status: Array.isArray(status) ? status.map((item) => item) : status != null ? status : undefined,
+            limit,
+            offset,
+            search,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                "compute/cloud-vm-backups/runs",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.BackupRunList, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/compute/cloud-vm-backups/runs",
+        );
+    }
+
+    /**
      * Returns one workspace-owned cloud VM backup run or recovery point. Requires scope: vm.read.
      *
      * @param {Ibee.GetCloudVmBackupRunRequest} request
@@ -3222,6 +2907,97 @@ export class CloudVmsClient {
             _response.error,
             _response.rawResponse,
             "GET",
+            "/compute/cloud-vm-backups/runs/{run_id}",
+        );
+    }
+
+    /**
+     * Deletes one backup run and its recovery point, as the portal's Backups page does. Requires scope: vm.write.
+     *
+     * @param {Ibee.DeleteCloudVmBackupRunRequest} request
+     * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     *
+     * @example
+     *     await client.cloudVms.deleteCloudVmBackupRun({
+     *         run_id: "run_id",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public deleteCloudVmBackupRun(
+        request: Ibee.DeleteCloudVmBackupRunRequest,
+        requestOptions?: CloudVmsClient.RequestOptions,
+    ): core.HttpResponsePromise<void> {
+        return core.HttpResponsePromise.fromPromise(this.__deleteCloudVmBackupRun(request, requestOptions));
+    }
+
+    private async __deleteCloudVmBackupRun(
+        request: Ibee.DeleteCloudVmBackupRunRequest,
+        requestOptions?: CloudVmsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<void>> {
+        const { run_id: runId, workspace_id: workspaceId } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `compute/cloud-vm-backups/runs/${core.url.encodePathParam(runId)}`,
+            ),
+            method: "DELETE",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: undefined, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 409:
+                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "DELETE",
             "/compute/cloud-vm-backups/runs/{run_id}",
         );
     }

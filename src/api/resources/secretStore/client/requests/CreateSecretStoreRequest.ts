@@ -11,6 +11,8 @@
 export interface CreateSecretStoreRequest {
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Display name of the store (1-128 characters). Its URL-safe form becomes `store_key`. */
     name: string;
+    /** Optional description. */
     description?: string;
 }

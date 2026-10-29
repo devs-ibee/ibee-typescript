@@ -2,8 +2,14 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A VPC with its subnets, NAT gateways and attached VMs.
+ */
 export interface VpcDetail extends Ibee.VpcSummary {
+    /** Subnets in the VPC. */
     subnets?: Ibee.Subnet[] | undefined;
+    /** NAT gateways in the VPC. */
     nat_gateways?: Ibee.NatGateway[] | undefined;
+    /** VMs attached to the VPC. */
     attached_nodes?: Ibee.VpcAttachedNode[] | undefined;
 }

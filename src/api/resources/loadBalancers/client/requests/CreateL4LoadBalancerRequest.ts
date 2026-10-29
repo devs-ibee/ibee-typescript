@@ -17,14 +17,27 @@ import type * as Ibee from "../../../../index.js";
 export interface CreateL4LoadBalancerRequest {
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Display name of the load balancer. */
     name: string;
+    /**
+     * - `tcp`
+     * - `tls_passthrough`
+     */
     protocol: CreateL4LoadBalancerRequest.Protocol;
+    /** Backends to send traffic to. */
     backends: Ibee.LoadBalancerBackend[];
     routing?: Ibee.LoadBalancerRouting;
+    health_check?: Ibee.LoadBalancerHealthCheck;
+    policy?: Ibee.LoadBalancerPolicy;
+    observability?: Ibee.LoadBalancerObservability;
     tls?: Ibee.LoadBalancerTls;
 }
 
 export namespace CreateL4LoadBalancerRequest {
+    /**
+     * - `tcp`
+     * - `tls_passthrough`
+     */
     export const Protocol = {
         Tcp: "tcp",
         TlsPassthrough: "tls_passthrough",

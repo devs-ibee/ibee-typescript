@@ -2,6 +2,9 @@
 
 import type * as Ibee from "../index.js";
 
+/**
+ * A newly created S3 access key pair, including its secret key.
+ */
 export interface S3CredentialCreated extends Ibee.S3Credential {
     /** Returned once at creation time. */
     secret_access_key: string;

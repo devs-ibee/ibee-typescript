@@ -7,15 +7,3 @@ export { IbeeEnvironment } from "./environments.js";
 export { IbeeError, IbeeTimeoutError } from "./errors/index.js";
 export { VERSION } from "./version.js";
 export { Ibee } from "./wrapper/Ibee.js";
-export type {
-    HeldCloudVms,
-    HeldFirewalls,
-    HeldGpuVms,
-    HeldResizeFields,
-    HeldVmAttach,
-    HeldVmCreate,
-    HeldVmCreateFields,
-    HeldVmDelete,
-    HeldVmResize,
-    HeldVpcs,
-} from "./wrapper/held.js";

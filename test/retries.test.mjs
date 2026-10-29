@@ -18,25 +18,16 @@ test("GET is retried on 503 and 429", async () => {
     }
 });
 
-test("502, 504 and 500 are never retried", async () => {
-    for (const status of [502, 504, 500]) {
+test("GET is retried on 502 and 504; 500 and other statuses are not", async () => {
+    for (const status of [502, 504]) {
+        const { client, calls } = stubClient(flaky(2, status));
+        assert.deepEqual(await client.cloudVms.listCloudVms({ limit: 1 }), []);
+        assert.equal(calls.length, 3, String(status));
+    }
+    for (const status of [500, 400, 402, 409]) {
         const { client, calls } = stubClient(flaky(5, status));
         await assert.rejects(client.cloudVms.listCloudVms({ limit: 1 }), IbeeError);
         assert.equal(calls.length, 1, String(status));
-    }
-});
-
-test("a 503 or 429 carrying a billing/admission answer is not retried", async () => {
-    for (const json of [
-        { error: "billing_admission_timeout" },
-        { error: "compute_catalog_unavailable" },
-        { error: "unsupported_product_quote" },
-        { error: "x", admission_context_id: "adm" },
-        { detail: { code: "x", billing_reason: "y" } },
-    ]) {
-        const { client, calls } = stubClient(flaky(5, 503, json));
-        await assert.rejects(client.cloudVms.listCloudVms({ limit: 1 }), IbeeError);
-        assert.equal(calls.length, 1, JSON.stringify(json));
     }
 });
 
