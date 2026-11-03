@@ -10,6 +10,8 @@
 export interface ReserveIpRequest {
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Retry the identical networking create with the same key to receive its dispatched create outcome for 24 hours. The key is scoped to organization, workspace and path. Reusing a dispatched key with a different request returns 409. Admission or validation refusals before a create is dispatched may be retried after correcting them. A pending or uncertain first request returns 409 with Retry-After; keep using the same body and key while its outcome is checked. */
+    "X-Idempotency-Key"?: string;
     /** Site whose public IP pool allocates the address. Copy an available `site_id` from `GET /networking/sites`; use the target VM or VPC's site when the address will be attached. */
     site_id: string;
     /** Optional label for the address (up to 120 characters), shown as its name in the portal. */

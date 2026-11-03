@@ -139,6 +139,14 @@ function ibeeFetcher(workspaceId: string | undefined): core.FetchFunction {
         const maxRetries = args.maxRetries ?? 2;
         for (let attempt = 0; ; attempt += 1) {
             const response = await core.fetcher<R>({ ...args, headers, queryParameters, maxRetries: 0 });
+            if (!response.ok && response.error.reason === "status-code" && response.error.statusCode === 404 &&
+                /(^|\/)(object-storage|container-registry)(\/|$)/.test(path) &&
+                (response.error.body === undefined || (typeof response.error.body === "string" && response.error.body.trim() === ""))) {
+                throw new IbeeError({
+                    message: "This public API operation is temporarily paused. The client method is retained for compatibility; this empty 404 does not mean an existing resource was deleted.",
+                    statusCode: 404, body: response.error.body, rawResponse: response.rawResponse,
+                });
+            }
             if (response.ok || !retrySafe || attempt >= maxRetries || !isRetryable(response.error)) {
                 return response;
             }

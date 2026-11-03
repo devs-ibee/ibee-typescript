@@ -33,7 +33,11 @@ export class SecretStoreClient {
      *
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.listSecretStores({
@@ -90,8 +94,16 @@ export class SecretStoreClient {
                     throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 403:
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -114,8 +126,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.PaymentRequiredError}
      * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.createSecretStore({
@@ -178,10 +194,18 @@ export class SecretStoreClient {
                     throw new Ibee.PaymentRequiredError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 403:
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -203,7 +227,11 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.getSecretStore({
@@ -260,8 +288,16 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -288,8 +324,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.archiveSecretStore({
@@ -346,10 +386,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -376,8 +424,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.unarchiveSecretStore({
@@ -434,10 +486,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -464,8 +524,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.permanentlyDeleteSecretStore({
@@ -522,10 +586,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -552,7 +624,11 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.listSecrets({
@@ -612,8 +688,16 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -642,8 +726,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.PaymentRequiredError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.createSecret({
@@ -711,10 +799,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -742,8 +838,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.batchCreateSecrets({
@@ -816,10 +916,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -846,7 +954,11 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.getSecret({
@@ -903,8 +1015,16 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -931,8 +1051,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.deleteSecret({
@@ -989,10 +1113,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1019,7 +1151,11 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.getSecretValue({
@@ -1076,8 +1212,16 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1105,8 +1249,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.updateSecretValue({
@@ -1172,10 +1320,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1203,8 +1359,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.undeleteSecret({
@@ -1269,10 +1429,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1300,8 +1468,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.destroySecretVersions({
@@ -1366,10 +1538,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1396,8 +1576,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.permanentlyDeleteSecret({
@@ -1454,10 +1638,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1484,7 +1676,11 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.listSecretVersions({
@@ -1541,8 +1737,16 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1569,7 +1773,11 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.getSecretVersion({
@@ -1627,8 +1835,16 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1656,8 +1872,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.rollbackSecret({
@@ -1720,10 +1940,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1750,7 +1978,11 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.listSecretIdentities({
@@ -1807,8 +2039,16 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1837,8 +2077,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.createSecretIdentity({
@@ -1916,10 +2160,18 @@ export class SecretStoreClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1946,7 +2198,11 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.getSecretIdentity({
@@ -2003,8 +2259,16 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -2031,8 +2295,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.deleteSecretIdentity({
@@ -2089,10 +2357,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -2119,8 +2395,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.disableSecretIdentity({
@@ -2177,10 +2457,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -2207,8 +2495,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.enableSecretIdentity({
@@ -2265,10 +2557,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -2295,8 +2595,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.getSecretIdentityAccess({
@@ -2353,10 +2657,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -2383,8 +2695,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.rotateSecretIdentitySecretId({
@@ -2441,10 +2757,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -2471,8 +2795,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.revokeSecretIdentitySessions({
@@ -2529,10 +2857,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -2559,7 +2895,11 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.listSecretIdentityScopes({
@@ -2616,8 +2956,16 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -2646,8 +2994,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.createSecretIdentityScope({
@@ -2716,10 +3068,18 @@ export class SecretStoreClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -2746,8 +3106,12 @@ export class SecretStoreClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.secretStore.deleteSecretIdentityScope({
@@ -2804,10 +3168,18 @@ export class SecretStoreClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
