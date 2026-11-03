@@ -28,7 +28,7 @@ export interface ListComputePlansRequest {
      * - `MONTHLY` (default)
      */
     billing_interval?: Ibee.BillingInterval;
-    /** Include an advisory placement check. Requires site_id. This does not reserve stock. */
+    /** Check advisory placement by default when site_id is supplied. Set false for pricing-only discovery. This does not reserve stock. */
     include_availability?: boolean;
     /** OS pool to check when include_availability is true. */
     os_type?: Ibee.ListComputePlansRequestOsType;
