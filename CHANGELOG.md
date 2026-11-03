@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.0
+
+- Update to public API contract 0.9.0: 229 client operations, retaining all 51
+  temporarily paused Object Storage and Container Registry methods.
+- Add cloud/GPU manual backup creation and queued restore cancellation, including
+  policy billing-catalog inheritance and the server's queued-only cancellation rule.
+- Explain empty 404 responses from the paused services while preserving status and
+  raw response details.
+- Include common validation, rate-limit, server and timeout error responses and
+  optional networking create idempotency keys. Site-scoped compute plans request
+  capacity by default unless explicitly disabled.
+- Send `ibee-sdk/0.7.0` as the default User-Agent on server runtimes, preserve caller
+  overrides, and omit it in browsers to avoid adding a preflight header.
+
+
 ## 0.6.0
 
 Generated from the API contract 0.7.1 (`contract/ibee-cloud.yaml`, 225 operations):

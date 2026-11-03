@@ -1,4 +1,6 @@
 export type { AttachGpuVmVolumeRequest } from "./AttachGpuVmVolumeRequest.js";
+export type { CancelGpuVmBackupRestoreRequest } from "./CancelGpuVmBackupRestoreRequest.js";
+export type { CreateGpuVmBackupRunRequest } from "./CreateGpuVmBackupRunRequest.js";
 export { CreateGpuVmRequest } from "./CreateGpuVmRequest.js";
 export type { CreateGpuVmSnapshotRequest } from "./CreateGpuVmSnapshotRequest.js";
 export type { DeleteGpuVmBackupRunRequest } from "./DeleteGpuVmBackupRunRequest.js";

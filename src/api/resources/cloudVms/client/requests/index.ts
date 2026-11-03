@@ -1,4 +1,6 @@
 export type { AttachCloudVmVolumeRequest } from "./AttachCloudVmVolumeRequest.js";
+export type { CancelCloudVmBackupRestoreRequest } from "./CancelCloudVmBackupRestoreRequest.js";
+export type { CreateCloudVmBackupRunRequest } from "./CreateCloudVmBackupRunRequest.js";
 export { CreateCloudVmRequest } from "./CreateCloudVmRequest.js";
 export type { CreateCloudVmSnapshotRequest } from "./CreateCloudVmSnapshotRequest.js";
 export type { DeleteCloudVmBackupRunRequest } from "./DeleteCloudVmBackupRunRequest.js";
