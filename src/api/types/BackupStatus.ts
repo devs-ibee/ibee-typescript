@@ -7,6 +7,7 @@
  * - `succeeded`: finished; the recovery point is usable.
  * - `failed`: stopped with an error (see `error_message`).
  * - `cancelled`: stopped before it completed.
+ * - `deleting`: remote backup deletion is in progress; the run becomes unavailable after cleanup.
  */
 export const BackupStatus = {
     Queued: "queued",
@@ -14,5 +15,6 @@ export const BackupStatus = {
     Succeeded: "succeeded",
     Failed: "failed",
     Cancelled: "cancelled",
+    Deleting: "deleting",
 } as const;
 export type BackupStatus = (typeof BackupStatus)[keyof typeof BackupStatus];

@@ -2,7 +2,7 @@
 
 import type { BaseClientOptions, BaseRequestOptions } from "../../../../BaseClient.js";
 import { type NormalizedClientOptionsWithAuth, normalizeClientOptionsWithAuth } from "../../../../BaseClient.js";
-import { mergeHeaders } from "../../../../core/headers.js";
+import { mergeHeaders, mergeOnlyDefinedHeaders } from "../../../../core/headers.js";
 import * as core from "../../../../core/index.js";
 import * as environments from "../../../../environments.js";
 import { handleNonStatusCodeError } from "../../../../errors/handleNonStatusCodeError.js";
@@ -33,7 +33,11 @@ export class ReservedIpsClient {
      *
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.reservedIps.listReservedIps({
@@ -88,8 +92,16 @@ export class ReservedIpsClient {
                     throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 403:
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -113,8 +125,12 @@ export class ReservedIpsClient {
      * @throws {@link Ibee.PaymentRequiredError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.reservedIps.reserveIp({
@@ -133,7 +149,7 @@ export class ReservedIpsClient {
         request: Ibee.ReserveIpRequest,
         requestOptions?: ReservedIpsClient.RequestOptions,
     ): Promise<core.WithRawResponse<Ibee.ReservedIp>> {
-        const { workspace_id: workspaceId, ..._body } = request;
+        const { workspace_id: workspaceId, "X-Idempotency-Key": idempotencyKey, ..._body } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
         };
@@ -141,6 +157,7 @@ export class ReservedIpsClient {
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
             this._options?.headers,
+            mergeOnlyDefinedHeaders({ "X-Idempotency-Key": idempotencyKey }),
             requestOptions?.headers,
         );
         const _response = await (this._options.fetcher ?? core.fetcher)({
@@ -178,10 +195,18 @@ export class ReservedIpsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -206,7 +231,10 @@ export class ReservedIpsClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.reservedIps.convertReservedIp({
@@ -273,8 +301,14 @@ export class ReservedIpsClient {
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -301,7 +335,11 @@ export class ReservedIpsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.reservedIps.getReservedIp({
@@ -358,8 +396,16 @@ export class ReservedIpsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -387,8 +433,12 @@ export class ReservedIpsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.reservedIps.releaseReservedIp({
@@ -447,10 +497,18 @@ export class ReservedIpsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -478,8 +536,12 @@ export class ReservedIpsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.reservedIps.updateReservedIp({
@@ -541,10 +603,18 @@ export class ReservedIpsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -573,8 +643,12 @@ export class ReservedIpsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.reservedIps.attachReservedIp({
@@ -641,10 +715,18 @@ export class ReservedIpsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -672,8 +754,12 @@ export class ReservedIpsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.reservedIps.attachReservedIpDirect({
@@ -736,10 +822,18 @@ export class ReservedIpsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -766,8 +860,12 @@ export class ReservedIpsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.reservedIps.detachReservedIp({
@@ -824,10 +922,18 @@ export class ReservedIpsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -856,8 +962,12 @@ export class ReservedIpsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.reservedIps.moveReservedIp({
@@ -924,10 +1034,18 @@ export class ReservedIpsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,

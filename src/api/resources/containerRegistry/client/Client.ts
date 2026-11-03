@@ -26,7 +26,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Checks whether a registry name is free across IBEE. Names are global and never reassigned; unavailable names come with suggestions. Requires scope: container-registry.read.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Checks whether a registry name is free across IBEE. Names are global and never reassigned; unavailable names come with suggestions. Requires scope: container-registry.read.
      *
      * @param {Ibee.CheckContainerRegistryNameAvailabilityRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -34,7 +34,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.checkContainerRegistryNameAvailability({
@@ -96,8 +99,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -116,7 +125,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Lists the workspace's registries, newest first. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Lists the workspace's registries, newest first. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
      *
      * @param {Ibee.ListContainerRegistriesRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -124,7 +133,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.listContainerRegistries({
@@ -182,8 +194,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -202,7 +220,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Creates a registry with a storage plan (`billing_catalog.sku_code`).
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Creates a registry with a storage plan (`billing_catalog.sku_code`).
      * The registry service asks Billing whether the workspace may buy that
      * plan and refuses with 403 `billing_resource_not_eligible` (and a
      * `reason`) when it may not. Returns 201 when the registry is active, or
@@ -220,7 +238,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.createContainerRegistry({
@@ -292,8 +313,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -312,7 +339,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Returns one registry, including its visibility, pull policy and provisioning state. A deleted registry is still returned, with `deleted_at` set. Requires scope: container-registry.read.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns one registry, including its visibility, pull policy and provisioning state. A deleted registry is still returned, with `deleted_at` set. Requires scope: container-registry.read.
      *
      * @param {Ibee.GetContainerRegistryRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -321,7 +348,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.getContainerRegistry({
@@ -380,8 +410,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -400,7 +436,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Starts deleting a registry; returns 202 with `observed_state: DELETING`. The registry must be empty: 409 with `detail.code: registry_not_empty` otherwise (see Empty registry). The name is never reused. Asynchronous: `observed_state` moves through `DELETING` to `DELETED`; poll `GET /container-registry/registries/{registry_id}` until it answers 404 or `DELETED`. Requires scope: container-registry.write.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Starts deleting a registry; returns 202 with `observed_state: DELETING`. The registry must be empty: 409 with `detail.code: registry_not_empty` otherwise (see Empty registry). The name is never reused. Asynchronous: `observed_state` moves through `DELETING` to `DELETED`; poll `GET /container-registry/registries/{registry_id}` until it answers 404 or `DELETED`. Requires scope: container-registry.write.
      *
      * @param {Ibee.DeleteContainerRegistryRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -411,7 +447,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.deleteContainerRegistry({
@@ -480,8 +519,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -500,7 +545,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Makes a registry private or public. Public requires `acknowledge_public_egress_charges: true`, because anonymous pull bandwidth is billed to the workspace. Returns 202 while the change is applied. Requires scope: container-registry.write.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Makes a registry private or public. Public requires `acknowledge_public_egress_charges: true`, because anonymous pull bandwidth is billed to the workspace. Returns 202 while the change is applied. Requires scope: container-registry.write.
      *
      * @param {Ibee.UpdateContainerRegistryVisibilityRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -510,7 +555,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.updateContainerRegistryVisibility({
@@ -576,8 +624,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -596,7 +650,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Queues the registry's pending change (create, update, upgrade or delete) to run again, for example after `observed_state: ERROR`. Requires scope: container-registry.write.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Queues the registry's pending change (create, update, upgrade or delete) to run again, for example after `observed_state: ERROR`. Requires scope: container-registry.write.
      *
      * @param {Ibee.RetryContainerRegistryProvisioningRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -606,7 +660,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.retryContainerRegistryProvisioning({
@@ -667,8 +724,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -687,7 +750,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Returns the registry's current storage plan, a pending upgrade if there is one, and the status of the change being applied. Requires scope: container-registry.read.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns the registry's current storage plan, a pending upgrade if there is one, and the status of the change being applied. Requires scope: container-registry.read.
      *
      * @param {Ibee.GetContainerRegistryPackageRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -696,7 +759,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.getContainerRegistryPackage({
@@ -755,8 +821,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -775,7 +847,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Moves an active registry to a larger storage plan. Only larger quotas
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Moves an active registry to a larger storage plan. Only larger quotas
      * are accepted and only one change can be pending (409 otherwise). The
      * registry service asks Billing first and refuses with 403
      * `billing_resource_not_eligible` when the plan is not allowed. Send an
@@ -794,7 +866,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.upgradeContainerRegistryPackage({
@@ -870,8 +945,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -890,7 +971,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Lists the access tokens that can use this registry, newest first. Secrets are never returned. Requires scope: container-registry.read.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Lists the access tokens that can use this registry, newest first. Secrets are never returned. Requires scope: container-registry.read.
      *
      * @param {Ibee.ListContainerRegistryAccessTokensRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -899,7 +980,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.listContainerRegistryAccessTokens({
@@ -959,8 +1043,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -979,7 +1069,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Creates a Docker login credential for the registry. The `username`
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Creates a Docker login credential for the registry. The `username`
      * and `secret` are returned once and cannot be read again. The registry
      * must be active, and the registry service asks Billing whether the
      * workspace may create credentials. Requires scope:
@@ -993,7 +1083,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.createContainerRegistryAccessToken({
@@ -1063,8 +1156,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1083,7 +1182,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Issues a new secret for an active token; the old secret stops working immediately. The new secret is returned once. Revoked or expired tokens return 409. Requires scope: container-registry.write.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Issues a new secret for an active token; the old secret stops working immediately. The new secret is returned once. Revoked or expired tokens return 409. Requires scope: container-registry.write.
      *
      * @param {Ibee.RotateContainerRegistryAccessTokenRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1093,7 +1192,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.rotateContainerRegistryAccessToken({
@@ -1158,8 +1260,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1178,7 +1286,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Revokes a token immediately. Revoking an already revoked token succeeds. Requires scope: container-registry.write.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Revokes a token immediately. Revoking an already revoked token succeeds. Requires scope: container-registry.write.
      *
      * @param {Ibee.RevokeContainerRegistryAccessTokenRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1187,7 +1295,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.revokeContainerRegistryAccessToken({
@@ -1247,8 +1358,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1267,7 +1384,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Lists an active registry's repositories. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Lists an active registry's repositories. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
      *
      * @param {Ibee.ListContainerRegistryRepositoriesRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1277,7 +1394,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.listContainerRegistryRepositories({
@@ -1342,8 +1462,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1362,7 +1488,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Permanently deletes a repository and all of its images. Requires `confirm=true`. Deleting a repository that does not exist answers 200. Requires scope: container-registry.write.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Permanently deletes a repository and all of its images. Requires `confirm=true`. Deleting a repository that does not exist answers 200. Requires scope: container-registry.write.
      *
      * @param {Ibee.DeleteContainerRegistryRepositoryRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1373,7 +1499,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.deleteContainerRegistryRepository({
@@ -1444,8 +1573,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1464,7 +1599,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Lists the images (artifacts) in one repository with their tags and scan overview. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Lists the images (artifacts) in one repository with their tags and scan overview. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
      *
      * @param {Ibee.ListContainerRegistryArtifactsRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1474,7 +1609,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.listContainerRegistryArtifacts({
@@ -1545,8 +1683,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1565,7 +1709,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Permanently deletes one image and every tag that points to it. Requires `confirm=true`. Deleting an artifact that does not exist answers 200. Requires scope: container-registry.write.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Permanently deletes one image and every tag that points to it. Requires `confirm=true`. Deleting an artifact that does not exist answers 200. Requires scope: container-registry.write.
      *
      * @param {Ibee.DeleteContainerRegistryArtifactRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1576,7 +1720,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.deleteContainerRegistryArtifact({
@@ -1650,8 +1797,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1670,7 +1823,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Queues a new vulnerability scan of one image. Existing results stay visible until it completes. Requires scope: container-registry.write.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Queues a new vulnerability scan of one image. Existing results stay visible until it completes. Requires scope: container-registry.write.
      *
      * @param {Ibee.ScanContainerRegistryArtifactRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1680,7 +1833,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.scanContainerRegistryArtifact({
@@ -1749,8 +1905,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1769,7 +1931,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Returns the vulnerability pull policy. Scanning and SBOM generation always run on push. Requires scope: container-registry.read.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns the vulnerability pull policy. Scanning and SBOM generation always run on push. Requires scope: container-registry.read.
      *
      * @param {Ibee.GetContainerRegistrySecuritySettingsRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1778,7 +1940,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.getContainerRegistrySecuritySettings({
@@ -1842,8 +2007,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1862,7 +2033,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Sets the vulnerability pull policy: `ALLOW`, or block pulls of images with findings at or above `CRITICAL`, `HIGH`, `MEDIUM` or `LOW`. Returns 202 while the change is applied. Requires scope: container-registry.write.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Sets the vulnerability pull policy: `ALLOW`, or block pulls of images with findings at or above `CRITICAL`, `HIGH`, `MEDIUM` or `LOW`. Returns 202 while the change is applied. Requires scope: container-registry.write.
      *
      * @param {Ibee.UpdateContainerRegistrySecuritySettingsRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1872,7 +2043,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.updateContainerRegistrySecuritySettings({
@@ -1942,8 +2116,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1962,7 +2142,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Returns the number of vulnerability findings in an active registry, by severity. Requires scope: container-registry.read.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns the number of vulnerability findings in an active registry, by severity. Requires scope: container-registry.read.
      *
      * @param {Ibee.GetContainerRegistryVulnerabilitySummaryRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1972,7 +2152,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.getContainerRegistryVulnerabilitySummary({
@@ -2038,8 +2221,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -2058,7 +2247,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Lists vulnerability findings in an active registry, with optional filters. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Lists vulnerability findings in an active registry, with optional filters. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
      *
      * @param {Ibee.ListContainerRegistryVulnerabilitiesRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2068,7 +2257,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.listContainerRegistryVulnerabilities({
@@ -2153,8 +2345,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -2173,7 +2371,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Lists the SBOMs of one repository, one per image digest. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Lists the SBOMs of one repository, one per image digest. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
      *
      * @param {Ibee.ListContainerRegistrySbomsRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2183,7 +2381,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.listContainerRegistrySboms({
@@ -2254,8 +2455,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -2274,7 +2481,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Returns one image's SBOM components and their relationships. `q` filters components by name, version, type, license, supplier or package URL. Components are paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns one image's SBOM components and their relationships. `q` filters components by name, version, type, license, supplier or package URL. Components are paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
      *
      * @param {Ibee.GetContainerRegistrySbomRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2284,7 +2491,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.getContainerRegistrySbom({
@@ -2359,8 +2569,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -2379,14 +2595,17 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Downloads one image's full SBOM document as a JSON attachment (SPDX or CycloneDX). Requires scope: container-registry.read.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Downloads one image's full SBOM document as a JSON attachment (SPDX or CycloneDX). Requires scope: container-registry.read.
      *
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      */
     public downloadContainerRegistrySbom(
         request: Ibee.DownloadContainerRegistrySbomRequest,
@@ -2448,8 +2667,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -2468,7 +2693,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Returns storage use against the plan quota and outbound bandwidth over the last 24 hours, 7 days or 30 days. Bytes are decimal (1 GB = 1,000,000,000 bytes). Requires scope: container-registry.read.
+     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns storage use against the plan quota and outbound bandwidth over the last 24 hours, 7 days or 30 days. Bytes are decimal (1 GB = 1,000,000,000 bytes). Requires scope: container-registry.read.
      *
      * @param {Ibee.GetContainerRegistryMetricsRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2478,7 +2703,10 @@ export class ContainerRegistryClient {
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.containerRegistry.getContainerRegistryMetrics({
@@ -2540,8 +2768,14 @@ export class ContainerRegistryClient {
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,

@@ -2,7 +2,7 @@
 
 import type { BaseClientOptions, BaseRequestOptions } from "../../../../BaseClient.js";
 import { type NormalizedClientOptionsWithAuth, normalizeClientOptionsWithAuth } from "../../../../BaseClient.js";
-import { mergeHeaders } from "../../../../core/headers.js";
+import { mergeHeaders, mergeOnlyDefinedHeaders } from "../../../../core/headers.js";
 import * as core from "../../../../core/index.js";
 import * as environments from "../../../../environments.js";
 import { handleNonStatusCodeError } from "../../../../errors/handleNonStatusCodeError.js";
@@ -33,7 +33,11 @@ export class VpcsClient {
      *
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.listNetworkingSites({
@@ -87,8 +91,16 @@ export class VpcsClient {
                     throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 403:
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -109,7 +121,11 @@ export class VpcsClient {
      *
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.listVpcs({
@@ -164,8 +180,16 @@ export class VpcsClient {
                     throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 403:
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -188,8 +212,12 @@ export class VpcsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.createVpc({
@@ -209,7 +237,7 @@ export class VpcsClient {
         request: Ibee.CreateVpcRequest,
         requestOptions?: VpcsClient.RequestOptions,
     ): Promise<core.WithRawResponse<Ibee.VpcDetail>> {
-        const { workspace_id: workspaceId, ..._body } = request;
+        const { workspace_id: workspaceId, "X-Idempotency-Key": idempotencyKey, ..._body } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
         };
@@ -217,6 +245,7 @@ export class VpcsClient {
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
             this._options?.headers,
+            mergeOnlyDefinedHeaders({ "X-Idempotency-Key": idempotencyKey }),
             requestOptions?.headers,
         );
         const _response = await (this._options.fetcher ?? core.fetcher)({
@@ -252,10 +281,18 @@ export class VpcsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -277,7 +314,11 @@ export class VpcsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.getVpc({
@@ -334,8 +375,16 @@ export class VpcsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -358,8 +407,12 @@ export class VpcsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.deleteVpc({
@@ -418,10 +471,18 @@ export class VpcsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -445,8 +506,12 @@ export class VpcsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.updateVpc({
@@ -510,10 +575,18 @@ export class VpcsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -535,7 +608,11 @@ export class VpcsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.listVpcSubnets({
@@ -592,8 +669,16 @@ export class VpcsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -622,8 +707,12 @@ export class VpcsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.createVpcSubnet({
@@ -643,7 +732,7 @@ export class VpcsClient {
         request: Ibee.CreateSubnetRequest,
         requestOptions?: VpcsClient.RequestOptions,
     ): Promise<core.WithRawResponse<Ibee.Subnet>> {
-        const { vpc_id: vpcId, workspace_id: workspaceId, ..._body } = request;
+        const { vpc_id: vpcId, workspace_id: workspaceId, "X-Idempotency-Key": idempotencyKey, ..._body } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
         };
@@ -651,6 +740,7 @@ export class VpcsClient {
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
             this._options?.headers,
+            mergeOnlyDefinedHeaders({ "X-Idempotency-Key": idempotencyKey }),
             requestOptions?.headers,
         );
         const _response = await (this._options.fetcher ?? core.fetcher)({
@@ -688,10 +778,18 @@ export class VpcsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -718,7 +816,11 @@ export class VpcsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.getVpcSubnet({
@@ -776,8 +878,16 @@ export class VpcsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -805,8 +915,12 @@ export class VpcsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.deleteVpcSubnet({
@@ -866,10 +980,18 @@ export class VpcsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -895,7 +1017,11 @@ export class VpcsClient {
      *
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.listVpcNodes({
@@ -950,8 +1076,16 @@ export class VpcsClient {
                     throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 403:
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -980,8 +1114,12 @@ export class VpcsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.attachVpcNode({
@@ -1047,10 +1185,18 @@ export class VpcsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1077,8 +1223,12 @@ export class VpcsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.detachVpcNode({
@@ -1136,10 +1286,18 @@ export class VpcsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1165,7 +1323,11 @@ export class VpcsClient {
      *
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.listNatGateways({
@@ -1220,8 +1382,16 @@ export class VpcsClient {
                     throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 403:
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1251,8 +1421,12 @@ export class VpcsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.createNatGateway({
@@ -1271,7 +1445,7 @@ export class VpcsClient {
         request: Ibee.CreateNatGatewayRequest,
         requestOptions?: VpcsClient.RequestOptions,
     ): Promise<core.WithRawResponse<Ibee.NatGateway>> {
-        const { vpc_id: vpcId, workspace_id: workspaceId, ..._body } = request;
+        const { vpc_id: vpcId, workspace_id: workspaceId, "X-Idempotency-Key": idempotencyKey, ..._body } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
         };
@@ -1279,6 +1453,7 @@ export class VpcsClient {
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
             this._options?.headers,
+            mergeOnlyDefinedHeaders({ "X-Idempotency-Key": idempotencyKey }),
             requestOptions?.headers,
         );
         const _response = await (this._options.fetcher ?? core.fetcher)({
@@ -1318,10 +1493,18 @@ export class VpcsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1349,8 +1532,12 @@ export class VpcsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.deleteNatGateway({
@@ -1413,10 +1600,18 @@ export class VpcsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1444,8 +1639,12 @@ export class VpcsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.updateNatGatewayPublicIp({
@@ -1509,10 +1708,18 @@ export class VpcsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1539,7 +1746,11 @@ export class VpcsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.listNatPortForwardingRules({
@@ -1597,8 +1808,16 @@ export class VpcsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1627,8 +1846,12 @@ export class VpcsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.createNatPortForwardingRule({
@@ -1654,7 +1877,13 @@ export class VpcsClient {
         request: Ibee.CreateNatPortForwardingRuleBody,
         requestOptions?: VpcsClient.RequestOptions,
     ): Promise<core.WithRawResponse<Ibee.NatPortForwardingRule>> {
-        const { vpc_id: vpcId, nat_gateway_id: natGatewayId, workspace_id: workspaceId, body: _body } = request;
+        const {
+            vpc_id: vpcId,
+            nat_gateway_id: natGatewayId,
+            workspace_id: workspaceId,
+            "X-Idempotency-Key": idempotencyKey,
+            body: _body,
+        } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
         };
@@ -1662,6 +1891,7 @@ export class VpcsClient {
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
             this._options?.headers,
+            mergeOnlyDefinedHeaders({ "X-Idempotency-Key": idempotencyKey }),
             requestOptions?.headers,
         );
         const _response = await (this._options.fetcher ?? core.fetcher)({
@@ -1699,10 +1929,18 @@ export class VpcsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1729,8 +1967,12 @@ export class VpcsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.deleteNatPortForwardingRule({
@@ -1794,10 +2036,18 @@ export class VpcsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,
@@ -1826,8 +2076,12 @@ export class VpcsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
      *     await client.vpcs.updateNatPortForwardingRule({
@@ -1899,10 +2153,18 @@ export class VpcsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
                     throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 default:
                     throw new errors.IbeeError({
                         statusCode: _response.error.statusCode,

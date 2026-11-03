@@ -177,7 +177,6 @@ test("removed operations are gone from the client", async () => {
         ["gpuVms", "resizeGpuVmPlan"],
         ["gpuVms", "resizeGpuVmRootDisk"],
         ["cloudVms", "acknowledgeCloudVmMountGuidance"],
-        ["cloudVms", "createCloudVmBackupRun"],
         ["cloudVms", "rescheduleCloudVmBackup"],
         ["blockStorage", "attachBlockVolume"],
         ["blockStorage", "detachBlockVolume"],
@@ -192,3 +191,17 @@ test("removed operations are gone from the client", async () => {
     assert.equal(client.vmConsole, undefined, "console sessions");
     assert.equal(client.billing, undefined, "billing resource-eligibility");
 });
+
+
+for (const [resource, prefix, create, cancel] of [
+    ["cloudVms", "cloud", "createCloudVmBackupRun", "cancelCloudVmBackupRestore"],
+    ["gpuVms", "gpu", "createGpuVmBackupRun", "cancelGpuVmBackupRestore"],
+]) {
+    test(`${resource} manual backup and restore cancellation are retained`, async () => {
+        const { client, calls } = stubClient(() => ({ status: 418, json: { error: "probe" } }));
+        await assert.rejects(client[resource][create]({ vm_id: "vm-1" }));
+        await assert.rejects(client[resource][cancel]({ restore_id: "restore-1" }));
+        assert.equal(new URL(calls[0].url).pathname, `/v1/compute/${prefix}-vms/vm-1/backups/runs`);
+        assert.equal(new URL(calls[1].url).pathname, `/v1/compute/${prefix}-vm-backups/restores/restore-1/actions/cancel`);
+    });
+}

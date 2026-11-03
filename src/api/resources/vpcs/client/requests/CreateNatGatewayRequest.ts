@@ -12,6 +12,8 @@ export interface CreateNatGatewayRequest {
     vpc_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
+    /** Retry the identical networking create with the same key to receive its dispatched create outcome for 24 hours. The key is scoped to organization, workspace and path. Reusing a dispatched key with a different request returns 409. Admission or validation refusals before a create is dispatched may be retried after correcting them. A pending or uncertain first request returns 409 with Retry-After; keep using the same body and key while its outcome is checked. */
+    "X-Idempotency-Key"?: string;
     /** Subnet the gateway is placed in; chosen by the service when omitted. */
     subnet_id?: string | null;
     /** Reserved IP to use as the gateway's public address; a platform-assigned address is used when omitted. */

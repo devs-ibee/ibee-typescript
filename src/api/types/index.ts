@@ -115,6 +115,7 @@ export * from "./LoadBalancerRule.js";
 export * from "./LoadBalancerStatus.js";
 export * from "./LoadBalancerStatusResponse.js";
 export * from "./LoadBalancerTls.js";
+export * from "./ManualBackupRunRequest.js";
 export * from "./NatGateway.js";
 export * from "./NatPortForwardingRule.js";
 export * from "./NatPricing.js";
