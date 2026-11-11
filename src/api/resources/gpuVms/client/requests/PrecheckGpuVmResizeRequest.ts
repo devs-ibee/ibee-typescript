@@ -15,5 +15,5 @@ export interface PrecheckGpuVmResizeRequest {
     vm_id: string;
     /** The positive numeric workspace ID to scope this request to. Zero, negative, and non-numeric values are rejected. */
     workspace_id?: string;
-    body: Ibee.VmResizeRequest;
+    body: Ibee.VmResizePrecheckRequest;
 }

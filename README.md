@@ -114,8 +114,11 @@ VM create is never retried; the SDK sends a fresh `X-Idempotency-Key` unless
 you pass one.
 
 Other calls take exactly the contract's fields, for example resize takes the
-target shape (`resizeCloudVm({ vm_id, body: { cpu, ram_mb, disk_gb } })`,
-`precheckCloudVmResize` first if you want the decision), attach-volume takes the
+target plan's exact size and its billing selection, built as for a create
+(`resizeCloudVm({ vm_id, body: { cpu, ram_mb, disk_gb, billing_catalog } })`;
+`precheckCloudVmResize({ vm_id, body: { cpu, ram_mb } })` first if you want the
+decision), the wallet is `billing.getBillingWallet()` and a top-up link
+`billing.createBillingTopup({ amount_minor })`, attach-volume takes the
 volume's `metadata.billing_catalog`, VM delete takes `public_ip_action` when the
 VM has an automatically assigned public IP, and lists return one page (pass
 `limit` / `offset`; the server returns 10 by default).

@@ -3,7 +3,7 @@
 import type * as Ibee from "../index.js";
 
 /**
- * One backup run of a VM. A succeeded run is a recovery point that `POST .../backups/restore` accepts through `recovery_point_id`.
+ * One backup run of a VM. A succeeded run is a recovery point that `POST .../backups/actions/restore` accepts through `recovery_point_id`.
  */
 export interface BackupRun {
     /** ID of the organization that owns the VM. */
@@ -41,8 +41,7 @@ export interface BackupRun {
     /**
      * What started the run.
      * - `scheduled`: the policy schedule.
-     * - `manual`: an on-demand request from a user.
-     * - `api`: an on-demand request through the API.
+     * - `manual`: an on-demand request, from the portal or the API.
      */
     trigger: BackupRun.Trigger;
     /**
@@ -109,13 +108,11 @@ export namespace BackupRun {
     /**
      * What started the run.
      * - `scheduled`: the policy schedule.
-     * - `manual`: an on-demand request from a user.
-     * - `api`: an on-demand request through the API.
+     * - `manual`: an on-demand request, from the portal or the API.
      */
     export const Trigger = {
         Scheduled: "scheduled",
         Manual: "manual",
-        Api: "api",
     } as const;
     export type Trigger = (typeof Trigger)[keyof typeof Trigger];
     /**

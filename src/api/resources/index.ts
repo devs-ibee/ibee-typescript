@@ -1,3 +1,5 @@
+export * from "./billing/client/requests/index.js";
+export * as billing from "./billing/index.js";
 export * from "./blockStorage/client/requests/index.js";
 export * as blockStorage from "./blockStorage/index.js";
 export * from "./blockStorage/types/index.js";

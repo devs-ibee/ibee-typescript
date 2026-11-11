@@ -11,7 +11,7 @@ test("every request sends User-Agent ibee-sdk/<version> and keeps the X-Fern hea
     const { client, calls } = stubClient(() => ({ json: [] }));
     await client.cloudVms.listCloudVms({ limit: 1 });
     await client.fetch("/compute/sites");
-    assert.equal(USER_AGENT, "ibee-sdk/0.7.0");
+    assert.equal(USER_AGENT, "ibee-sdk/0.8.0");
     for (const call of calls) {
         assert.equal(call.headers.get("user-agent"), USER_AGENT);
         assert.equal(call.headers.get("x-fern-language"), "JavaScript");

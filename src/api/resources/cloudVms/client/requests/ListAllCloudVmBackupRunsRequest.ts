@@ -13,7 +13,7 @@ export interface ListAllCloudVmBackupRunsRequest {
     workspace_id?: string;
     /** Return only runs of this VM. */
     vm_id?: string;
-    /** Return only runs in these states. Repeat the parameter for several states. */
+    /** Return only runs in these states. Repeat the parameter for several states. Only `succeeded` and `deleting` can match; any other state returns an empty list. */
     status?: Ibee.BackupStatus | Ibee.BackupStatus[];
     /** Maximum number of records to return. */
     limit?: number;
