@@ -33,9 +33,11 @@ export class CloudVmsClient {
      *
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -107,12 +109,16 @@ export class CloudVmsClient {
                     throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 403:
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -140,10 +146,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.PaymentRequiredError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -226,6 +234,8 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -234,6 +244,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -259,9 +271,11 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -320,12 +334,16 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -343,7 +361,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Deletes a cloud VM. Returns an operation you can poll for status. A VM with an automatically assigned public IP needs `public_ip_action` in the body. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
+     * Deletes a cloud VM. Returns an operation you can poll for status. A VM with an automatically assigned public IP needs `public_ip_action` in the body. If the VM's IP is already a Reserved IP, send no body: `release` and `reserve` are both refused with 400. The IP stays in the workspace and keeps billing until you release it from Reserved IPs. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.DeleteCloudVmRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -353,10 +371,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -426,6 +446,8 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -434,6 +456,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -460,10 +484,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -529,6 +555,8 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -537,6 +565,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -568,10 +598,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -637,6 +669,8 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -645,6 +679,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -676,10 +712,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -745,6 +783,8 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -753,6 +793,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -783,9 +825,11 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -844,12 +888,16 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -882,10 +930,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -953,6 +1003,8 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -961,6 +1013,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -992,10 +1046,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -1060,6 +1116,8 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -1068,6 +1126,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -1090,7 +1150,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Changes a cloud VM's CPU and memory, and optionally grows its root disk, after the same precheck the portal runs. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
+     * Moves a cloud VM to another plan: send the target plan's `cpu`, `ram_mb`, `disk_gb` and `billing_catalog` (see the request body). The root disk can grow, never shrink. The same precheck the portal runs is applied first. Asynchronous: the response carries `operation_id`; poll `GET /compute/operations/{operation_id}` until `status` is `succeeded`, `failed`, `cancelled` or `timed_out`. If your client times out, read the status; never resubmit the request. Requires scope: vm.write.
      *
      * @param {Ibee.ResizeCloudVmRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1100,10 +1160,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -1111,7 +1173,20 @@ export class CloudVmsClient {
      *     await client.cloudVms.resizeCloudVm({
      *         vm_id: "vm_id",
      *         workspace_id: "710995",
-     *         body: {}
+     *         body: {
+     *             cpu: 4,
+     *             ram_mb: 8192,
+     *             disk_gb: 80,
+     *             billing_catalog: {
+     *                 sku_id: "sku_id",
+     *                 sku_code: "sku_code",
+     *                 billing_interval: "HOURLY",
+     *                 committed: false,
+     *                 commitment_period: "HOURLY",
+     *                 unit_price_minor: 1,
+     *                 price_currency: "INR"
+     *             }
+     *         }
      *     })
      */
     public resizeCloudVm(
@@ -1171,6 +1246,8 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -1179,6 +1256,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -1211,10 +1290,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -1288,6 +1369,8 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -1296,6 +1379,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -1328,10 +1413,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -1401,6 +1488,8 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -1409,6 +1498,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -1439,9 +1530,11 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -1501,12 +1594,16 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -1538,9 +1635,11 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -1602,12 +1701,16 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -1639,9 +1742,11 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -1704,12 +1809,16 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -1740,9 +1849,11 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -1804,12 +1915,16 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -1843,10 +1958,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -1921,6 +2038,8 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -1929,6 +2048,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -1961,10 +2082,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -2033,6 +2156,8 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -2041,6 +2166,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -2070,9 +2197,11 @@ export class CloudVmsClient {
      *
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -2131,12 +2260,16 @@ export class CloudVmsClient {
                     throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 403:
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -2162,9 +2295,11 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -2223,12 +2358,16 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -2260,10 +2399,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -2324,6 +2465,8 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -2332,6 +2475,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -2362,9 +2507,11 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -2423,12 +2570,16 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -2459,9 +2610,11 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -2520,12 +2673,16 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -2557,10 +2714,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -2625,6 +2784,8 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -2633,6 +2794,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -2665,10 +2828,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -2740,6 +2905,8 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -2748,6 +2915,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -2779,10 +2948,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -2847,6 +3018,8 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -2855,6 +3028,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -2877,7 +3052,7 @@ export class CloudVmsClient {
     }
 
     /**
-     * Lists backup runs and usable recovery points for one cloud VM. Requires scope: vm.read.
+     * Lists the finished, successful backup runs (usable recovery points) of one cloud VM, newest first. A run being deleted shows `status: deleting`. Queued, running, failed and cancelled runs are not listed: read a run by ID with `GET /compute/cloud-vm-backups/runs/{run_id}` to see those states. The backup policy's `last_status` shows how the latest finished run ended. Requires scope: vm.read.
      *
      * @param {Ibee.ListCloudVmBackupRunsRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2885,9 +3060,11 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -2949,12 +3126,16 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -2986,10 +3167,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -3056,6 +3239,8 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -3064,6 +3249,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -3096,10 +3283,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -3168,6 +3357,8 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -3176,6 +3367,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -3198,16 +3391,18 @@ export class CloudVmsClient {
     }
 
     /**
-     * Lists backup runs and recovery points of every Cloud VM in the workspace, as the portal's Backups page does. Filter by `vm_id` or `status`. Requires scope: vm.read.
+     * Lists the finished, successful backup runs (usable recovery points) of every Cloud VM in the workspace, newest first, as the portal's Backups page does. A run being deleted shows `status: deleting`. Queued, running, failed and cancelled runs are not listed: read a run by ID with `GET /compute/cloud-vm-backups/runs/{run_id}` to see those states. Filter by `vm_id` or `status`. Requires scope: vm.read.
      *
      * @param {Ibee.ListAllCloudVmBackupRunsRequest} request
      * @param {CloudVmsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -3268,12 +3463,16 @@ export class CloudVmsClient {
                     throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 403:
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -3304,9 +3503,11 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -3365,12 +3566,16 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -3402,10 +3607,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -3466,6 +3673,8 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -3474,6 +3683,8 @@ export class CloudVmsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -3504,9 +3715,11 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -3565,12 +3778,16 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -3601,9 +3818,11 @@ export class CloudVmsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -3662,12 +3881,16 @@ export class CloudVmsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -3699,9 +3922,12 @@ export class CloudVmsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -3762,12 +3988,18 @@ export class CloudVmsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:

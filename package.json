@@ -1,6 +1,6 @@
 {
   "name": "ibee-sdk",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Official TypeScript/JavaScript SDK for the IBEE Solutions cloud API",
   "license": "MIT",
   "author": "IBEE Solutions <support@ibee.ai>",

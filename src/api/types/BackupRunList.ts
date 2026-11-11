@@ -3,7 +3,7 @@
 import type * as Ibee from "../index.js";
 
 /**
- * Backup runs of a VM, newest first.
+ * Finished, successful backup runs, newest first. A run being deleted shows `status: deleting`. Queued, running, failed and cancelled runs are not listed.
  */
 export interface BackupRunList {
     /** Backup runs on this page. */

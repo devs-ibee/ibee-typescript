@@ -7,7 +7,20 @@ import type * as Ibee from "../../../../index.js";
  *     {
  *         vm_id: "vm_id",
  *         workspace_id: "710995",
- *         body: {}
+ *         body: {
+ *             cpu: 4,
+ *             ram_mb: 8192,
+ *             disk_gb: 80,
+ *             billing_catalog: {
+ *                 sku_id: "sku_id",
+ *                 sku_code: "sku_code",
+ *                 billing_interval: "HOURLY",
+ *                 committed: false,
+ *                 commitment_period: "HOURLY",
+ *                 unit_price_minor: 1,
+ *                 price_currency: "INR"
+ *             }
+ *         }
  *     }
  */
 export interface ResizeGpuVmRequest {

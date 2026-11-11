@@ -60,7 +60,8 @@ test("VM delete, attach-volume and resize send their bodies as given", async () 
     const { client, calls } = stubClient(() => ({ status: 202, json: { operation_id: "op-1" } }));
     await client.cloudVms.deleteCloudVm({ vm_id: "vm1", body: { public_ip_action: "release" } });
     await client.cloudVms.attachCloudVmVolume({ vm_id: "vm1", body: { volume_id: "vol-1", billing_catalog: { sku_id: 3, sku_code: "BLOCK" } } });
-    await client.gpuVms.resizeGpuVm({ vm_id: "vm2", body: { cpu: 2, ram_mb: 4096, disk_gb: 60 } });
+    // Contract 0.10.0: a resize carries the target plan's size and its billing selection.
+    await client.gpuVms.resizeGpuVm({ vm_id: "vm2", body: { cpu: 2, ram_mb: 4096, disk_gb: 60, billing_catalog: SELECTION } });
     assert.deepEqual(calls.map(route), [
         ["DELETE", "/compute/cloud-vms/vm1"],
         ["POST", "/compute/cloud-vms/vm1/actions/attach-volume"],
@@ -68,7 +69,29 @@ test("VM delete, attach-volume and resize send their bodies as given", async () 
     ]);
     assert.deepEqual(calls[0].body, { public_ip_action: "release" });
     assert.deepEqual(calls[1].body, { volume_id: "vol-1", billing_catalog: { sku_id: 3, sku_code: "BLOCK" } });
-    assert.deepEqual(calls[2].body, { cpu: 2, ram_mb: 4096, disk_gb: 60 });
+    assert.deepEqual(calls[2].body, { cpu: 2, ram_mb: 4096, disk_gb: 60, billing_catalog: SELECTION });
+});
+
+test("resize precheck sends the size only", async () => {
+    const { client, calls } = stubClient(() => ({ json: { decision: "in_place" } }));
+    await client.cloudVms.precheckCloudVmResize({ vm_id: "vm1", body: { cpu: 2, ram_mb: 4096 } });
+    assert.deepEqual(calls.map(route), [["POST", "/compute/cloud-vms/vm1/actions/resize/precheck"]]);
+    assert.deepEqual(calls[0].body, { cpu: 2, ram_mb: 4096 });
+});
+
+test("billing reads the wallet and creates a top-up link with a retry key", async () => {
+    const { client, calls } = stubClient((c) =>
+        c.path === "/billing/wallet"
+            ? { json: { organization_id: "org_1", currency: "INR", status: "ACTIVE", total_balance_minor: 100 } }
+            : { status: 201, json: { checkout_url: "https://pay.example.test/x", amount_minor: 100000 } },
+    );
+    const wallet = await client.billing.getBillingWallet();
+    const topup = await client.billing.createBillingTopup({ amount_minor: 100000 });
+    assert.equal(wallet.total_balance_minor, 100);
+    assert.equal(topup.checkout_url, "https://pay.example.test/x");
+    assert.deepEqual(calls.map(route), [["GET", "/billing/wallet"], ["POST", "/billing/topups"]]);
+    assert.deepEqual(calls[1].body, { amount_minor: 100000 });
+    assert.match(calls[1].headers.get("idempotency-key"), /^[0-9a-f-]{36}$/);
 });
 
 test("lists make one call with the caller's paging", async () => {
@@ -189,7 +212,8 @@ test("removed operations are gone from the client", async () => {
         assert.equal(typeof client[resource][name], "undefined", `${resource}.${name}`);
     }
     assert.equal(client.vmConsole, undefined, "console sessions");
-    assert.equal(client.billing, undefined, "billing resource-eligibility");
+    // Contract 0.10.0 brings billing back with the wallet and top-ups only (no resource eligibility).
+    assert.equal(typeof client.billing.checkResourceEligibility, "undefined", "billing resource-eligibility");
 });
 
 

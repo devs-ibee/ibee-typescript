@@ -33,9 +33,11 @@ export class FirewallsClient {
      *
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -93,12 +95,16 @@ export class FirewallsClient {
                     throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 403:
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -125,10 +131,12 @@ export class FirewallsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -193,6 +201,8 @@ export class FirewallsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -201,6 +211,8 @@ export class FirewallsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -226,9 +238,11 @@ export class FirewallsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -287,12 +301,16 @@ export class FirewallsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -324,10 +342,12 @@ export class FirewallsClient {
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
      * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -388,6 +408,8 @@ export class FirewallsClient {
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:
                     throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -396,6 +418,8 @@ export class FirewallsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -427,10 +451,12 @@ export class FirewallsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -495,6 +521,8 @@ export class FirewallsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -503,6 +531,8 @@ export class FirewallsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -533,10 +563,12 @@ export class FirewallsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -600,6 +632,8 @@ export class FirewallsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -608,6 +642,8 @@ export class FirewallsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -639,10 +675,12 @@ export class FirewallsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -712,6 +750,8 @@ export class FirewallsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -720,6 +760,8 @@ export class FirewallsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -750,9 +792,11 @@ export class FirewallsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -813,12 +857,16 @@ export class FirewallsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -850,10 +898,12 @@ export class FirewallsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -918,6 +968,8 @@ export class FirewallsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -926,6 +978,8 @@ export class FirewallsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:
@@ -956,10 +1010,12 @@ export class FirewallsClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
      * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
      * @throws {@link Ibee.ServiceUnavailableError}
      * @throws {@link Ibee.GatewayTimeoutError}
      *
@@ -1019,6 +1075,8 @@ export class FirewallsClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 423:
@@ -1027,6 +1085,8 @@ export class FirewallsClient {
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
                     throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 503:
                     throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 504:

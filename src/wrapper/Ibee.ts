@@ -116,6 +116,8 @@ function resolveBaseUrl(value: string | undefined): string {
 const KEYED_ROUTE = /(^|\/)compute\/(cloud-vms|gpu-vms)(\/[^/]+(\/actions\/[^/]+)?)?\/?$/;
 // Container Registry plan upgrade declares Idempotency-Key (not X-Idempotency-Key).
 const UPGRADE_ROUTE = /(^|\/)container-registry\/registries\/[^/]+\/upgrade\/?$/;
+// The wallet top-up declares Idempotency-Key too: a retried call returns the same payment link.
+const TOPUP_ROUTE = /(^|\/)billing\/topups\/?$/;
 // VM create is never retried.
 const CREATE_ROUTE = /(^|\/)compute\/(cloud-vms|gpu-vms)\/?$/;
 // Each GET of an identity's access mints a new secret ID, so it is not idempotent.
@@ -126,7 +128,7 @@ const MAX_RETRY_DELAY_MS = 30_000;
 
 /**
  * Wraps the generated fetcher: fills the default workspace_id and a missing
- * X-Idempotency-Key (Idempotency-Key on Container Registry plan upgrade), and
+ * X-Idempotency-Key (Idempotency-Key on Container Registry plan upgrade and wallet top-up), and
  * retries idempotent requests (GET/HEAD, or a write that carries an idempotency
  * key; never VM create) on 429, 502, 503 and 504.
  */
@@ -140,7 +142,7 @@ function ibeeFetcher(workspaceId: string | undefined): core.FetchFunction {
         if (method !== "GET" && KEYED_ROUTE.test(path) && headers["x-idempotency-key"] == null) {
             headers["x-idempotency-key"] = newIdempotencyKey();
         }
-        if (method === "POST" && UPGRADE_ROUTE.test(path) && headers["idempotency-key"] == null) {
+        if (method === "POST" && (UPGRADE_ROUTE.test(path) || TOPUP_ROUTE.test(path)) && headers["idempotency-key"] == null) {
             headers["idempotency-key"] = newIdempotencyKey();
         }
         const keyed =

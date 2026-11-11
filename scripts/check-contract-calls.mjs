@@ -190,6 +190,7 @@ function checkRoutes() {
     const rules = {
         KEYED_ROUTE: [(op) => op.method !== "GET", (op) => op.params.has("IdempotencyKey")],
         UPGRADE_ROUTE: [(op) => op.method === "POST", (op) => op.params.has("ContainerRegistryIdempotencyKey")],
+        TOPUP_ROUTE: [(op) => op.method === "POST", (op) => op.params.has("BillingTopupIdempotencyKey")],
         CREATE_ROUTE: [(op) => op.method === "POST", (op) => ["createCloudVm", "createGpuVm"].includes(op.id)],
         NEVER_RETRY_ROUTE: [(op) => op.method === "GET", (op) => op.id === "getSecretIdentityAccess"],
     };
