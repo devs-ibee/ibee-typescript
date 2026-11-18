@@ -11,7 +11,7 @@ import { GpuVmsClient } from "./api/resources/gpuVms/client/Client.js";
 import { LoadBalancersClient } from "./api/resources/loadBalancers/client/Client.js";
 import { ObjectStorageClient } from "./api/resources/objectStorage/client/Client.js";
 import { ReservedIpsClient } from "./api/resources/reservedIps/client/Client.js";
-import { SecretStoreClient } from "./api/resources/secretStore/client/Client.js";
+import { SecretManagerClient } from "./api/resources/secretManager/client/Client.js";
 import { VpcsClient } from "./api/resources/vpcs/client/Client.js";
 import type { BaseClientOptions, BaseRequestOptions } from "./BaseClient.js";
 import { type NormalizedClientOptionsWithAuth, normalizeClientOptionsWithAuth } from "./BaseClient.js";
@@ -25,7 +25,7 @@ export declare namespace IbeeClient {
 
 export class IbeeClient {
     protected readonly _options: NormalizedClientOptionsWithAuth<IbeeClient.Options>;
-    protected _secretStore: SecretStoreClient | undefined;
+    protected _secretManager: SecretManagerClient | undefined;
     protected _objectStorage: ObjectStorageClient | undefined;
     protected _vpcs: VpcsClient | undefined;
     protected _reservedIps: ReservedIpsClient | undefined;
@@ -43,8 +43,8 @@ export class IbeeClient {
         this._options = normalizeClientOptionsWithAuth(options);
     }
 
-    public get secretStore(): SecretStoreClient {
-        return (this._secretStore ??= new SecretStoreClient(this._options));
+    public get secretManager(): SecretManagerClient {
+        return (this._secretManager ??= new SecretManagerClient(this._options));
     }
 
     public get objectStorage(): ObjectStorageClient {

@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.9.0
+
+- Update to public API contract 0.13.0: 219 operations, none paused.
+- **Breaking:** Secret Store (`client.secretStore`) is removed; the API replaced it with
+  Secret Manager in contract 0.11.0. `client.secretManager` enables Secret Manager for a
+  workspace, lists and searches secret names, reads and writes secret metadata and
+  version history, deletes, undeletes or destroys versions, and manages app credentials
+  (create, list, read, issue a secret ID, revoke). No method reads or writes a secret
+  value: use the Vault API at the workspace endpoint.
+- **Breaking:** load balancers follow the regional load balancer service:
+  `createLoadBalancer` and `updateLoadBalancer` take one full specification (update with
+  the current `version`), each change answers with an operation
+  (`getLoadBalancerOperation`), and `listLoadBalancerRegions`, `getLoadBalancerMetrics`
+  and `getLoadBalancerMetricsHistory` are new. The L4/L7 create and update methods and
+  `getLoadBalancerStatus` are removed.
+- Object Storage and Container Registry management are no longer paused. Files and images
+  stay on S3 and the registry; `downloadContainerRegistrySbom` is removed (listing and
+  reading SBOMs stay). No method empties a whole bucket or registry.
+- The SDK sends a random `Idempotency-Key` on Secret Manager's enable and app-credential
+  create and on load balancer create, update and delete when none is given (optional in
+  the request types), and reuses it on retries.
+- Issuing a Secret Manager secret ID is never retried; the Secret Store retry exception is
+  gone with Secret Store.
+
 ## 0.8.0
 
 - Update to public API contract 0.10.0: 231 client operations (229 plus two), retaining

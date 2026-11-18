@@ -2,52 +2,26 @@
 
 import type * as Ibee from "../index.js";
 
-/**
- * A load balancer.
- */
 export interface LoadBalancer {
-    /** Unique ID of the load balancer. */
-    lb_id: string;
-    /** ID of the owning organization. */
-    organization_id: string;
-    /** ID of the owning workspace. */
-    workspace_id: string;
-    /** Display name of the workspace. */
-    workspace_name?: string | undefined;
-    /** Display name of the load balancer. */
+    id: string;
     name: string;
-    /**
-     * - `l4`: TCP or TLS pass-through.
-     * - `l7`: HTTP or HTTPS.
-     */
-    layer: LoadBalancer.Layer;
-    protocol: Ibee.LoadBalancerProtocol;
-    status: Ibee.LoadBalancerStatus;
-    endpoint: Ibee.LoadBalancerEndpoint;
-    /** Public hostname of the load balancer. */
-    url: string;
-    /** URL with scheme and, for L4, port: for example `https://host` or `tcp://host:443`. */
-    endpoint_url: string;
-    /** Kubernetes namespace the load balancer runs in. */
-    namespace?: string | undefined;
-    /** Backends the load balancer sends traffic to. */
-    backends: Ibee.LoadBalancerBackend[];
-    /** L7 routing rules; null for L4 load balancers. */
-    rules?: (Ibee.LoadBalancerRule[] | null) | undefined;
-    /** When the resource was created (ISO 8601). */
+    region_id: string;
+    vpc_id: string | null;
+    scope: string;
+    traffic_type: string;
+    capacity_mode: string;
+    visibility: string;
+    node_count: number;
+    /** `ccm` when a Kubernetes cluster made it: such load balancers are read-only here. */
+    managed_by: string;
+    spec: Ibee.LoadBalancerSpec;
+    desired_state: string;
+    observed_state: string;
+    conditions: Record<string, unknown>;
+    generation: number;
+    observed_generation: number;
+    version: number;
     created_at: string;
-    /** When the resource was last changed (ISO 8601). */
     updated_at: string;
-}
-
-export namespace LoadBalancer {
-    /**
-     * - `l4`: TCP or TLS pass-through.
-     * - `l7`: HTTP or HTTPS.
-     */
-    export const Layer = {
-        L4: "l4",
-        L7: "l7",
-    } as const;
-    export type Layer = (typeof Layer)[keyof typeof Layer];
+    deleted_at?: (string | null) | undefined;
 }

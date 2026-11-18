@@ -4,7 +4,6 @@ export type { CreateContainerRegistryRequest } from "./CreateContainerRegistryRe
 export type { DeleteContainerRegistryArtifactRequest } from "./DeleteContainerRegistryArtifactRequest.js";
 export type { DeleteContainerRegistryRepositoryRequest } from "./DeleteContainerRegistryRepositoryRequest.js";
 export type { DeleteContainerRegistryRequest } from "./DeleteContainerRegistryRequest.js";
-export type { DownloadContainerRegistrySbomRequest } from "./DownloadContainerRegistrySbomRequest.js";
 export type { GetContainerRegistryMetricsRequest } from "./GetContainerRegistryMetricsRequest.js";
 export type { GetContainerRegistryPackageRequest } from "./GetContainerRegistryPackageRequest.js";
 export type { GetContainerRegistryRequest } from "./GetContainerRegistryRequest.js";

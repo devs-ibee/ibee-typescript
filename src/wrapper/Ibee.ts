@@ -118,17 +118,20 @@ const KEYED_ROUTE = /(^|\/)compute\/(cloud-vms|gpu-vms)(\/[^/]+(\/actions\/[^/]+
 const UPGRADE_ROUTE = /(^|\/)container-registry\/registries\/[^/]+\/upgrade\/?$/;
 // The wallet top-up declares Idempotency-Key too: a retried call returns the same payment link.
 const TOPUP_ROUTE = /(^|\/)billing\/topups\/?$/;
+// Secret Manager's enable and app-credential create (POST) declare Idempotency-Key.
+const SECRET_MANAGER_KEY_ROUTE = /(^|\/)secret-manager\/(workspace\/enable|app-credentials)\/?$/;
+// Load balancer create (POST), update (PUT) and delete (DELETE) declare Idempotency-Key.
+const LOAD_BALANCER_KEY_ROUTE = /(^|\/)networking\/load-balancers(\/(?!regions\/?$|operations\/)[^/]+)?\/?$/;
 // VM create is never retried.
 const CREATE_ROUTE = /(^|\/)compute\/(cloud-vms|gpu-vms)\/?$/;
-// Each GET of an identity's access mints a new secret ID, so it is not idempotent.
-const NEVER_RETRY_ROUTE = /(^|\/)secret-store\/identities\/[^/]+\/access\/?$/;
 // scripts/check-contract-calls.mjs checks these routes against contract/ibee-cloud.yaml.
 const RETRY_STATUSES = new Set([429, 502, 503, 504]);
 const MAX_RETRY_DELAY_MS = 30_000;
 
 /**
  * Wraps the generated fetcher: fills the default workspace_id and a missing
- * X-Idempotency-Key (Idempotency-Key on Container Registry plan upgrade and wallet top-up), and
+ * X-Idempotency-Key (Idempotency-Key on Container Registry plan upgrade, wallet top-up,
+ * Secret Manager enable and app-credential create, and load balancer writes), and
  * retries idempotent requests (GET/HEAD, or a write that carries an idempotency
  * key; never VM create) on 429, 502, 503 and 504.
  */
@@ -142,7 +145,10 @@ function ibeeFetcher(workspaceId: string | undefined): core.FetchFunction {
         if (method !== "GET" && KEYED_ROUTE.test(path) && headers["x-idempotency-key"] == null) {
             headers["x-idempotency-key"] = newIdempotencyKey();
         }
-        if (method === "POST" && (UPGRADE_ROUTE.test(path) || TOPUP_ROUTE.test(path)) && headers["idempotency-key"] == null) {
+        const keyedByIdempotencyKey =
+            (method === "POST" && (UPGRADE_ROUTE.test(path) || TOPUP_ROUTE.test(path) || SECRET_MANAGER_KEY_ROUTE.test(path))) ||
+            (method !== "GET" && method !== "HEAD" && LOAD_BALANCER_KEY_ROUTE.test(path));
+        if (keyedByIdempotencyKey && headers["idempotency-key"] == null) {
             headers["idempotency-key"] = newIdempotencyKey();
         }
         const keyed =
@@ -151,9 +157,7 @@ function ibeeFetcher(workspaceId: string | undefined): core.FetchFunction {
             nonEmpty((args.body as Record<string, unknown> | undefined)?.idempotency_key) ||
             nonEmpty(queryParameters.idempotency_key);
         const retrySafe =
-            method === "GET" || method === "HEAD"
-                ? !NEVER_RETRY_ROUTE.test(path)
-                : keyed && !(method === "POST" && CREATE_ROUTE.test(path));
+            method === "GET" || method === "HEAD" || (keyed && !(method === "POST" && CREATE_ROUTE.test(path)));
         const maxRetries = args.maxRetries ?? 2;
         for (let attempt = 0; ; attempt += 1) {
             const response = await core.fetcher<R>({ ...args, headers, queryParameters, maxRetries: 0 });

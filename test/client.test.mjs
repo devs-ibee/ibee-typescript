@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { Ibee, IbeeEnvironment, IbeeError, VERSION } from "../dist/index.js";
 import { stubClient } from "./helpers.mjs";
@@ -26,8 +27,9 @@ function recordingFetch(calls) {
     };
 }
 
-test("version is 0.8.0", () => {
-    assert.equal(VERSION, "0.8.0");
+test("VERSION is the package version", () => {
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    assert.equal(VERSION, pkg.version);
 });
 
 test("reads token, workspace and environment from the environment", async () => {

@@ -1,8 +1,9 @@
-export { CreateL4LoadBalancerRequest } from "./CreateL4LoadBalancerRequest.js";
-export { CreateL7LoadBalancerRequest } from "./CreateL7LoadBalancerRequest.js";
+export type { CreateLoadBalancerRequest } from "./CreateLoadBalancerRequest.js";
 export type { DeleteLoadBalancerRequest } from "./DeleteLoadBalancerRequest.js";
+export type { GetLoadBalancerMetricsHistoryRequest } from "./GetLoadBalancerMetricsHistoryRequest.js";
+export type { GetLoadBalancerMetricsRequest } from "./GetLoadBalancerMetricsRequest.js";
+export type { GetLoadBalancerOperationRequest } from "./GetLoadBalancerOperationRequest.js";
 export type { GetLoadBalancerRequest } from "./GetLoadBalancerRequest.js";
-export type { GetLoadBalancerStatusRequest } from "./GetLoadBalancerStatusRequest.js";
+export type { ListLoadBalancerRegionsRequest } from "./ListLoadBalancerRegionsRequest.js";
 export type { ListLoadBalancersRequest } from "./ListLoadBalancersRequest.js";
-export type { UpdateL4LoadBalancerRequest } from "./UpdateL4LoadBalancerRequest.js";
-export type { UpdateL7LoadBalancerRequest } from "./UpdateL7LoadBalancerRequest.js";
+export type { LoadBalancerUpdateRequest } from "./LoadBalancerUpdateRequest.js";
