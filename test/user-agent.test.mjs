@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { test } from "node:test";
 import { Ibee, VERSION } from "../dist/index.js";
@@ -11,7 +12,9 @@ test("every request sends User-Agent ibee-sdk/<version> and keeps the X-Fern hea
     const { client, calls } = stubClient(() => ({ json: [] }));
     await client.cloudVms.listCloudVms({ limit: 1 });
     await client.fetch("/compute/sites");
-    assert.equal(USER_AGENT, "ibee-sdk/0.8.0");
+    // The version sent is the published package version, so a release bump cannot miss it.
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    assert.equal(USER_AGENT, `ibee-sdk/${pkg.version}`);
     for (const call of calls) {
         assert.equal(call.headers.get("user-agent"), USER_AGENT);
         assert.equal(call.headers.get("x-fern-language"), "JavaScript");
