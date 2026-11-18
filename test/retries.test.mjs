@@ -61,10 +61,32 @@ test("keyed writes are retried; unkeyed writes and VM create are not", async () 
     assert.equal(s.calls.length, 1);
 });
 
-test("the credential-minting identity access read is never retried", async () => {
+test("issuing a Secret Manager secret ID is an unkeyed write and is never retried", async () => {
+    // Each call replaces the previous secret ID; the contract gives it no idempotency header.
     const { client, calls } = stubClient(flaky(1, 503));
-    await assert.rejects(client.secretStore.getSecretIdentityAccess({ identity_id: "id1" }));
+    await assert.rejects(client.secretManager.issueSecretManagerAppCredentialSecretId({ credential_id: "c1" }));
     assert.equal(calls.length, 1);
+    assert.equal(calls[0].headers.get("idempotency-key"), null);
+    assert.equal(calls[0].headers.get("x-idempotency-key"), null);
+});
+
+test("Secret Manager and load balancer writes get a random Idempotency-Key, reused on retry", async () => {
+    const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    for (const call of [
+        (c) => c.secretManager.createSecretManagerAppCredential({ name: "app", access: "read", folder: "apps" }),
+        (c) => c.secretManager.enableSecretManagerWorkspace({ namespace: "team-a" }),
+        (c) => c.loadBalancers.deleteLoadBalancer({ load_balancer_id: "lb1" }),
+    ]) {
+        const { client, calls } = stubClient(flaky(1, 503));
+        await call(client).catch(() => {});
+        assert.equal(calls.length, 2);
+        assert.match(calls[0].headers.get("idempotency-key"), UUID);
+        assert.equal(calls[0].headers.get("idempotency-key"), calls[1].headers.get("idempotency-key"));
+        assert.equal(calls[0].headers.get("x-idempotency-key"), null);
+    }
+    const { client, calls } = stubClient(flaky(1, 503));
+    await client.loadBalancers.listLoadBalancerRegions().catch(() => {});
+    assert.equal(calls[0].headers.get("idempotency-key"), null, "reads get no key");
 });
 
 test("maxRetries limits attempts (client and per request)", async () => {

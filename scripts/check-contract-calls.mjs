@@ -10,8 +10,9 @@
 //   as `compute/`) and matches no contract path;
 // - a route pattern in src/wrapper/Ibee.ts that drifted from the contract: KEYED_ROUTE
 //   (writes) must match exactly the operations that declare X-Idempotency-Key,
-//   UPGRADE_ROUTE (POST) exactly those that declare Idempotency-Key, CREATE_ROUTE (POST)
-//   exactly VM create, NEVER_RETRY_ROUTE (GET) exactly getSecretIdentityAccess.
+//   UPGRADE_ROUTE, TOPUP_ROUTE and SECRET_MANAGER_KEY_ROUTE (POST) and LOAD_BALANCER_KEY_ROUTE
+//   (writes) exactly the operations that declare their Idempotency-Key, CREATE_ROUTE (POST)
+//   exactly VM create.
 //
 // Needs only the `typescript` dev dependency: node scripts/check-contract-calls.mjs
 import fs from "node:fs";
@@ -191,8 +192,9 @@ function checkRoutes() {
         KEYED_ROUTE: [(op) => op.method !== "GET", (op) => op.params.has("IdempotencyKey")],
         UPGRADE_ROUTE: [(op) => op.method === "POST", (op) => op.params.has("ContainerRegistryIdempotencyKey")],
         TOPUP_ROUTE: [(op) => op.method === "POST", (op) => op.params.has("BillingTopupIdempotencyKey")],
+        SECRET_MANAGER_KEY_ROUTE: [(op) => op.method === "POST", (op) => op.params.has("SecretManagerIdempotencyKey")],
+        LOAD_BALANCER_KEY_ROUTE: [(op) => op.method !== "GET", (op) => op.params.has("LoadBalancerIdempotencyKey")],
         CREATE_ROUTE: [(op) => op.method === "POST", (op) => ["createCloudVm", "createGpuVm"].includes(op.id)],
-        NEVER_RETRY_ROUTE: [(op) => op.method === "GET", (op) => op.id === "getSecretIdentityAccess"],
     };
     const patterns = routePatterns(file, Object.keys(rules));
     const problems = [];
