@@ -17,7 +17,7 @@ export interface LoadBalancer {
     spec: Ibee.LoadBalancerSpec;
     desired_state: string;
     observed_state: string;
-    conditions: Record<string, unknown>;
+    conditions: Ibee.LoadBalancerConditions;
     generation: number;
     observed_generation: number;
     version: number;

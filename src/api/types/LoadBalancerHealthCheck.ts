@@ -5,8 +5,13 @@ export interface LoadBalancerHealthCheck {
     path?: string | undefined;
     interval_seconds?: number | undefined;
     timeout_seconds?: number | undefined;
+    /** Failed checks before a target is taken out of service. Left out, it is 1 for an `HTTP` health check (the only value the current gateway supports for HTTP) and 3 for `TCP`. */
     unhealthy_threshold?: number | undefined;
     healthy_threshold?: number | undefined;
+    /** HTTP checks only. The Host header the check sends, for example `app.example.com`. */
+    hostname?: (string | null) | undefined;
+    /** HTTP checks only. Response codes that count as healthy, each listed once. */
+    expected_statuses?: number[] | undefined;
 }
 
 export namespace LoadBalancerHealthCheck {

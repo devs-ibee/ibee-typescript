@@ -14,6 +14,10 @@ export interface Error_ {
     required_scope?: (string | null) | undefined;
     /** Billing's reason with `billing_denied`, passed through unchanged: for example `insufficient_balance`, `credit_limit_exceeded`, `initial_topup_required`, `resource_limit_reached` or `resource_usage_unavailable`. */
     billing_reason?: (string | null) | undefined;
+    /** With `billing_reason` `initial_topup_required`: Billing's first top-up minimum in minor units of `billing_currency` (50000 is ₹500). Absent when Billing did not send one. */
+    required_topup_minor?: (number | null) | undefined;
+    /** The wallet currency `required_topup_minor` is in. */
+    billing_currency?: (string | null) | undefined;
     /** The SKU the billing admission checked, when there was one. */
     billing_sku_code?: (string | null) | undefined;
     /** When Billing made the decision, as Billing returned it. */

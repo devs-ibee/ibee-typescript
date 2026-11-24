@@ -13,4 +13,6 @@ export interface ListLoadBalancersRequest {
     cursor?: string;
     /** Page size (1-100). Default 50. */
     limit?: number;
+    /** Also list deleted load balancers (`observed_state` `deleted`). Left out or false, the list has only load balancers that still exist. */
+    include_deleted?: boolean;
 }

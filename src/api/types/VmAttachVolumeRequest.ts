@@ -10,9 +10,17 @@ export interface VmAttachVolumeRequest {
     volume_id: string;
     /**
      * - `single-writer`: only this VM may write to the volume (default).
-     * - `multi-writer`: the volume may be attached to several VMs.
+     * - `multi-writer`: shared raw block access from several VMs (up to 16, on at most two
+     *   compute hosts), in the same organization, workspace and site. Data volumes only, with
+     *   `delete_on_termination` off. Needs `shared_access_confirmed: true`. It is not a shared
+     *   file system: use cluster-aware software with its own locking and fencing, because
+     *   ordinary ext4, XFS or NTFS mounted on several VMs at once corrupts data.
+     *
+     * Switching modes needs every VM detached first. Otherwise the operation fails.
      */
     mode?: VmAttachVolumeRequest.Mode | undefined;
+    /** Required as `true` with `mode: multi-writer`. Confirms the guests run cluster-aware software with locking and fencing. Without it the attach operation fails. */
+    shared_access_confirmed?: boolean | undefined;
     /** Required. The Block Storage SKU from the Billing catalog that the VM engine records for this attachment. Copy it from the volume's `metadata.billing_catalog` (`GET /block-storage/volumes/{volume_id}`). */
     billing_catalog: Ibee.BillingCatalogSelection;
 }
@@ -20,7 +28,13 @@ export interface VmAttachVolumeRequest {
 export namespace VmAttachVolumeRequest {
     /**
      * - `single-writer`: only this VM may write to the volume (default).
-     * - `multi-writer`: the volume may be attached to several VMs.
+     * - `multi-writer`: shared raw block access from several VMs (up to 16, on at most two
+     *   compute hosts), in the same organization, workspace and site. Data volumes only, with
+     *   `delete_on_termination` off. Needs `shared_access_confirmed: true`. It is not a shared
+     *   file system: use cluster-aware software with its own locking and fencing, because
+     *   ordinary ext4, XFS or NTFS mounted on several VMs at once corrupts data.
+     *
+     * Switching modes needs every VM detached first. Otherwise the operation fails.
      */
     export const Mode = {
         SingleWriter: "single-writer",

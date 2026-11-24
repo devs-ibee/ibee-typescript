@@ -2,4 +2,5 @@
 index.ts
 version.ts
 wrapper/Ibee.ts
+wrapper/uploadFile.ts
 errors/IbeeError.ts
