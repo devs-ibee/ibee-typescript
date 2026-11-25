@@ -1738,7 +1738,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Returns the bucket's custom domains with their status and the CNAME target to point them at, as the portal's Settings › Custom domains tab shows. Answers 404 when the bucket has no custom domain. Requires scope: object-storage.read.
+     * Returns the bucket's custom domains with their status and the CNAME target to point them at, as the portal's Settings › Custom domains tab shows. Read `cname_target` here before adding the first domain: `custom_domains` is empty until then. Requires scope: object-storage.read.
      *
      * @param {Ibee.GetBucketCustomDomainsRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1841,7 +1841,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Adds a custom hostname that serves the bucket. Create the CNAME record shown in `cname_target`, then check `status` on the list. Requires scope: object-storage.write.
+     * Adds a custom hostname that serves the bucket. Do it in this order: read `cname_target` from the list, create a CNAME record from your hostname to it at your DNS provider, then add the domain. The add is refused with 400 (`CNAME verification failed: …`, naming the target) until the record resolves, and the bucket must be public. Then check `status` on the list. Requires scope: object-storage.write.
      *
      * @param {Ibee.AddBucketCustomDomainRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2167,6 +2167,338 @@ export class ObjectStorageClient {
             _response.rawResponse,
             "GET",
             "/object-storage/buckets/{bucket_name}/metrics",
+        );
+    }
+
+    /**
+     * Returns a temporary link that uploads exactly one file to this key through the S3 gateway: the file whose size and SHA-256 you send. Send the file with a single HTTP `PUT` to `url`, with exactly the `headers` in the answer; the file never passes through this API. The link carries at most 80,000,000 bytes (larger files: an S3 tool, which uploads in parts) and replaces an object with the same key. It works for `expires_in` seconds (60 to 1,800; 900 when not given), and anyone holding it can use it until then, so treat it like a password. When the file arrives, an organization verified only by the Rs 1 payment that has used its free storage is refused with 403 `free_storage_limit_reached`, and 503 with `Retry-After` means the storage allowance could not be checked: retry later. Check the result with Get object metadata. Requires scope: object-storage.write.
+     *
+     * @param {Ibee.ObjectUploadLinkRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.BadRequestError}
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
+     *
+     * @example
+     *     await client.objectStorage.createObjectUploadLink({
+     *         bucket_name: "bucket_name",
+     *         object_path: "object_path",
+     *         workspace_id: "710995",
+     *         size_bytes: 1048576,
+     *         checksum_sha256: "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=",
+     *         content_type: "application/pdf"
+     *     })
+     */
+    public createObjectUploadLink(
+        request: Ibee.ObjectUploadLinkRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.ObjectUploadLink> {
+        return core.HttpResponsePromise.fromPromise(this.__createObjectUploadLink(request, requestOptions));
+    }
+
+    private async __createObjectUploadLink(
+        request: Ibee.ObjectUploadLinkRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.ObjectUploadLink>> {
+        const { bucket_name: bucketName, object_path: objectPath, workspace_id: workspaceId, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/objects/${core.url.encodePathParam(objectPath)}/upload-link`,
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.ObjectUploadLink, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 400:
+                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/object-storage/buckets/{bucket_name}/objects/{object_path}/upload-link",
+        );
+    }
+
+    /**
+     * Returns a temporary link that downloads one object through the S3 gateway with an HTTP `GET`. Anyone holding the link can download the object until it expires, so share it only with whom it is meant for. It works for `expires_in` seconds (60 to 1,800; 900 when not given). `disposition: attachment` makes a browser save the file instead of showing it. The link is made even when no object has this key; the download then answers 404. Requires scope: object-storage.read.
+     *
+     * @param {Ibee.ObjectDownloadLinkRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.BadRequestError}
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
+     *
+     * @example
+     *     await client.objectStorage.createObjectDownloadLink({
+     *         bucket_name: "bucket_name",
+     *         object_path: "object_path",
+     *         workspace_id: "710995",
+     *         expires: 600,
+     *         disposition: "attachment"
+     *     })
+     */
+    public createObjectDownloadLink(
+        request: Ibee.ObjectDownloadLinkRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.ObjectDownloadLink> {
+        return core.HttpResponsePromise.fromPromise(this.__createObjectDownloadLink(request, requestOptions));
+    }
+
+    private async __createObjectDownloadLink(
+        request: Ibee.ObjectDownloadLinkRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.ObjectDownloadLink>> {
+        const { bucket_name: bucketName, object_path: objectPath, workspace_id: workspaceId, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/objects/${core.url.encodePathParam(objectPath)}/download-link`,
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.ObjectDownloadLink, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 400:
+                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/object-storage/buckets/{bucket_name}/objects/{object_path}/download-link",
+        );
+    }
+
+    /**
+     * Returns one object's size, SHA-256 (for a file uploaded whole with a checksum, as upload links always do), ETag, content type, last change and custom metadata without downloading it. Use it to confirm an upload made with a link: compare `size_bytes` and `checksum_sha256` with the file you sent. 404 when no object has this key. Requires scope: object-storage.read.
+     *
+     * @param {Ibee.GetObjectMetadataRequest} request
+     * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.BadRequestError}
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
+     *
+     * @example
+     *     await client.objectStorage.getObjectMetadata({
+     *         bucket_name: "bucket_name",
+     *         object_path: "object_path",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public getObjectMetadata(
+        request: Ibee.GetObjectMetadataRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.ObjectMetadata> {
+        return core.HttpResponsePromise.fromPromise(this.__getObjectMetadata(request, requestOptions));
+    }
+
+    private async __getObjectMetadata(
+        request: Ibee.GetObjectMetadataRequest,
+        requestOptions?: ObjectStorageClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.ObjectMetadata>> {
+        const { bucket_name: bucketName, object_path: objectPath, workspace_id: workspaceId } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `object-storage/buckets/${core.url.encodePathParam(bucketName)}/objects/${core.url.encodePathParam(objectPath)}/metadata`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.ObjectMetadata, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 400:
+                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/object-storage/buckets/{bucket_name}/objects/{object_path}/metadata",
         );
     }
 

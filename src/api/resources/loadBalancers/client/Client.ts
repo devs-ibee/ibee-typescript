@@ -16,7 +16,7 @@ export declare namespace LoadBalancersClient {
 }
 
 /**
- * Create and manage regional load balancers in front of private VPC targets.
+ * Create and manage regional load balancers in front of your VMs.
  */
 export class LoadBalancersClient {
     protected readonly _options: NormalizedClientOptionsWithAuth<LoadBalancersClient.Options>;
@@ -26,7 +26,7 @@ export class LoadBalancersClient {
     }
 
     /**
-     * Lists the regions where you can create a load balancer. Requires scope: load-balancer.read.
+     * Lists the regions where you can create a load balancer, with what each one supports (`capabilities`). Requires scope: load-balancer.read.
      *
      * @param {Ibee.ListLoadBalancerRegionsRequest} request
      * @param {LoadBalancersClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -49,14 +49,14 @@ export class LoadBalancersClient {
     public listLoadBalancerRegions(
         request: Ibee.ListLoadBalancerRegionsRequest = {},
         requestOptions?: LoadBalancersClient.RequestOptions,
-    ): core.HttpResponsePromise<Record<string, unknown>[]> {
+    ): core.HttpResponsePromise<Ibee.LoadBalancerRegion[]> {
         return core.HttpResponsePromise.fromPromise(this.__listLoadBalancerRegions(request, requestOptions));
     }
 
     private async __listLoadBalancerRegions(
         request: Ibee.ListLoadBalancerRegionsRequest = {},
         requestOptions?: LoadBalancersClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Record<string, unknown>[]>> {
+    ): Promise<core.WithRawResponse<Ibee.LoadBalancerRegion[]>> {
         const { workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -84,7 +84,7 @@ export class LoadBalancersClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Record<string, unknown>[], rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.LoadBalancerRegion[], rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -156,11 +156,12 @@ export class LoadBalancersClient {
         request: Ibee.ListLoadBalancersRequest = {},
         requestOptions?: LoadBalancersClient.RequestOptions,
     ): Promise<core.WithRawResponse<Ibee.LoadBalancerPage>> {
-        const { workspace_id: workspaceId, cursor, limit } = request;
+        const { workspace_id: workspaceId, cursor, limit, include_deleted: includeDeleted } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
             cursor,
             limit,
+            include_deleted: includeDeleted,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -221,7 +222,7 @@ export class LoadBalancersClient {
     }
 
     /**
-     * Creates a load balancer from a full specification. Answers 202 with an operation to read with getLoadBalancerOperation. Targets are private addresses in the VPC. Billed per node-hour. Requires scope: load-balancer.write.
+     * Creates a load balancer from a full specification. Answers 202 with an operation to read with getLoadBalancerOperation. Targets are checked before anything is reserved: a VM the region cannot reach (for example one without a public IP), or a private target in a region whose `capabilities.private_targets` is false (see listLoadBalancerRegions), answers 422 `target_not_usable`. Billed per node-hour; a Billing refusal is 402 `billing_denied` with `billing_reason`. Requires scope: load-balancer.write.
      *
      * @param {Ibee.CreateLoadBalancerRequest} request
      * @param {LoadBalancersClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -233,6 +234,7 @@ export class LoadBalancersClient {
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.BadGatewayError}
@@ -320,6 +322,8 @@ export class LoadBalancersClient {
                     throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
@@ -458,6 +462,7 @@ export class LoadBalancersClient {
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.BadGatewayError}
@@ -552,6 +557,8 @@ export class LoadBalancersClient {
                     throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
@@ -591,6 +598,7 @@ export class LoadBalancersClient {
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.BadGatewayError}
@@ -663,6 +671,8 @@ export class LoadBalancersClient {
                     throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 423:
+                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:

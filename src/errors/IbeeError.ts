@@ -13,6 +13,10 @@ export class IbeeError extends Error {
     public readonly code?: string;
     /** Billing's reason, from `billing_reason`. */
     public readonly billingReason?: string;
+    /** With `billingReason` `initial_topup_required`: Billing's first top-up minimum, in minor units of `billingCurrency` (50000 is Rs 500). */
+    public readonly requiredTopupMinor?: number;
+    /** The wallet currency `requiredTopupMinor` is in, from `billing_currency` (for example `INR`). */
+    public readonly billingCurrency?: string;
     /** From `admission_context_id`. */
     public readonly admissionContextId?: string;
     /** The server's own message (`message` or `detail`), when it sent one. */
@@ -43,6 +47,8 @@ export class IbeeError extends Error {
         this.rawResponse = rawResponse;
         this.code = pick(body, "error", "code");
         this.billingReason = pick(body, "billing_reason");
+        this.requiredTopupMinor = pickNumber(body, "required_topup_minor");
+        this.billingCurrency = pick(body, "billing_currency");
         this.admissionContextId = pick(body, "admission_context_id");
         this.serverMessage = typeof body === "string" && body !== "" ? body : pick(body, "message", "detail");
         this.requestId = rawResponse?.headers?.get?.("x-request-id") ?? undefined;
@@ -60,6 +66,16 @@ function pick(body: unknown, ...keys: string[]): string | undefined {
             const value = source?.[key];
             if (typeof value === "string" && value !== "") return value;
         }
+    }
+    return undefined;
+}
+
+/** First number value of `key` at the top level, then inside `detail`. */
+function pickNumber(body: unknown, key: string): number | undefined {
+    const top = rec(body);
+    for (const source of [top, rec(top?.detail)]) {
+        const value = source?.[key];
+        if (typeof value === "number" && Number.isFinite(value)) return value;
     }
     return undefined;
 }

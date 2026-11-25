@@ -247,6 +247,7 @@ export class ContainerRegistryClient {
      *
      * @throws {@link Ibee.BadRequestError}
      * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.PaymentRequiredError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.ContentTooLargeError}
@@ -321,6 +322,8 @@ export class ContainerRegistryClient {
                     throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 401:
                     throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 402:
+                    throw new Ibee.PaymentRequiredError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 403:
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:

@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.10.0
+
+- Update to public API contract 0.14.3: 222 operations.
+- Object Storage, one file at a time: `createObjectUploadLink` (a presigned `PUT` for
+  one file of a given size and SHA-256, at most 80,000,000 bytes),
+  `createObjectDownloadLink` and `getObjectMetadata`.
+- New `ibee.uploadFile({ bucket_name, object_path, data })`: computes the file's size
+  and SHA-256, gets an upload link and PUTs the file to it. The API token is not sent
+  to the S3 host; a refused upload throws `IbeeError` with the S3 answer.
+- Object keys keep plain `/` between segments in the object link and metadata calls
+  (the generated client encoded the whole key as one segment, `/` as `%2F`).
+- `IbeeError.requiredTopupMinor` and `IbeeError.billingCurrency`: with `billingReason`
+  `initial_topup_required`, Billing's first top-up minimum (50000 is Rs 500) and its
+  currency.
+- Secret Manager enable and registry create declare 402 (`PaymentRequiredError`); load
+  balancer create, update and delete declare 423 (`LockedError`).
+- `listLoadBalancers({ include_deleted: true })` also lists deleted load balancers.
+- Load balancers: `firewall` (`LoadBalancerFirewall`, `LoadBalancerFirewallRule`),
+  `managed_by` and `owner` on the specification, `proxy_protocol` on TCP target groups,
+  health-check `hostname` and `expected_statuses`, `conditions` typed as
+  `LoadBalancerConditions` (`addresses`, `configuration_ready`, `frontend_ready`,
+  `backend_ready`, `reason`), and regions typed as `LoadBalancerRegion` with
+  `capabilities.private_targets`. `unhealthy_threshold` has no default: left out, the
+  server uses 1 for HTTP and 3 for TCP.
+- `attachCloudVmVolume` / `attachGpuVmVolume` take `shared_access_confirmed`, required
+  as `true` with `mode: "multi-writer"`.
+- The User-Agent is `ibee-sdk/0.10.0`.
+
 ## 0.9.0
 
 - Update to public API contract 0.13.0: 219 operations, none paused.

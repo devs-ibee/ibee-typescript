@@ -8,6 +8,8 @@ export interface LoadBalancerTargetGroup {
     algorithm?: LoadBalancerTargetGroup.Algorithm | undefined;
     targets?: Ibee.LoadBalancerTarget[] | undefined;
     health_check?: (Ibee.LoadBalancerHealthCheck | null) | undefined;
+    /** TCP target groups only. Sends the client's address to the targets with PROXY protocol v1 or v2. */
+    proxy_protocol?: LoadBalancerTargetGroup.ProxyProtocol | undefined;
 }
 
 export namespace LoadBalancerTargetGroup {
@@ -22,4 +24,11 @@ export namespace LoadBalancerTargetGroup {
         LeastRequest: "least_request",
     } as const;
     export type Algorithm = (typeof Algorithm)[keyof typeof Algorithm];
+    /** TCP target groups only. Sends the client's address to the targets with PROXY protocol v1 or v2. */
+    export const ProxyProtocol = {
+        Off: "off",
+        V1: "v1",
+        V2: "v2",
+    } as const;
+    export type ProxyProtocol = (typeof ProxyProtocol)[keyof typeof ProxyProtocol];
 }

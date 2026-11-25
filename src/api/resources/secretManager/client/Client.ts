@@ -129,6 +129,7 @@ export class SecretManagerClient {
      * @param {SecretManagerClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.PaymentRequiredError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.ContentTooLargeError}
@@ -194,6 +195,8 @@ export class SecretManagerClient {
             switch (_response.error.statusCode) {
                 case 401:
                     throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 402:
+                    throw new Ibee.PaymentRequiredError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 403:
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 409:

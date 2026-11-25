@@ -3,14 +3,17 @@
 // It adds only configuration (token, workspace, environment / base URL), a
 // User-Agent on server runtimes, an X-Idempotency-Key (Idempotency-Key) on the
 // operations whose contract declares it, and safe retries for idempotent
-// requests. It decides nothing else: the request is sent as given and the
-// server's answer is returned unchanged.
+// requests, keeps plain "/" between the segments of an object key, and
+// `uploadFile` (./uploadFile.ts), which sends one file with an upload link. It
+// decides nothing else: the request is sent as given and the server's answer is
+// returned unchanged.
 
 import { IbeeClient } from "../Client.js";
 import * as core from "../core/index.js";
 import { IbeeEnvironment } from "../environments.js";
 import { IbeeError } from "../errors/index.js";
 import { VERSION } from "../version.js";
+import { type UploadedObject, type UploadFileRequest, uploadFile } from "./uploadFile.js";
 
 export declare namespace Ibee {
     export interface Options extends Omit<IbeeClient.Options, "token" | "environment" | "baseUrl" | "fetcher"> {
@@ -53,6 +56,21 @@ export class Ibee extends IbeeClient {
         const headers = { ...userAgentHeader(core.RUNTIME.type), ...rest.headers };
         // A supplier, so the token is not an enumerable string on the client (JSON.stringify, console.log).
         super({ ...rest, headers, token: () => token, baseUrl, fetcher: ibeeFetcher(workspaceId) });
+    }
+
+    /**
+     * Upload one file with an upload link: computes its size and SHA-256, calls
+     * `objectStorage.createObjectUploadLink` and PUTs the file to the link (the API token
+     * is not sent there). A refused upload throws `IbeeError` with the S3 gateway's
+     * answer. Confirm with `objectStorage.getObjectMetadata`.
+     *
+     * ```ts
+     * await ibee.uploadFile({ bucket_name: "my-bucket", object_path: "docs/a.pdf", data: bytes });
+     * ```
+     */
+    public uploadFile(request: UploadFileRequest): Promise<UploadedObject> {
+        const fetchFn = this._options.fetch ?? globalThis.fetch;
+        return uploadFile((link) => this.objectStorage.createObjectUploadLink(link), fetchFn, request);
     }
 
     /** Any route, with the client's token and base URL. Never retried: the generated passthrough retries every method. */
@@ -124,6 +142,9 @@ const SECRET_MANAGER_KEY_ROUTE = /(^|\/)secret-manager\/(workspace\/enable|app-c
 const LOAD_BALANCER_KEY_ROUTE = /(^|\/)networking\/load-balancers(\/(?!regions\/?$|operations\/)[^/]+)?\/?$/;
 // VM create is never retried.
 const CREATE_ROUTE = /(^|\/)compute\/(cloud-vms|gpu-vms)\/?$/;
+// An object key (the contract's ObjectPath) keeps plain "/" between its segments; the
+// generated client encodes the whole key as one path parameter ("/" as %2F).
+const OBJECT_KEY_ROUTE = /^(.*\/object-storage\/buckets\/[^/]+\/objects\/)(.+)(\/(?:upload-link|download-link|metadata))$/;
 // scripts/check-contract-calls.mjs checks these routes against contract/ibee-cloud.yaml.
 const RETRY_STATUSES = new Set([429, 502, 503, 504]);
 const MAX_RETRY_DELAY_MS = 30_000;
@@ -138,6 +159,7 @@ const MAX_RETRY_DELAY_MS = 30_000;
 function ibeeFetcher(workspaceId: string | undefined): core.FetchFunction {
     return async <R = unknown>(args: core.Fetcher.Args): Promise<core.APIResponse<R, core.Fetcher.Error>> => {
         const method = args.method.toUpperCase();
+        args = { ...args, url: objectKeyUrl(args.url) };
         const path = new URL(args.url).pathname;
         const queryParameters = { ...args.queryParameters };
         if (queryParameters.workspace_id == null && workspaceId) queryParameters.workspace_id = workspaceId;
@@ -175,6 +197,15 @@ function ibeeFetcher(workspaceId: string | undefined): core.FetchFunction {
             await sleep(retryDelayMs(attempt, response.rawResponse.headers), args.abortSignal);
         }
     };
+}
+
+/** The URL with "/" restored between the segments of an object key (other characters stay encoded). */
+function objectKeyUrl(raw: string): string {
+    const url = new URL(raw);
+    const match = OBJECT_KEY_ROUTE.exec(url.pathname);
+    if (!match) return raw;
+    url.pathname = match[1] + match[2].replace(/%2F/gi, "/") + match[3];
+    return url.toString();
 }
 
 function isRetryable(error: core.Fetcher.Error): boolean {

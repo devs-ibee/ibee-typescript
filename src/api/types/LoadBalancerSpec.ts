@@ -14,6 +14,11 @@ export interface LoadBalancerSpec {
     listeners: Ibee.LoadBalancerListener[];
     target_groups: Ibee.LoadBalancerTargetGroup[];
     logging?: Ibee.LoadBalancerLogging | undefined;
+    firewall?: Ibee.LoadBalancerFirewall | undefined;
+    /** Who manages it. Send `portal` (or leave it out). `ccm` load balancers belong to a Kubernetes cluster and are read-only here. */
+    managed_by?: LoadBalancerSpec.ManagedBy | undefined;
+    /** Set only on load balancers a Kubernetes cluster made (`managed_by` `ccm`). Don't send it. */
+    owner?: (Record<string, unknown> | null) | undefined;
 }
 
 export namespace LoadBalancerSpec {
@@ -37,4 +42,10 @@ export namespace LoadBalancerSpec {
         Internal: "internal",
     } as const;
     export type Visibility = (typeof Visibility)[keyof typeof Visibility];
+    /** Who manages it. Send `portal` (or leave it out). `ccm` load balancers belong to a Kubernetes cluster and are read-only here. */
+    export const ManagedBy = {
+        Portal: "portal",
+        Ccm: "ccm",
+    } as const;
+    export type ManagedBy = (typeof ManagedBy)[keyof typeof ManagedBy];
 }
