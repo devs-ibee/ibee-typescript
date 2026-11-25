@@ -2,7 +2,7 @@
 
 import type { BaseClientOptions, BaseRequestOptions } from "../../../../BaseClient.js";
 import { type NormalizedClientOptionsWithAuth, normalizeClientOptionsWithAuth } from "../../../../BaseClient.js";
-import { mergeHeaders } from "../../../../core/headers.js";
+import { mergeHeaders, mergeOnlyDefinedHeaders } from "../../../../core/headers.js";
 import * as core from "../../../../core/index.js";
 import * as environments from "../../../../environments.js";
 import { handleNonStatusCodeError } from "../../../../errors/handleNonStatusCodeError.js";
@@ -16,7 +16,7 @@ export declare namespace LoadBalancersClient {
 }
 
 /**
- * Manage L4 and L7 load balancers.
+ * Create and manage regional load balancers in front of private VPC targets.
  */
 export class LoadBalancersClient {
     protected readonly _options: NormalizedClientOptionsWithAuth<LoadBalancersClient.Options>;
@@ -26,7 +26,106 @@ export class LoadBalancersClient {
     }
 
     /**
-     * Lists the L4 and L7 load balancers in a workspace. Requires scope: load-balancer.read.
+     * Lists the regions where you can create a load balancer. Requires scope: load-balancer.read.
+     *
+     * @param {Ibee.ListLoadBalancerRegionsRequest} request
+     * @param {LoadBalancersClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.ContentTooLargeError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
+     *
+     * @example
+     *     await client.loadBalancers.listLoadBalancerRegions({
+     *         workspace_id: "710995"
+     *     })
+     */
+    public listLoadBalancerRegions(
+        request: Ibee.ListLoadBalancerRegionsRequest = {},
+        requestOptions?: LoadBalancersClient.RequestOptions,
+    ): core.HttpResponsePromise<Record<string, unknown>[]> {
+        return core.HttpResponsePromise.fromPromise(this.__listLoadBalancerRegions(request, requestOptions));
+    }
+
+    private async __listLoadBalancerRegions(
+        request: Ibee.ListLoadBalancerRegionsRequest = {},
+        requestOptions?: LoadBalancersClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Record<string, unknown>[]>> {
+        const { workspace_id: workspaceId } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                "networking/load-balancers/regions",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Record<string, unknown>[], rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/networking/load-balancers/regions",
+        );
+    }
+
+    /**
+     * Lists load balancers in the workspace, newest first. Requires scope: load-balancer.read.
      *
      * @param {Ibee.ListLoadBalancersRequest} request
      * @param {LoadBalancersClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -49,22 +148,19 @@ export class LoadBalancersClient {
     public listLoadBalancers(
         request: Ibee.ListLoadBalancersRequest = {},
         requestOptions?: LoadBalancersClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.LoadBalancer[]> {
+    ): core.HttpResponsePromise<Ibee.LoadBalancerPage> {
         return core.HttpResponsePromise.fromPromise(this.__listLoadBalancers(request, requestOptions));
     }
 
     private async __listLoadBalancers(
         request: Ibee.ListLoadBalancersRequest = {},
         requestOptions?: LoadBalancersClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.LoadBalancer[]>> {
-        const { workspace_id: workspaceId, status, layer, protocol, limit, skip } = request;
+    ): Promise<core.WithRawResponse<Ibee.LoadBalancerPage>> {
+        const { workspace_id: workspaceId, cursor, limit } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
-            status: status != null ? status : undefined,
-            layer: layer != null ? layer : undefined,
-            protocol: protocol != null ? protocol : undefined,
+            cursor,
             limit,
-            skip,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -89,7 +185,7 @@ export class LoadBalancersClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.LoadBalancer[], rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.LoadBalancerPage, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -125,9 +221,9 @@ export class LoadBalancersClient {
     }
 
     /**
-     * Creates a layer 4 (TCP/UDP) load balancer that spreads connections across backend VMs, with optional TLS. Requires scope: load-balancer.write.
+     * Creates a load balancer from a full specification. Answers 202 with an operation to read with getLoadBalancerOperation. Targets are private addresses in the VPC. Billed per node-hour. Requires scope: load-balancer.write.
      *
-     * @param {Ibee.CreateL4LoadBalancerRequest} request
+     * @param {Ibee.CreateLoadBalancerRequest} request
      * @param {LoadBalancersClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link Ibee.BadRequestError}
@@ -137,7 +233,6 @@ export class LoadBalancersClient {
      * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
-     * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.BadGatewayError}
@@ -145,28 +240,37 @@ export class LoadBalancersClient {
      * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
-     *     await client.loadBalancers.createL4LoadBalancer({
+     *     await client.loadBalancers.createLoadBalancer({
      *         workspace_id: "710995",
-     *         name: "name",
-     *         protocol: "tcp",
-     *         backends: [{
-     *                 target: "target",
-     *                 port: 1
-     *             }]
+     *         body: {
+     *             name: "name",
+     *             region_id: "region_id",
+     *             traffic_type: "http",
+     *             listeners: [{
+     *                     name: "name",
+     *                     protocol: "HTTP",
+     *                     port: 1,
+     *                     target_group: "target_group"
+     *                 }],
+     *             target_groups: [{
+     *                     name: "name",
+     *                     protocol: "HTTP"
+     *                 }]
+     *         }
      *     })
      */
-    public createL4LoadBalancer(
-        request: Ibee.CreateL4LoadBalancerRequest,
+    public createLoadBalancer(
+        request: Ibee.CreateLoadBalancerRequest,
         requestOptions?: LoadBalancersClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.LoadBalancer> {
-        return core.HttpResponsePromise.fromPromise(this.__createL4LoadBalancer(request, requestOptions));
+    ): core.HttpResponsePromise<Ibee.LoadBalancerOperation> {
+        return core.HttpResponsePromise.fromPromise(this.__createLoadBalancer(request, requestOptions));
     }
 
-    private async __createL4LoadBalancer(
-        request: Ibee.CreateL4LoadBalancerRequest,
+    private async __createLoadBalancer(
+        request: Ibee.CreateLoadBalancerRequest,
         requestOptions?: LoadBalancersClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.LoadBalancer>> {
-        const { workspace_id: workspaceId, ..._body } = request;
+    ): Promise<core.WithRawResponse<Ibee.LoadBalancerOperation>> {
+        const { workspace_id: workspaceId, "Idempotency-Key": idempotencyKey, body: _body } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
         };
@@ -174,6 +278,7 @@ export class LoadBalancersClient {
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
             this._options?.headers,
+            mergeOnlyDefinedHeaders({ "Idempotency-Key": idempotencyKey }),
             requestOptions?.headers,
         );
         const _response = await (this._options.fetcher ?? core.fetcher)({
@@ -181,7 +286,7 @@ export class LoadBalancersClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.IbeeEnvironment.Production,
-                "networking/load-balancers/l4",
+                "networking/load-balancers",
             ),
             method: "POST",
             headers: _headers,
@@ -196,7 +301,7 @@ export class LoadBalancersClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.LoadBalancer, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.LoadBalancerOperation, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -215,8 +320,6 @@ export class LoadBalancersClient {
                     throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
@@ -236,136 +339,11 @@ export class LoadBalancersClient {
             }
         }
 
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "POST",
-            "/networking/load-balancers/l4",
-        );
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/networking/load-balancers");
     }
 
     /**
-     * Creates a layer 7 (HTTP/HTTPS) load balancer with routing rules, optional TLS, and an optional custom domain. Requires scope: load-balancer.write.
-     *
-     * @param {Ibee.CreateL7LoadBalancerRequest} request
-     * @param {LoadBalancersClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.BadRequestError}
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.PaymentRequiredError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.ConflictError}
-     * @throws {@link Ibee.ContentTooLargeError}
-     * @throws {@link Ibee.UnprocessableEntityError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.TooManyRequestsError}
-     * @throws {@link Ibee.InternalServerError}
-     * @throws {@link Ibee.BadGatewayError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     * @throws {@link Ibee.GatewayTimeoutError}
-     *
-     * @example
-     *     await client.loadBalancers.createL7LoadBalancer({
-     *         workspace_id: "710995",
-     *         name: "name",
-     *         protocol: "http",
-     *         backends: [{
-     *                 target: "target",
-     *                 port: 1
-     *             }]
-     *     })
-     */
-    public createL7LoadBalancer(
-        request: Ibee.CreateL7LoadBalancerRequest,
-        requestOptions?: LoadBalancersClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.LoadBalancer> {
-        return core.HttpResponsePromise.fromPromise(this.__createL7LoadBalancer(request, requestOptions));
-    }
-
-    private async __createL7LoadBalancer(
-        request: Ibee.CreateL7LoadBalancerRequest,
-        requestOptions?: LoadBalancersClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.LoadBalancer>> {
-        const { workspace_id: workspaceId, ..._body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                "networking/load-balancers/l7",
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.LoadBalancer, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 400:
-                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 402:
-                    throw new Ibee.PaymentRequiredError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 409:
-                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 413:
-                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 422:
-                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 429:
-                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 500:
-                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 502:
-                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 504:
-                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "POST",
-            "/networking/load-balancers/l7",
-        );
-    }
-
-    /**
-     * Returns a load balancer's configuration, including its backends, routing, and TLS settings. Requires scope: load-balancer.read.
+     * Returns one load balancer with its specification, `observed_state` and `conditions`. Requires scope: load-balancer.read.
      *
      * @param {Ibee.GetLoadBalancerRequest} request
      * @param {LoadBalancersClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -468,7 +446,141 @@ export class LoadBalancersClient {
     }
 
     /**
-     * Deletes a load balancer. The backend VMs are not deleted. Requires scope: load-balancer.write.
+     * Replaces the whole specification. Send the current `version` from getLoadBalancer; a stale version answers 409. Load balancers made by a Kubernetes cluster can't be changed here. Requires scope: load-balancer.write.
+     *
+     * @param {Ibee.LoadBalancerUpdateRequest} request
+     * @param {LoadBalancersClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.BadRequestError}
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ConflictError}
+     * @throws {@link Ibee.ContentTooLargeError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
+     *
+     * @example
+     *     await client.loadBalancers.updateLoadBalancer({
+     *         load_balancer_id: "load_balancer_id",
+     *         workspace_id: "710995",
+     *         version: 1,
+     *         specification: {
+     *             name: "name",
+     *             region_id: "region_id",
+     *             traffic_type: "http",
+     *             listeners: [{
+     *                     name: "name",
+     *                     protocol: "HTTP",
+     *                     port: 1,
+     *                     target_group: "target_group"
+     *                 }],
+     *             target_groups: [{
+     *                     name: "name",
+     *                     protocol: "HTTP"
+     *                 }]
+     *         }
+     *     })
+     */
+    public updateLoadBalancer(
+        request: Ibee.LoadBalancerUpdateRequest,
+        requestOptions?: LoadBalancersClient.RequestOptions,
+    ): core.HttpResponsePromise<Ibee.LoadBalancerOperation> {
+        return core.HttpResponsePromise.fromPromise(this.__updateLoadBalancer(request, requestOptions));
+    }
+
+    private async __updateLoadBalancer(
+        request: Ibee.LoadBalancerUpdateRequest,
+        requestOptions?: LoadBalancersClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Ibee.LoadBalancerOperation>> {
+        const {
+            load_balancer_id: loadBalancerId,
+            workspace_id: workspaceId,
+            "Idempotency-Key": idempotencyKey,
+            ..._body
+        } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            mergeOnlyDefinedHeaders({ "Idempotency-Key": idempotencyKey }),
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `networking/load-balancers/${core.url.encodePathParam(loadBalancerId)}`,
+            ),
+            method: "PUT",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Ibee.LoadBalancerOperation, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 400:
+                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 409:
+                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "PUT",
+            "/networking/load-balancers/{load_balancer_id}",
+        );
+    }
+
+    /**
+     * Deletes the load balancer. Answers 202 with an operation. Requires scope: load-balancer.write.
      *
      * @param {Ibee.DeleteLoadBalancerRequest} request
      * @param {LoadBalancersClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -476,9 +588,9 @@ export class LoadBalancersClient {
      * @throws {@link Ibee.UnauthorizedError}
      * @throws {@link Ibee.ForbiddenError}
      * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ConflictError}
      * @throws {@link Ibee.ContentTooLargeError}
      * @throws {@link Ibee.UnprocessableEntityError}
-     * @throws {@link Ibee.LockedError}
      * @throws {@link Ibee.TooManyRequestsError}
      * @throws {@link Ibee.InternalServerError}
      * @throws {@link Ibee.BadGatewayError}
@@ -494,15 +606,19 @@ export class LoadBalancersClient {
     public deleteLoadBalancer(
         request: Ibee.DeleteLoadBalancerRequest,
         requestOptions?: LoadBalancersClient.RequestOptions,
-    ): core.HttpResponsePromise<void> {
+    ): core.HttpResponsePromise<Ibee.LoadBalancerOperation> {
         return core.HttpResponsePromise.fromPromise(this.__deleteLoadBalancer(request, requestOptions));
     }
 
     private async __deleteLoadBalancer(
         request: Ibee.DeleteLoadBalancerRequest,
         requestOptions?: LoadBalancersClient.RequestOptions,
-    ): Promise<core.WithRawResponse<void>> {
-        const { load_balancer_id: loadBalancerId, workspace_id: workspaceId } = request;
+    ): Promise<core.WithRawResponse<Ibee.LoadBalancerOperation>> {
+        const {
+            load_balancer_id: loadBalancerId,
+            workspace_id: workspaceId,
+            "Idempotency-Key": idempotencyKey,
+        } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
         };
@@ -510,6 +626,7 @@ export class LoadBalancersClient {
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
             this._options?.headers,
+            mergeOnlyDefinedHeaders({ "Idempotency-Key": idempotencyKey }),
             requestOptions?.headers,
         );
         const _response = await (this._options.fetcher ?? core.fetcher)({
@@ -529,7 +646,7 @@ export class LoadBalancersClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: undefined, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.LoadBalancerOperation, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -540,12 +657,12 @@ export class LoadBalancersClient {
                     throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 404:
                     throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 409:
+                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 413:
                     throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 422:
                     throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 429:
                     throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
                 case 500:
@@ -574,239 +691,9 @@ export class LoadBalancersClient {
     }
 
     /**
-     * Changes an L4 load balancer's backends, routing, or TLS settings. Requires scope: load-balancer.write.
+     * Returns one create, update or delete operation. Requires scope: load-balancer.read.
      *
-     * @param {Ibee.UpdateL4LoadBalancerRequest} request
-     * @param {LoadBalancersClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.BadRequestError}
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.ConflictError}
-     * @throws {@link Ibee.ContentTooLargeError}
-     * @throws {@link Ibee.UnprocessableEntityError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.TooManyRequestsError}
-     * @throws {@link Ibee.InternalServerError}
-     * @throws {@link Ibee.BadGatewayError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     * @throws {@link Ibee.GatewayTimeoutError}
-     *
-     * @example
-     *     await client.loadBalancers.updateL4LoadBalancer({
-     *         load_balancer_id: "load_balancer_id",
-     *         workspace_id: "710995"
-     *     })
-     */
-    public updateL4LoadBalancer(
-        request: Ibee.UpdateL4LoadBalancerRequest,
-        requestOptions?: LoadBalancersClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.LoadBalancer> {
-        return core.HttpResponsePromise.fromPromise(this.__updateL4LoadBalancer(request, requestOptions));
-    }
-
-    private async __updateL4LoadBalancer(
-        request: Ibee.UpdateL4LoadBalancerRequest,
-        requestOptions?: LoadBalancersClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.LoadBalancer>> {
-        const { load_balancer_id: loadBalancerId, workspace_id: workspaceId, ..._body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `networking/load-balancers/l4/${core.url.encodePathParam(loadBalancerId)}`,
-            ),
-            method: "PATCH",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.LoadBalancer, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 400:
-                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 409:
-                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 413:
-                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 422:
-                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 429:
-                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 500:
-                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 502:
-                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 504:
-                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "PATCH",
-            "/networking/load-balancers/l4/{load_balancer_id}",
-        );
-    }
-
-    /**
-     * Changes an L7 load balancer's backends, routing rules, TLS settings, or custom domain. Requires scope: load-balancer.write.
-     *
-     * @param {Ibee.UpdateL7LoadBalancerRequest} request
-     * @param {LoadBalancersClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link Ibee.BadRequestError}
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.ConflictError}
-     * @throws {@link Ibee.ContentTooLargeError}
-     * @throws {@link Ibee.UnprocessableEntityError}
-     * @throws {@link Ibee.LockedError}
-     * @throws {@link Ibee.TooManyRequestsError}
-     * @throws {@link Ibee.InternalServerError}
-     * @throws {@link Ibee.BadGatewayError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     * @throws {@link Ibee.GatewayTimeoutError}
-     *
-     * @example
-     *     await client.loadBalancers.updateL7LoadBalancer({
-     *         load_balancer_id: "load_balancer_id",
-     *         workspace_id: "710995"
-     *     })
-     */
-    public updateL7LoadBalancer(
-        request: Ibee.UpdateL7LoadBalancerRequest,
-        requestOptions?: LoadBalancersClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.LoadBalancer> {
-        return core.HttpResponsePromise.fromPromise(this.__updateL7LoadBalancer(request, requestOptions));
-    }
-
-    private async __updateL7LoadBalancer(
-        request: Ibee.UpdateL7LoadBalancerRequest,
-        requestOptions?: LoadBalancersClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.LoadBalancer>> {
-        const { load_balancer_id: loadBalancerId, workspace_id: workspaceId, ..._body } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `networking/load-balancers/l7/${core.url.encodePathParam(loadBalancerId)}`,
-            ),
-            method: "PATCH",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as Ibee.LoadBalancer, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 400:
-                    throw new Ibee.BadRequestError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 409:
-                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 413:
-                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 422:
-                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 423:
-                    throw new Ibee.LockedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 429:
-                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 500:
-                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 502:
-                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 504:
-                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "PATCH",
-            "/networking/load-balancers/l7/{load_balancer_id}",
-        );
-    }
-
-    /**
-     * Returns a load balancer's provisioning status, endpoint URL, and any error conditions. Requires scope: load-balancer.read.
-     *
-     * @param {Ibee.GetLoadBalancerStatusRequest} request
+     * @param {Ibee.GetLoadBalancerOperationRequest} request
      * @param {LoadBalancersClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link Ibee.UnauthorizedError}
@@ -821,23 +708,23 @@ export class LoadBalancersClient {
      * @throws {@link Ibee.GatewayTimeoutError}
      *
      * @example
-     *     await client.loadBalancers.getLoadBalancerStatus({
-     *         load_balancer_id: "load_balancer_id",
+     *     await client.loadBalancers.getLoadBalancerOperation({
+     *         operation_id: "operation_id",
      *         workspace_id: "710995"
      *     })
      */
-    public getLoadBalancerStatus(
-        request: Ibee.GetLoadBalancerStatusRequest,
+    public getLoadBalancerOperation(
+        request: Ibee.GetLoadBalancerOperationRequest,
         requestOptions?: LoadBalancersClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.LoadBalancerStatusResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__getLoadBalancerStatus(request, requestOptions));
+    ): core.HttpResponsePromise<Ibee.LoadBalancerOperation> {
+        return core.HttpResponsePromise.fromPromise(this.__getLoadBalancerOperation(request, requestOptions));
     }
 
-    private async __getLoadBalancerStatus(
-        request: Ibee.GetLoadBalancerStatusRequest,
+    private async __getLoadBalancerOperation(
+        request: Ibee.GetLoadBalancerOperationRequest,
         requestOptions?: LoadBalancersClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.LoadBalancerStatusResponse>> {
-        const { load_balancer_id: loadBalancerId, workspace_id: workspaceId } = request;
+    ): Promise<core.WithRawResponse<Ibee.LoadBalancerOperation>> {
+        const { operation_id: operationId, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
         };
@@ -852,7 +739,7 @@ export class LoadBalancersClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.IbeeEnvironment.Production,
-                `networking/load-balancers/${core.url.encodePathParam(loadBalancerId)}/status`,
+                `networking/load-balancers/operations/${core.url.encodePathParam(operationId)}`,
             ),
             method: "GET",
             headers: _headers,
@@ -864,7 +751,7 @@ export class LoadBalancersClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.LoadBalancerStatusResponse, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.LoadBalancerOperation, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -902,7 +789,214 @@ export class LoadBalancersClient {
             _response.error,
             _response.rawResponse,
             "GET",
-            "/networking/load-balancers/{load_balancer_id}/status",
+            "/networking/load-balancers/operations/{operation_id}",
+        );
+    }
+
+    /**
+     * Returns current traffic and health metrics. Requires scope: load-balancer.read.
+     *
+     * @param {Ibee.GetLoadBalancerMetricsRequest} request
+     * @param {LoadBalancersClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
+     *
+     * @example
+     *     await client.loadBalancers.getLoadBalancerMetrics({
+     *         load_balancer_id: "load_balancer_id",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public getLoadBalancerMetrics(
+        request: Ibee.GetLoadBalancerMetricsRequest,
+        requestOptions?: LoadBalancersClient.RequestOptions,
+    ): core.HttpResponsePromise<Record<string, unknown>> {
+        return core.HttpResponsePromise.fromPromise(this.__getLoadBalancerMetrics(request, requestOptions));
+    }
+
+    private async __getLoadBalancerMetrics(
+        request: Ibee.GetLoadBalancerMetricsRequest,
+        requestOptions?: LoadBalancersClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Record<string, unknown>>> {
+        const { load_balancer_id: loadBalancerId, workspace_id: workspaceId } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `networking/load-balancers/${core.url.encodePathParam(loadBalancerId)}/metrics`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Record<string, unknown>, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/networking/load-balancers/{load_balancer_id}/metrics",
+        );
+    }
+
+    /**
+     * Returns metrics over a time window. Requires scope: load-balancer.read.
+     *
+     * @param {Ibee.GetLoadBalancerMetricsHistoryRequest} request
+     * @param {LoadBalancersClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link Ibee.UnauthorizedError}
+     * @throws {@link Ibee.ForbiddenError}
+     * @throws {@link Ibee.NotFoundError}
+     * @throws {@link Ibee.ContentTooLargeError}
+     * @throws {@link Ibee.UnprocessableEntityError}
+     * @throws {@link Ibee.TooManyRequestsError}
+     * @throws {@link Ibee.InternalServerError}
+     * @throws {@link Ibee.BadGatewayError}
+     * @throws {@link Ibee.ServiceUnavailableError}
+     * @throws {@link Ibee.GatewayTimeoutError}
+     *
+     * @example
+     *     await client.loadBalancers.getLoadBalancerMetricsHistory({
+     *         load_balancer_id: "load_balancer_id",
+     *         workspace_id: "710995"
+     *     })
+     */
+    public getLoadBalancerMetricsHistory(
+        request: Ibee.GetLoadBalancerMetricsHistoryRequest,
+        requestOptions?: LoadBalancersClient.RequestOptions,
+    ): core.HttpResponsePromise<Record<string, unknown>> {
+        return core.HttpResponsePromise.fromPromise(this.__getLoadBalancerMetricsHistory(request, requestOptions));
+    }
+
+    private async __getLoadBalancerMetricsHistory(
+        request: Ibee.GetLoadBalancerMetricsHistoryRequest,
+        requestOptions?: LoadBalancersClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Record<string, unknown>>> {
+        const { load_balancer_id: loadBalancerId, workspace_id: workspaceId, window } = request;
+        const _queryParams: Record<string, unknown> = {
+            workspace_id: workspaceId,
+            window: window != null ? window : undefined,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await (this._options.fetcher ?? core.fetcher)({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.IbeeEnvironment.Production,
+                `networking/load-balancers/${core.url.encodePathParam(loadBalancerId)}/metrics/history`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Record<string, unknown>, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 401:
+                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 403:
+                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 404:
+                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 413:
+                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 422:
+                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 429:
+                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 500:
+                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 502:
+                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 503:
+                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                case 504:
+                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
+                default:
+                    throw new errors.IbeeError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/networking/load-balancers/{load_balancer_id}/metrics/history",
         );
     }
 }

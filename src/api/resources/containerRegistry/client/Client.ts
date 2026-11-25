@@ -26,7 +26,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Checks whether a registry name is free across IBEE. Names are global and never reassigned; unavailable names come with suggestions. Requires scope: container-registry.read.
+     * Checks whether a registry name is free across IBEE. Names are global and never reassigned; unavailable names come with suggestions. Requires scope: container-registry.read.
      *
      * @param {Ibee.CheckContainerRegistryNameAvailabilityRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -131,7 +131,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Lists the workspace's registries, newest first. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
+     * Lists the workspace's registries, newest first. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
      *
      * @param {Ibee.ListContainerRegistriesRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -232,7 +232,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Creates a registry with a storage plan (`billing_catalog.sku_code`).
+     * Creates a registry with a storage plan (`billing_catalog.sku_code`).
      * The registry service asks Billing whether the workspace may buy that
      * plan and refuses with 403 `billing_resource_not_eligible` (and a
      * `reason`) when it may not. Returns 201 when the registry is active, or
@@ -357,7 +357,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns one registry, including its visibility, pull policy and provisioning state. A deleted registry is still returned, with `deleted_at` set. Requires scope: container-registry.read.
+     * Returns one registry, including its visibility, pull policy and provisioning state. A deleted registry is still returned, with `deleted_at` set. Requires scope: container-registry.read.
      *
      * @param {Ibee.GetContainerRegistryRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -460,7 +460,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Starts deleting a registry; returns 202 with `observed_state: DELETING`. The registry must be empty: 409 with `detail.code: registry_not_empty` otherwise (see Empty registry). The name is never reused. Asynchronous: `observed_state` moves through `DELETING` to `DELETED`; poll `GET /container-registry/registries/{registry_id}` until it answers 404 or `DELETED`. Requires scope: container-registry.write.
+     * Starts deleting a registry; returns 202 with `observed_state: DELETING`. The registry must be empty: 409 with `detail.code: registry_not_empty` otherwise (see Empty registry). The name is never reused. Asynchronous: `observed_state` moves through `DELETING` to `DELETED`; poll `GET /container-registry/registries/{registry_id}` until it answers 404 or `DELETED`. Requires scope: container-registry.write.
      *
      * @param {Ibee.DeleteContainerRegistryRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -575,7 +575,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Makes a registry private or public. Public requires `acknowledge_public_egress_charges: true`, because anonymous pull bandwidth is billed to the workspace. Returns 202 while the change is applied. Requires scope: container-registry.write.
+     * Makes a registry private or public. Public requires `acknowledge_public_egress_charges: true`, because anonymous pull bandwidth is billed to the workspace. Returns 202 while the change is applied. Requires scope: container-registry.write.
      *
      * @param {Ibee.UpdateContainerRegistryVisibilityRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -686,7 +686,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Queues the registry's pending change (create, update, upgrade or delete) to run again, for example after `observed_state: ERROR`. Requires scope: container-registry.write.
+     * Queues the registry's pending change (create, update, upgrade or delete) to run again, for example after `observed_state: ERROR`. Requires scope: container-registry.write.
      *
      * @param {Ibee.RetryContainerRegistryProvisioningRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -792,7 +792,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns the registry's current storage plan, a pending upgrade if there is one, and the status of the change being applied. Requires scope: container-registry.read.
+     * Returns the registry's current storage plan, a pending upgrade if there is one, and the status of the change being applied. Requires scope: container-registry.read.
      *
      * @param {Ibee.GetContainerRegistryPackageRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -895,7 +895,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Moves an active registry to a larger storage plan. Only larger quotas
+     * Moves an active registry to a larger storage plan. Only larger quotas
      * are accepted and only one change can be pending (409 otherwise). The
      * registry service asks Billing first and refuses with 403
      * `billing_resource_not_eligible` when the plan is not allowed. Send an
@@ -1025,7 +1025,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Lists the access tokens that can use this registry, newest first. Secrets are never returned. Requires scope: container-registry.read.
+     * Lists the access tokens that can use this registry, newest first. Secrets are never returned. Requires scope: container-registry.read.
      *
      * @param {Ibee.ListContainerRegistryAccessTokensRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1129,7 +1129,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Creates a Docker login credential for the registry. The `username`
+     * Creates a Docker login credential for the registry. The `username`
      * and `secret` are returned once and cannot be read again. The registry
      * must be active, and the registry service asks Billing whether the
      * workspace may create credentials. Requires scope:
@@ -1248,7 +1248,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Issues a new secret for an active token; the old secret stops working immediately. The new secret is returned once. Revoked or expired tokens return 409. Requires scope: container-registry.write.
+     * Issues a new secret for an active token; the old secret stops working immediately. The new secret is returned once. Revoked or expired tokens return 409. Requires scope: container-registry.write.
      *
      * @param {Ibee.RotateContainerRegistryAccessTokenRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1358,7 +1358,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Revokes a token immediately. Revoking an already revoked token succeeds. Requires scope: container-registry.write.
+     * Revokes a token immediately. Revoking an already revoked token succeeds. Requires scope: container-registry.write.
      *
      * @param {Ibee.RevokeContainerRegistryAccessTokenRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1462,7 +1462,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Lists an active registry's repositories. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
+     * Lists an active registry's repositories. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
      *
      * @param {Ibee.ListContainerRegistryRepositoriesRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1572,7 +1572,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Permanently deletes a repository and all of its images. Requires `confirm=true`. Deleting a repository that does not exist answers 200. Requires scope: container-registry.write.
+     * Permanently deletes a repository and all of its images. Requires `confirm=true`. Deleting a repository that does not exist answers 200. Requires scope: container-registry.write.
      *
      * @param {Ibee.DeleteContainerRegistryRepositoryRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1689,7 +1689,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Lists the images (artifacts) in one repository with their tags and scan overview. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
+     * Lists the images (artifacts) in one repository with their tags and scan overview. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
      *
      * @param {Ibee.ListContainerRegistryArtifactsRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1805,7 +1805,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Permanently deletes one image and every tag that points to it. Requires `confirm=true`. Deleting an artifact that does not exist answers 200. Requires scope: container-registry.write.
+     * Permanently deletes one image and every tag that points to it. Requires `confirm=true`. Deleting an artifact that does not exist answers 200. Requires scope: container-registry.write.
      *
      * @param {Ibee.DeleteContainerRegistryArtifactRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1925,7 +1925,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Queues a new vulnerability scan of one image. Existing results stay visible until it completes. Requires scope: container-registry.write.
+     * Queues a new vulnerability scan of one image. Existing results stay visible until it completes. Requires scope: container-registry.write.
      *
      * @param {Ibee.ScanContainerRegistryArtifactRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2039,7 +2039,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns the vulnerability pull policy. Scanning and SBOM generation always run on push. Requires scope: container-registry.read.
+     * Returns the vulnerability pull policy. Scanning and SBOM generation always run on push. Requires scope: container-registry.read.
      *
      * @param {Ibee.GetContainerRegistrySecuritySettingsRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2147,7 +2147,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Sets the vulnerability pull policy: `ALLOW`, or block pulls of images with findings at or above `CRITICAL`, `HIGH`, `MEDIUM` or `LOW`. Returns 202 while the change is applied. Requires scope: container-registry.write.
+     * Sets the vulnerability pull policy: `ALLOW`, or block pulls of images with findings at or above `CRITICAL`, `HIGH`, `MEDIUM` or `LOW`. Returns 202 while the change is applied. Requires scope: container-registry.write.
      *
      * @param {Ibee.UpdateContainerRegistrySecuritySettingsRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2262,7 +2262,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns the number of vulnerability findings in an active registry, by severity. Requires scope: container-registry.read.
+     * Returns the number of vulnerability findings in an active registry, by severity. Requires scope: container-registry.read.
      *
      * @param {Ibee.GetContainerRegistryVulnerabilitySummaryRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2373,7 +2373,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Lists vulnerability findings in an active registry, with optional filters. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
+     * Lists vulnerability findings in an active registry, with optional filters. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
      *
      * @param {Ibee.ListContainerRegistryVulnerabilitiesRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2503,7 +2503,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Lists the SBOMs of one repository, one per image digest. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
+     * Lists the SBOMs of one repository, one per image digest. Paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
      *
      * @param {Ibee.ListContainerRegistrySbomsRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2619,7 +2619,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns one image's SBOM components and their relationships. `q` filters components by name, version, type, license, supplier or package URL. Components are paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
+     * Returns one image's SBOM components and their relationships. `q` filters components by name, version, type, license, supplier or package URL. Components are paged with `page` and `page_size` (at most 100). Requires scope: container-registry.read.
      *
      * @param {Ibee.GetContainerRegistrySbomRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2739,111 +2739,7 @@ export class ContainerRegistryClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Downloads one image's full SBOM document as a JSON attachment (SPDX or CycloneDX). Requires scope: container-registry.read.
-     *
-     * @throws {@link Ibee.UnauthorizedError}
-     * @throws {@link Ibee.ForbiddenError}
-     * @throws {@link Ibee.NotFoundError}
-     * @throws {@link Ibee.ConflictError}
-     * @throws {@link Ibee.ContentTooLargeError}
-     * @throws {@link Ibee.UnprocessableEntityError}
-     * @throws {@link Ibee.TooManyRequestsError}
-     * @throws {@link Ibee.InternalServerError}
-     * @throws {@link Ibee.BadGatewayError}
-     * @throws {@link Ibee.ServiceUnavailableError}
-     * @throws {@link Ibee.GatewayTimeoutError}
-     */
-    public downloadContainerRegistrySbom(
-        request: Ibee.DownloadContainerRegistrySbomRequest,
-        requestOptions?: ContainerRegistryClient.RequestOptions,
-    ): core.HttpResponsePromise<core.BinaryResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__downloadContainerRegistrySbom(request, requestOptions));
-    }
-
-    private async __downloadContainerRegistrySbom(
-        request: Ibee.DownloadContainerRegistrySbomRequest,
-        requestOptions?: ContainerRegistryClient.RequestOptions,
-    ): Promise<core.WithRawResponse<core.BinaryResponse>> {
-        const {
-            registry_id: registryId,
-            artifact_digest: artifactDigest,
-            workspace_id: workspaceId,
-            repository_name: repositoryName,
-        } = request;
-        const _queryParams: Record<string, unknown> = {
-            workspace_id: workspaceId,
-            repository_name: repositoryName,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await (this._options.fetcher ?? core.fetcher)<core.BinaryResponse>({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.IbeeEnvironment.Production,
-                `container-registry/registries/${core.url.encodePathParam(registryId)}/security/sboms/${core.url.encodePathParam(artifactDigest)}/download`,
-            ),
-            method: "GET",
-            headers: _headers,
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            responseType: "binary-response",
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 60) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 401:
-                    throw new Ibee.UnauthorizedError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 403:
-                    throw new Ibee.ForbiddenError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 404:
-                    throw new Ibee.NotFoundError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 409:
-                    throw new Ibee.ConflictError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 413:
-                    throw new Ibee.ContentTooLargeError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 422:
-                    throw new Ibee.UnprocessableEntityError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 429:
-                    throw new Ibee.TooManyRequestsError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 500:
-                    throw new Ibee.InternalServerError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 502:
-                    throw new Ibee.BadGatewayError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 503:
-                    throw new Ibee.ServiceUnavailableError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                case 504:
-                    throw new Ibee.GatewayTimeoutError(_response.error.body as Ibee.Error_, _response.rawResponse);
-                default:
-                    throw new errors.IbeeError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "GET",
-            "/container-registry/registries/{registry_id}/security/sboms/{artifact_digest}/download",
-        );
-    }
-
-    /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns storage use against the plan quota and outbound bandwidth over the last 24 hours, 7 days or 30 days. Bytes are decimal (1 GB = 1,000,000,000 bytes). Requires scope: container-registry.read.
+     * Returns storage use against the plan quota and outbound bandwidth over the last 24 hours, 7 days or 30 days. Bytes are decimal (1 GB = 1,000,000,000 bytes). Requires scope: container-registry.read.
      *
      * @param {Ibee.GetContainerRegistryMetricsRequest} request
      * @param {ContainerRegistryClient.RequestOptions} requestOptions - Request-specific configuration.

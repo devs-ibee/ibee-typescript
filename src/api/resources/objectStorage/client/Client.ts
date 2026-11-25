@@ -26,7 +26,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Lists object storage buckets in a workspace. Requires scope: object-storage.read.
+     * Lists object storage buckets in a workspace. Requires scope: object-storage.read.
      *
      * @param {Ibee.ListBucketsRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -122,7 +122,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Creates an object storage bucket. `region` is required and must match an Object Storage region identifier configured for the target environment. Do not send a compute `site_id`. Requires scope: object-storage.write.
+     * Creates an object storage bucket. `region` is required and must match an Object Storage region identifier configured for the target environment. Do not send a compute `site_id`. Requires scope: object-storage.write.
      *
      * @param {Ibee.CreateBucketRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -231,7 +231,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns bucket configuration and usage statistics. Requires scope: object-storage.read.
+     * Returns bucket configuration and usage statistics. Requires scope: object-storage.read.
      *
      * @param {Ibee.GetBucketRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -334,7 +334,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Deletes a bucket and all of its contents. Requires scope: object-storage.delete.
+     * Deletes an empty bucket. A bucket that still holds files is refused with 409: delete its files first with an S3 tool. Files are managed over the S3 API at `<workspace>.blob.ibeestorage.com`, not through this API. Requires scope: object-storage.delete.
      *
      * @param {Ibee.DeleteBucketRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -440,7 +440,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Updates mutable bucket settings. Requires scope: object-storage.write.
+     * Updates mutable bucket settings. Requires scope: object-storage.write.
      *
      * @param {Ibee.UpdateBucketRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -553,7 +553,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns the bucket's lifecycle rules, as the portal's Settings › Lifecycle tab shows them. Requires scope: object-storage.read.
+     * Returns the bucket's lifecycle rules, as the portal's Settings › Lifecycle tab shows them. Requires scope: object-storage.read.
      *
      * @param {Ibee.GetBucketLifecycleRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -656,7 +656,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Replaces every lifecycle rule of the bucket. Each rule expires objects after a number of days or on a date, optionally only under a prefix. Requires scope: object-storage.write.
+     * Replaces every lifecycle rule of the bucket. Each rule expires objects after a number of days or on a date, optionally only under a prefix. Requires scope: object-storage.write.
      *
      * @param {Ibee.SetBucketLifecycleRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -770,7 +770,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Removes every lifecycle rule from the bucket. Requires scope: object-storage.delete.
+     * Removes every lifecycle rule from the bucket. Requires scope: object-storage.delete.
      *
      * @param {Ibee.DeleteBucketLifecycleRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -876,7 +876,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns the bucket's CORS rules, as the portal's Settings › CORS tab shows them. Requires scope: object-storage.read.
+     * Returns the bucket's CORS rules, as the portal's Settings › CORS tab shows them. Requires scope: object-storage.read.
      *
      * @param {Ibee.GetBucketCorsRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -979,7 +979,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Replaces every CORS rule of the bucket. Requires scope: object-storage.write.
+     * Replaces every CORS rule of the bucket. Requires scope: object-storage.write.
      *
      * @param {Ibee.SetBucketCorsRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1094,7 +1094,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Removes every CORS rule from the bucket. Requires scope: object-storage.delete.
+     * Removes every CORS rule from the bucket. Requires scope: object-storage.delete.
      *
      * @param {Ibee.DeleteBucketCorsRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1200,7 +1200,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns the default retention of a bucket created with object lock, as the portal's Settings › Lock tab shows it. Answers 404 when the bucket has no object lock. Requires scope: object-storage.read.
+     * Returns the default retention of a bucket created with object lock, as the portal's Settings › Lock tab shows it. Answers 404 when the bucket has no object lock. Requires scope: object-storage.read.
      *
      * @param {Ibee.GetBucketObjectLockRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1303,7 +1303,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Changes the default retention applied to new objects in a bucket that has object lock. Send `rule: null` to remove the default. Requires scope: object-storage.write.
+     * Changes the default retention applied to new objects in a bucket that has object lock. Send `rule: null` to remove the default. Requires scope: object-storage.write.
      *
      * @param {Ibee.BucketObjectLockUpdateRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1415,7 +1415,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns the webhook notification rules of the bucket, as the portal's Settings › Event notifications tab shows them. Requires scope: object-storage.read.
+     * Returns the webhook notification rules of the bucket, as the portal's Settings › Event notifications tab shows them. Requires scope: object-storage.read.
      *
      * @param {Ibee.GetBucketNotificationsRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1518,7 +1518,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Replaces every notification rule of the bucket. Each rule posts `upload` or `delete` events, optionally filtered by prefix or suffix, to a webhook URL. Requires scope: object-storage.write.
+     * Replaces every notification rule of the bucket. Each rule posts `upload` or `delete` events, optionally filtered by prefix or suffix, to a webhook URL. Requires scope: object-storage.write.
      *
      * @param {Ibee.SetBucketNotificationsRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1632,7 +1632,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Removes every notification rule from the bucket. Requires scope: object-storage.delete.
+     * Removes every notification rule from the bucket. Requires scope: object-storage.delete.
      *
      * @param {Ibee.DeleteBucketNotificationsRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1738,7 +1738,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns the bucket's custom domains with their status and the CNAME target to point them at, as the portal's Settings › Custom domains tab shows. Answers 404 when the bucket has no custom domain. Requires scope: object-storage.read.
+     * Returns the bucket's custom domains with their status and the CNAME target to point them at, as the portal's Settings › Custom domains tab shows. Answers 404 when the bucket has no custom domain. Requires scope: object-storage.read.
      *
      * @param {Ibee.GetBucketCustomDomainsRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1841,7 +1841,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Adds a custom hostname that serves the bucket. Create the CNAME record shown in `cname_target`, then check `status` on the list. Requires scope: object-storage.write.
+     * Adds a custom hostname that serves the bucket. Create the CNAME record shown in `cname_target`, then check `status` on the list. Requires scope: object-storage.write.
      *
      * @param {Ibee.AddBucketCustomDomainRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1957,7 +1957,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Removes a custom hostname from the bucket. Answers 400 when the bucket has no custom domain. Requires scope: object-storage.delete.
+     * Removes a custom hostname from the bucket. Answers 400 when the bucket has no custom domain. Requires scope: object-storage.delete.
      *
      * @param {Ibee.RemoveBucketCustomDomainRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2067,7 +2067,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns request and storage metrics of the bucket for the last 24 hours or 7 days, as the portal's Metrics tab shows them. Requires scope: object-storage.read.
+     * Returns request and storage metrics of the bucket for the last 24 hours or 7 days, as the portal's Metrics tab shows them. Requires scope: object-storage.read.
      *
      * @param {Ibee.GetBucketMetricsRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2171,7 +2171,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Lists S3-compatible credentials without secret keys. Requires scope: object-storage.read.
+     * Lists S3-compatible credentials without secret keys. Requires scope: object-storage.read.
      *
      * @param {Ibee.ListS3CredentialsRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2265,7 +2265,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Creates an access key pair. The secret is returned only once. Requires scope: object-storage.write.
+     * Creates an access key pair. The secret is returned only once. Requires scope: object-storage.write.
      *
      * @param {Ibee.CreateS3CredentialRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2371,7 +2371,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Returns credential metadata without the secret key. Requires scope: object-storage.read.
+     * Returns credential metadata without the secret key. Requires scope: object-storage.read.
      *
      * @param {Ibee.GetS3CredentialRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2474,7 +2474,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Deletes a credential record permanently. Revoke it first with POST /object-storage/credentials/{access_key_id}/revoke; the portal deletes revoked credentials only. Requires scope: object-storage.write.
+     * Deletes a credential record permanently. Revoke it first with POST /object-storage/credentials/{access_key_id}/revoke; the portal deletes revoked credentials only. Requires scope: object-storage.write.
      *
      * @param {Ibee.DeleteS3CredentialRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2580,7 +2580,7 @@ export class ObjectStorageClient {
     }
 
     /**
-     * Temporarily paused on the public API. This client method is retained for compatibility. An empty HTTP 404 means the public operation is paused; it does not prove the resource was deleted. Revokes a credential so it can no longer authenticate S3 requests. The record stays listed as revoked, as in the portal; delete it afterwards with DELETE /object-storage/credentials/{access_key_id}. Requires scope: object-storage.write.
+     * Revokes a credential so it can no longer authenticate S3 requests. The record stays listed as revoked, as in the portal; delete it afterwards with DELETE /object-storage/credentials/{access_key_id}. Requires scope: object-storage.write.
      *
      * @param {Ibee.RevokeS3CredentialRequest} request
      * @param {ObjectStorageClient.RequestOptions} requestOptions - Request-specific configuration.

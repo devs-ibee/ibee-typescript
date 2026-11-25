@@ -205,12 +205,17 @@ test("removed operations are gone from the client", async () => {
         ["blockStorage", "detachBlockVolume"],
         ["cdn", "generateCdnUrl"],
         ["vpcs", "updateVpcSubnet"],
-        ["secretStore", "patchSecretValue"],
-        ["secretStore", "updateSecretStore"],
         ["containerRegistry", "emptyContainerRegistry"],
+        ["containerRegistry", "downloadContainerRegistrySbom"],
+        ["loadBalancers", "createL4LoadBalancer"],
+        ["loadBalancers", "createL7LoadBalancer"],
+        ["loadBalancers", "getLoadBalancerStatus"],
     ]) {
         assert.equal(typeof client[resource][name], "undefined", `${resource}.${name}`);
     }
+    // Contract 0.11.0 replaced Secret Store with Secret Manager (no secret values in the API).
+    assert.equal(client.secretStore, undefined, "secret store");
+    assert.ok(!Object.getOwnPropertyNames(Object.getPrototypeOf(client.secretManager)).some((m) => /value/i.test(m)));
     assert.equal(client.vmConsole, undefined, "console sessions");
     // Contract 0.10.0 brings billing back with the wallet and top-ups only (no resource eligibility).
     assert.equal(typeof client.billing.checkResourceEligibility, "undefined", "billing resource-eligibility");

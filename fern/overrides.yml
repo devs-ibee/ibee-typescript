@@ -1,6 +1,7 @@
 # The SDK fills these from client config (workspace id) and with a random key
-# (idempotency: X-Idempotency-Key, and Container Registry's Idempotency-Key on plan
-# upgrade), so they are optional in the generated request types.
+# (idempotency: X-Idempotency-Key, and the Idempotency-Key of Container Registry's plan
+# upgrade, Secret Manager's enable and app-credential create, and load balancer
+# create, update and delete), so they are optional in the generated request types.
 components:
   parameters:
     WorkspaceId:
@@ -8,4 +9,8 @@ components:
     IdempotencyKey:
       required: false
     ContainerRegistryIdempotencyKey:
+      required: false
+    SecretManagerIdempotencyKey:
+      required: false
+    LoadBalancerIdempotencyKey:
       required: false
