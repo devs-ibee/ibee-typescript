@@ -456,14 +456,14 @@ export class BlockStorageClient {
     public deleteBlockVolume(
         request: Ibee.DeleteBlockVolumeRequest,
         requestOptions?: BlockStorageClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.BlockVolumeDelete> {
+    ): core.HttpResponsePromise<Ibee.DeleteBlockVolumeResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteBlockVolume(request, requestOptions));
     }
 
     private async __deleteBlockVolume(
         request: Ibee.DeleteBlockVolumeRequest,
         requestOptions?: BlockStorageClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.BlockVolumeDelete>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteBlockVolumeResponse>> {
         const { volume_id: volumeId, workspace_id: workspaceId, force } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -492,7 +492,7 @@ export class BlockStorageClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.BlockVolumeDelete, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteBlockVolumeResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {

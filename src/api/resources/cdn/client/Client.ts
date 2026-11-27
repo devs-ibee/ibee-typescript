@@ -360,14 +360,14 @@ export class CdnClient {
     public deleteCdnDistribution(
         request: Ibee.DeleteCdnDistributionRequest,
         requestOptions?: CdnClient.RequestOptions,
-    ): core.HttpResponsePromise<void> {
+    ): core.HttpResponsePromise<Ibee.CdnDeleteResult> {
         return core.HttpResponsePromise.fromPromise(this.__deleteCdnDistribution(request, requestOptions));
     }
 
     private async __deleteCdnDistribution(
         request: Ibee.DeleteCdnDistributionRequest,
         requestOptions?: CdnClient.RequestOptions,
-    ): Promise<core.WithRawResponse<void>> {
+    ): Promise<core.WithRawResponse<Ibee.CdnDeleteResult>> {
         const { distribution_id: distributionId, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -395,7 +395,7 @@ export class CdnClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: undefined, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.CdnDeleteResult, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -891,14 +891,14 @@ export class CdnClient {
     public deleteCdnWebsiteConfig(
         request: Ibee.DeleteCdnWebsiteConfigRequest,
         requestOptions?: CdnClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.CdnWebsiteConfig> {
+    ): core.HttpResponsePromise<Ibee.DeleteCdnWebsiteConfigResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteCdnWebsiteConfig(request, requestOptions));
     }
 
     private async __deleteCdnWebsiteConfig(
         request: Ibee.DeleteCdnWebsiteConfigRequest,
         requestOptions?: CdnClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.CdnWebsiteConfig>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteCdnWebsiteConfigResponse>> {
         const { distribution_id: distributionId, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -926,7 +926,7 @@ export class CdnClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.CdnWebsiteConfig, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteCdnWebsiteConfigResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -1324,14 +1324,14 @@ export class CdnClient {
     public deleteCdnCustomDomain(
         request: Ibee.DeleteCdnCustomDomainRequest,
         requestOptions?: CdnClient.RequestOptions,
-    ): core.HttpResponsePromise<void> {
+    ): core.HttpResponsePromise<Ibee.CdnDeleteResult> {
         return core.HttpResponsePromise.fromPromise(this.__deleteCdnCustomDomain(request, requestOptions));
     }
 
     private async __deleteCdnCustomDomain(
         request: Ibee.DeleteCdnCustomDomainRequest,
         requestOptions?: CdnClient.RequestOptions,
-    ): Promise<core.WithRawResponse<void>> {
+    ): Promise<core.WithRawResponse<Ibee.CdnDeleteResult>> {
         const { distribution_id: distributionId, domain, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -1359,7 +1359,7 @@ export class CdnClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: undefined, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.CdnDeleteResult, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {

@@ -390,14 +390,14 @@ export class GpuVmsClient {
     public deleteGpuVm(
         request: Ibee.DeleteGpuVmRequest,
         requestOptions?: GpuVmsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.OperationAccepted> {
+    ): core.HttpResponsePromise<Ibee.DeleteGpuVmResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteGpuVm(request, requestOptions));
     }
 
     private async __deleteGpuVm(
         request: Ibee.DeleteGpuVmRequest,
         requestOptions?: GpuVmsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.OperationAccepted>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteGpuVmResponse>> {
         const { vm_id: vmId, workspace_id: workspaceId, "X-Idempotency-Key": idempotencyKey, body: _body } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -429,7 +429,7 @@ export class GpuVmsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.OperationAccepted, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteGpuVmResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -2415,14 +2415,14 @@ export class GpuVmsClient {
     public deleteGpuVmSnapshot(
         request: Ibee.DeleteGpuVmSnapshotRequest,
         requestOptions?: GpuVmsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.SnapshotDeleteResult> {
+    ): core.HttpResponsePromise<Ibee.DeleteGpuVmSnapshotResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteGpuVmSnapshot(request, requestOptions));
     }
 
     private async __deleteGpuVmSnapshot(
         request: Ibee.DeleteGpuVmSnapshotRequest,
         requestOptions?: GpuVmsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.SnapshotDeleteResult>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteGpuVmSnapshotResponse>> {
         const { snapshot_set_id: snapshotSetId, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -2450,7 +2450,7 @@ export class GpuVmsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.SnapshotDeleteResult, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteGpuVmSnapshotResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
