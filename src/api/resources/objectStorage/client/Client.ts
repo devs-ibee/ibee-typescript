@@ -360,14 +360,14 @@ export class ObjectStorageClient {
     public deleteBucket(
         request: Ibee.DeleteBucketRequest,
         requestOptions?: ObjectStorageClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.DeleteResponse> {
+    ): core.HttpResponsePromise<Ibee.DeleteBucketResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteBucket(request, requestOptions));
     }
 
     private async __deleteBucket(
         request: Ibee.DeleteBucketRequest,
         requestOptions?: ObjectStorageClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.DeleteResponse>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteBucketResponse>> {
         const { bucket_name: bucketName, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -395,7 +395,7 @@ export class ObjectStorageClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.DeleteResponse, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteBucketResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -796,14 +796,14 @@ export class ObjectStorageClient {
     public deleteBucketLifecycle(
         request: Ibee.DeleteBucketLifecycleRequest,
         requestOptions?: ObjectStorageClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.DeleteResponse> {
+    ): core.HttpResponsePromise<Ibee.DeleteBucketLifecycleResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteBucketLifecycle(request, requestOptions));
     }
 
     private async __deleteBucketLifecycle(
         request: Ibee.DeleteBucketLifecycleRequest,
         requestOptions?: ObjectStorageClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.DeleteResponse>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteBucketLifecycleResponse>> {
         const { bucket_name: bucketName, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -831,7 +831,7 @@ export class ObjectStorageClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.DeleteResponse, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteBucketLifecycleResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -1120,14 +1120,14 @@ export class ObjectStorageClient {
     public deleteBucketCors(
         request: Ibee.DeleteBucketCorsRequest,
         requestOptions?: ObjectStorageClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.DeleteResponse> {
+    ): core.HttpResponsePromise<Ibee.DeleteBucketCorsResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteBucketCors(request, requestOptions));
     }
 
     private async __deleteBucketCors(
         request: Ibee.DeleteBucketCorsRequest,
         requestOptions?: ObjectStorageClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.DeleteResponse>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteBucketCorsResponse>> {
         const { bucket_name: bucketName, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -1155,7 +1155,7 @@ export class ObjectStorageClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.DeleteResponse, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteBucketCorsResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -1658,14 +1658,14 @@ export class ObjectStorageClient {
     public deleteBucketNotifications(
         request: Ibee.DeleteBucketNotificationsRequest,
         requestOptions?: ObjectStorageClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.DeleteResponse> {
+    ): core.HttpResponsePromise<Ibee.DeleteBucketNotificationsResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteBucketNotifications(request, requestOptions));
     }
 
     private async __deleteBucketNotifications(
         request: Ibee.DeleteBucketNotificationsRequest,
         requestOptions?: ObjectStorageClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.DeleteResponse>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteBucketNotificationsResponse>> {
         const { bucket_name: bucketName, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -1693,7 +1693,10 @@ export class ObjectStorageClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.DeleteResponse, rawResponse: _response.rawResponse };
+            return {
+                data: _response.body as Ibee.DeleteBucketNotificationsResponse,
+                rawResponse: _response.rawResponse,
+            };
         }
 
         if (_response.error.reason === "status-code") {
@@ -1985,14 +1988,14 @@ export class ObjectStorageClient {
     public removeBucketCustomDomain(
         request: Ibee.RemoveBucketCustomDomainRequest,
         requestOptions?: ObjectStorageClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.BucketCustomDomainRemoved> {
+    ): core.HttpResponsePromise<Ibee.RemoveBucketCustomDomainResponse> {
         return core.HttpResponsePromise.fromPromise(this.__removeBucketCustomDomain(request, requestOptions));
     }
 
     private async __removeBucketCustomDomain(
         request: Ibee.RemoveBucketCustomDomainRequest,
         requestOptions?: ObjectStorageClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.BucketCustomDomainRemoved>> {
+    ): Promise<core.WithRawResponse<Ibee.RemoveBucketCustomDomainResponse>> {
         const { bucket_name: bucketName, domain, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -2020,7 +2023,10 @@ export class ObjectStorageClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.BucketCustomDomainRemoved, rawResponse: _response.rawResponse };
+            return {
+                data: _response.body as Ibee.RemoveBucketCustomDomainResponse,
+                rawResponse: _response.rawResponse,
+            };
         }
 
         if (_response.error.reason === "status-code") {
@@ -2832,14 +2838,14 @@ export class ObjectStorageClient {
     public deleteS3Credential(
         request: Ibee.DeleteS3CredentialRequest,
         requestOptions?: ObjectStorageClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.S3CredentialRevoked> {
+    ): core.HttpResponsePromise<Ibee.DeleteS3CredentialResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteS3Credential(request, requestOptions));
     }
 
     private async __deleteS3Credential(
         request: Ibee.DeleteS3CredentialRequest,
         requestOptions?: ObjectStorageClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.S3CredentialRevoked>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteS3CredentialResponse>> {
         const { access_key_id: accessKeyId, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -2867,7 +2873,7 @@ export class ObjectStorageClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.S3CredentialRevoked, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteS3CredentialResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {

@@ -1,5 +1,23 @@
 # Changelog
 
+
+## 0.11.0
+
+- Update to public API contract 0.15.0: every delete answers with a body.
+- The seven deletes that resolved to nothing (the API answered `204`) now resolve to
+  `DeleteResult` (`id`, `status`, `deletion`): `vpcs.deleteVpc`, `vpcs.deleteVpcSubnet`,
+  `vpcs.detachVpcNode`, `vpcs.deleteNatGateway`, `vpcs.deleteNatPortForwardingRule`,
+  `firewalls.deleteFirewallGroup` and `reservedIps.releaseReservedIp`.
+- Every other delete's answer type adds `deletion` (`DeletionState`): `state` is
+  `deleted`, `released`, `detached` or `revoked` when the work is done, and `deleting` or
+  `revoking` when it continues in the background (VMs, backup runs, load balancers,
+  registries, Secret Manager app credentials); `check` is the read that answers 404 once
+  the resource is gone, `operation_id` the operation to follow, `site_code` the
+  `X-Site-Code` to send with `check` (Secret Manager).
+- CDN distribution and custom domain deletes resolve to `CdnDeleteResult`.
+- `ContainerRegistry.reconciliation_status` (`PENDING`, `PROCESSING`, `COMPLETE`,
+  `FAILED`).
+- Send version 0.11.0 in the User-Agent.
 ## 0.10.0
 
 - Update to public API contract 0.14.3: 222 operations.

@@ -491,14 +491,14 @@ export class ContainerRegistryClient {
     public deleteContainerRegistry(
         request: Ibee.DeleteContainerRegistryRequest,
         requestOptions?: ContainerRegistryClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.ContainerRegistry> {
+    ): core.HttpResponsePromise<Ibee.DeleteContainerRegistryResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteContainerRegistry(request, requestOptions));
     }
 
     private async __deleteContainerRegistry(
         request: Ibee.DeleteContainerRegistryRequest,
         requestOptions?: ContainerRegistryClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.ContainerRegistry>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteContainerRegistryResponse>> {
         const {
             registry_id: registryId,
             workspace_id: workspaceId,
@@ -531,7 +531,7 @@ export class ContainerRegistryClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.ContainerRegistry, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteContainerRegistryResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -1387,14 +1387,14 @@ export class ContainerRegistryClient {
     public revokeContainerRegistryAccessToken(
         request: Ibee.RevokeContainerRegistryAccessTokenRequest,
         requestOptions?: ContainerRegistryClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.ContainerRegistryMessage> {
+    ): core.HttpResponsePromise<Ibee.RevokeContainerRegistryAccessTokenResponse> {
         return core.HttpResponsePromise.fromPromise(this.__revokeContainerRegistryAccessToken(request, requestOptions));
     }
 
     private async __revokeContainerRegistryAccessToken(
         request: Ibee.RevokeContainerRegistryAccessTokenRequest,
         requestOptions?: ContainerRegistryClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.ContainerRegistryMessage>> {
+    ): Promise<core.WithRawResponse<Ibee.RevokeContainerRegistryAccessTokenResponse>> {
         const { registry_id: registryId, token_id: tokenId, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -1422,7 +1422,10 @@ export class ContainerRegistryClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.ContainerRegistryMessage, rawResponse: _response.rawResponse };
+            return {
+                data: _response.body as Ibee.RevokeContainerRegistryAccessTokenResponse,
+                rawResponse: _response.rawResponse,
+            };
         }
 
         if (_response.error.reason === "status-code") {
@@ -1604,14 +1607,14 @@ export class ContainerRegistryClient {
     public deleteContainerRegistryRepository(
         request: Ibee.DeleteContainerRegistryRepositoryRequest,
         requestOptions?: ContainerRegistryClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.ContainerRegistryMessage> {
+    ): core.HttpResponsePromise<Ibee.DeleteContainerRegistryRepositoryResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteContainerRegistryRepository(request, requestOptions));
     }
 
     private async __deleteContainerRegistryRepository(
         request: Ibee.DeleteContainerRegistryRepositoryRequest,
         requestOptions?: ContainerRegistryClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.ContainerRegistryMessage>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteContainerRegistryRepositoryResponse>> {
         const {
             registry_id: registryId,
             repository_name: repositoryName,
@@ -1645,7 +1648,10 @@ export class ContainerRegistryClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.ContainerRegistryMessage, rawResponse: _response.rawResponse };
+            return {
+                data: _response.body as Ibee.DeleteContainerRegistryRepositoryResponse,
+                rawResponse: _response.rawResponse,
+            };
         }
 
         if (_response.error.reason === "status-code") {
@@ -1838,14 +1844,14 @@ export class ContainerRegistryClient {
     public deleteContainerRegistryArtifact(
         request: Ibee.DeleteContainerRegistryArtifactRequest,
         requestOptions?: ContainerRegistryClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.ContainerRegistryMessage> {
+    ): core.HttpResponsePromise<Ibee.DeleteContainerRegistryArtifactResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteContainerRegistryArtifact(request, requestOptions));
     }
 
     private async __deleteContainerRegistryArtifact(
         request: Ibee.DeleteContainerRegistryArtifactRequest,
         requestOptions?: ContainerRegistryClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.ContainerRegistryMessage>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteContainerRegistryArtifactResponse>> {
         const {
             registry_id: registryId,
             reference,
@@ -1881,7 +1887,10 @@ export class ContainerRegistryClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.ContainerRegistryMessage, rawResponse: _response.rawResponse };
+            return {
+                data: _response.body as Ibee.DeleteContainerRegistryArtifactResponse,
+                rawResponse: _response.rawResponse,
+            };
         }
 
         if (_response.error.reason === "status-code") {

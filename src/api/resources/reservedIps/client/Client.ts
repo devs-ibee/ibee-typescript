@@ -475,14 +475,14 @@ export class ReservedIpsClient {
     public releaseReservedIp(
         request: Ibee.ReleaseReservedIpRequest,
         requestOptions?: ReservedIpsClient.RequestOptions,
-    ): core.HttpResponsePromise<void> {
+    ): core.HttpResponsePromise<Ibee.DeleteResult> {
         return core.HttpResponsePromise.fromPromise(this.__releaseReservedIp(request, requestOptions));
     }
 
     private async __releaseReservedIp(
         request: Ibee.ReleaseReservedIpRequest,
         requestOptions?: ReservedIpsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<void>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteResult>> {
         const { reserved_ip_id: reservedIpId, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -510,7 +510,7 @@ export class ReservedIpsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: undefined, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteResult, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {

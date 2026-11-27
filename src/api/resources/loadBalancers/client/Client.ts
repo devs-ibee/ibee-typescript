@@ -614,14 +614,14 @@ export class LoadBalancersClient {
     public deleteLoadBalancer(
         request: Ibee.DeleteLoadBalancerRequest,
         requestOptions?: LoadBalancersClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.LoadBalancerOperation> {
+    ): core.HttpResponsePromise<Ibee.DeleteLoadBalancerResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteLoadBalancer(request, requestOptions));
     }
 
     private async __deleteLoadBalancer(
         request: Ibee.DeleteLoadBalancerRequest,
         requestOptions?: LoadBalancersClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.LoadBalancerOperation>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteLoadBalancerResponse>> {
         const {
             load_balancer_id: loadBalancerId,
             workspace_id: workspaceId,
@@ -654,7 +654,7 @@ export class LoadBalancersClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.LoadBalancerOperation, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteLoadBalancerResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {

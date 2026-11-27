@@ -360,14 +360,14 @@ export class FirewallsClient {
     public deleteFirewallGroup(
         request: Ibee.DeleteFirewallGroupRequest,
         requestOptions?: FirewallsClient.RequestOptions,
-    ): core.HttpResponsePromise<void> {
+    ): core.HttpResponsePromise<Ibee.DeleteResult> {
         return core.HttpResponsePromise.fromPromise(this.__deleteFirewallGroup(request, requestOptions));
     }
 
     private async __deleteFirewallGroup(
         request: Ibee.DeleteFirewallGroupRequest,
         requestOptions?: FirewallsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<void>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteResult>> {
         const { firewall_group_id: firewallGroupId, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -395,7 +395,7 @@ export class FirewallsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: undefined, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteResult, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -582,14 +582,14 @@ export class FirewallsClient {
     public deleteFirewallRule(
         request: Ibee.DeleteFirewallRuleRequest,
         requestOptions?: FirewallsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.FirewallGroup> {
+    ): core.HttpResponsePromise<Ibee.DeleteFirewallRuleResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteFirewallRule(request, requestOptions));
     }
 
     private async __deleteFirewallRule(
         request: Ibee.DeleteFirewallRuleRequest,
         requestOptions?: FirewallsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.FirewallGroup>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteFirewallRuleResponse>> {
         const {
             firewall_group_id: firewallGroupId,
             firewall_rule_id: firewallRuleId,
@@ -621,7 +621,7 @@ export class FirewallsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.FirewallGroup, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteFirewallRuleResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -1029,14 +1029,14 @@ export class FirewallsClient {
     public detachFirewallGroup(
         request: Ibee.DetachFirewallGroupRequest,
         requestOptions?: FirewallsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.FirewallGroup> {
+    ): core.HttpResponsePromise<Ibee.DetachFirewallGroupResponse> {
         return core.HttpResponsePromise.fromPromise(this.__detachFirewallGroup(request, requestOptions));
     }
 
     private async __detachFirewallGroup(
         request: Ibee.DetachFirewallGroupRequest,
         requestOptions?: FirewallsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.FirewallGroup>> {
+    ): Promise<core.WithRawResponse<Ibee.DetachFirewallGroupResponse>> {
         const { firewall_group_id: firewallGroupId, vm_id: vmId, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -1064,7 +1064,7 @@ export class FirewallsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.FirewallGroup, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DetachFirewallGroupResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {

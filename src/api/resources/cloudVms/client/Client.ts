@@ -392,14 +392,14 @@ export class CloudVmsClient {
     public deleteCloudVm(
         request: Ibee.DeleteCloudVmRequest,
         requestOptions?: CloudVmsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.OperationAccepted> {
+    ): core.HttpResponsePromise<Ibee.DeleteCloudVmResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteCloudVm(request, requestOptions));
     }
 
     private async __deleteCloudVm(
         request: Ibee.DeleteCloudVmRequest,
         requestOptions?: CloudVmsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.OperationAccepted>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteCloudVmResponse>> {
         const { vm_id: vmId, workspace_id: workspaceId, "X-Idempotency-Key": idempotencyKey, body: _body } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -431,7 +431,7 @@ export class CloudVmsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.OperationAccepted, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteCloudVmResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -2417,14 +2417,14 @@ export class CloudVmsClient {
     public deleteCloudVmSnapshot(
         request: Ibee.DeleteCloudVmSnapshotRequest,
         requestOptions?: CloudVmsClient.RequestOptions,
-    ): core.HttpResponsePromise<Ibee.SnapshotDeleteResult> {
+    ): core.HttpResponsePromise<Ibee.DeleteCloudVmSnapshotResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteCloudVmSnapshot(request, requestOptions));
     }
 
     private async __deleteCloudVmSnapshot(
         request: Ibee.DeleteCloudVmSnapshotRequest,
         requestOptions?: CloudVmsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Ibee.SnapshotDeleteResult>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteCloudVmSnapshotResponse>> {
         const { snapshot_set_id: snapshotSetId, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -2452,7 +2452,7 @@ export class CloudVmsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Ibee.SnapshotDeleteResult, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteCloudVmSnapshotResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {

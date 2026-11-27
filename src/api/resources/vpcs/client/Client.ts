@@ -449,14 +449,14 @@ export class VpcsClient {
     public deleteVpc(
         request: Ibee.DeleteVpcRequest,
         requestOptions?: VpcsClient.RequestOptions,
-    ): core.HttpResponsePromise<void> {
+    ): core.HttpResponsePromise<Ibee.DeleteResult> {
         return core.HttpResponsePromise.fromPromise(this.__deleteVpc(request, requestOptions));
     }
 
     private async __deleteVpc(
         request: Ibee.DeleteVpcRequest,
         requestOptions?: VpcsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<void>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteResult>> {
         const { vpc_id: vpcId, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -484,7 +484,7 @@ export class VpcsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: undefined, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteResult, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -988,14 +988,14 @@ export class VpcsClient {
     public deleteVpcSubnet(
         request: Ibee.DeleteVpcSubnetRequest,
         requestOptions?: VpcsClient.RequestOptions,
-    ): core.HttpResponsePromise<void> {
+    ): core.HttpResponsePromise<Ibee.DeleteResult> {
         return core.HttpResponsePromise.fromPromise(this.__deleteVpcSubnet(request, requestOptions));
     }
 
     private async __deleteVpcSubnet(
         request: Ibee.DeleteVpcSubnetRequest,
         requestOptions?: VpcsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<void>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteResult>> {
         const { vpc_id: vpcId, subnet_id: subnetId, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -1023,7 +1023,7 @@ export class VpcsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: undefined, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteResult, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -1314,14 +1314,14 @@ export class VpcsClient {
     public detachVpcNode(
         request: Ibee.DetachVpcNodeRequest,
         requestOptions?: VpcsClient.RequestOptions,
-    ): core.HttpResponsePromise<void> {
+    ): core.HttpResponsePromise<Ibee.DeleteResult> {
         return core.HttpResponsePromise.fromPromise(this.__detachVpcNode(request, requestOptions));
     }
 
     private async __detachVpcNode(
         request: Ibee.DetachVpcNodeRequest,
         requestOptions?: VpcsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<void>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteResult>> {
         const { vpc_id: vpcId, vm_id: vmId, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -1349,7 +1349,7 @@ export class VpcsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: undefined, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteResult, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -1641,14 +1641,14 @@ export class VpcsClient {
     public deleteNatGateway(
         request: Ibee.NatGatewayDeleteRequest,
         requestOptions?: VpcsClient.RequestOptions,
-    ): core.HttpResponsePromise<void> {
+    ): core.HttpResponsePromise<Ibee.DeleteResult> {
         return core.HttpResponsePromise.fromPromise(this.__deleteNatGateway(request, requestOptions));
     }
 
     private async __deleteNatGateway(
         request: Ibee.NatGatewayDeleteRequest,
         requestOptions?: VpcsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<void>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteResult>> {
         const { vpc_id: vpcId, nat_gateway_id: natGatewayId, workspace_id: workspaceId, ..._body } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -1679,7 +1679,7 @@ export class VpcsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: undefined, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteResult, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -2101,14 +2101,14 @@ export class VpcsClient {
     public deleteNatPortForwardingRule(
         request: Ibee.DeleteNatPortForwardingRuleRequest,
         requestOptions?: VpcsClient.RequestOptions,
-    ): core.HttpResponsePromise<void> {
+    ): core.HttpResponsePromise<Ibee.DeleteResult> {
         return core.HttpResponsePromise.fromPromise(this.__deleteNatPortForwardingRule(request, requestOptions));
     }
 
     private async __deleteNatPortForwardingRule(
         request: Ibee.DeleteNatPortForwardingRuleRequest,
         requestOptions?: VpcsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<void>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteResult>> {
         const {
             vpc_id: vpcId,
             nat_gateway_id: natGatewayId,
@@ -2141,7 +2141,7 @@ export class VpcsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: undefined, rawResponse: _response.rawResponse };
+            return { data: _response.body as Ibee.DeleteResult, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {

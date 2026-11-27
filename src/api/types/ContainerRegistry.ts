@@ -29,6 +29,14 @@ export interface ContainerRegistry {
     generation: number;
     /** The last generation applied; equal to `generation` when settled. */
     observed_generation: number;
+    /**
+     * How the latest change is being applied. The registry is still updating while `generation` is greater than `observed_generation`; this field tells a slow update from a stopped one.
+     * - `PENDING` or `PROCESSING`: the change is still being applied. Keep polling.
+     * - `COMPLETE`: the last change was applied.
+     * - `FAILED`: the service stopped retrying the latest change. The registry keeps serving with its previous settings. Retry with `POST /container-registry/registries/{registry_id}/reconcile`, or send the change again.
+     * - `null`: no reconciliation record (rare, for example a very old registry).
+     */
+    reconciliation_status?: (Ibee.ContainerRegistryJobStatus | null) | undefined;
     /** When the registry was created (ISO 8601). */
     created_at: string;
     /** When the registry was last changed (ISO 8601). */

@@ -123,7 +123,7 @@ export class SecretManagerClient {
     }
 
     /**
-     * Enables Secret Manager for the workspace. Answers 202 with an operation to read with getSecretManagerOperation. Billing can refuse it (403 billing_denied). Requires scope: secret-manager.write.
+     * Enables Secret Manager for the workspace. Answers 202 with an operation to read with getSecretManagerOperation. Billing can refuse it (402 billing_denied, with billing_reason). Requires scope: secret-manager.write.
      *
      * @param {Ibee.SecretManagerWorkspaceEnable} request
      * @param {SecretManagerClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -969,14 +969,14 @@ export class SecretManagerClient {
     public deleteSecretManagerSecret(
         request: Ibee.DeleteSecretManagerSecretRequest,
         requestOptions?: SecretManagerClient.RequestOptions,
-    ): core.HttpResponsePromise<Record<string, unknown>> {
+    ): core.HttpResponsePromise<Ibee.DeleteSecretManagerSecretResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteSecretManagerSecret(request, requestOptions));
     }
 
     private async __deleteSecretManagerSecret(
         request: Ibee.DeleteSecretManagerSecretRequest,
         requestOptions?: SecretManagerClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Record<string, unknown>>> {
+    ): Promise<core.WithRawResponse<Ibee.DeleteSecretManagerSecretResponse>> {
         const { secret_path: secretPath, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -1004,7 +1004,10 @@ export class SecretManagerClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Record<string, unknown>, rawResponse: _response.rawResponse };
+            return {
+                data: _response.body as Ibee.DeleteSecretManagerSecretResponse,
+                rawResponse: _response.rawResponse,
+            };
         }
 
         if (_response.error.reason === "status-code") {
@@ -1814,14 +1817,14 @@ export class SecretManagerClient {
     public revokeSecretManagerAppCredential(
         request: Ibee.RevokeSecretManagerAppCredentialRequest,
         requestOptions?: SecretManagerClient.RequestOptions,
-    ): core.HttpResponsePromise<Record<string, unknown>> {
+    ): core.HttpResponsePromise<Ibee.RevokeSecretManagerAppCredentialResponse> {
         return core.HttpResponsePromise.fromPromise(this.__revokeSecretManagerAppCredential(request, requestOptions));
     }
 
     private async __revokeSecretManagerAppCredential(
         request: Ibee.RevokeSecretManagerAppCredentialRequest,
         requestOptions?: SecretManagerClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Record<string, unknown>>> {
+    ): Promise<core.WithRawResponse<Ibee.RevokeSecretManagerAppCredentialResponse>> {
         const { credential_id: credentialId, workspace_id: workspaceId } = request;
         const _queryParams: Record<string, unknown> = {
             workspace_id: workspaceId,
@@ -1849,7 +1852,10 @@ export class SecretManagerClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as Record<string, unknown>, rawResponse: _response.rawResponse };
+            return {
+                data: _response.body as Ibee.RevokeSecretManagerAppCredentialResponse,
+                rawResponse: _response.rawResponse,
+            };
         }
 
         if (_response.error.reason === "status-code") {

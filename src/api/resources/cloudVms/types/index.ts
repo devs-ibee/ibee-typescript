@@ -1,4 +1,6 @@
 export * from "./DeleteCloudVmBackupRunResponse.js";
+export * from "./DeleteCloudVmResponse.js";
+export * from "./DeleteCloudVmSnapshotResponse.js";
 export * from "./GetCloudVmMetricsTimeseriesRequestRange.js";
 export * from "./ListCloudVmsRequestSortBy.js";
 export * from "./ListCloudVmsRequestSortDirection.js";
